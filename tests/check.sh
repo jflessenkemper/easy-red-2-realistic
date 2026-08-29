@@ -92,6 +92,13 @@ done
 [ -z "$fill_bad" ] && ok "no fill-style API called with an empty argument list" \
                    || bad "called with NO table argument:$fill_bad"
 
+echo "== 4c. Every project helper called is defined in the same file =="
+# safe() was called 4x in the phase script while defined only in the brain. A nil-global call
+# RAISES, the enclosing pcall swallows it, and the feature silently never runs. luajit cannot see
+# it - it is a runtime lookup. Cost two game restarts to find.
+python3 tests/undefined_helpers.py "$BRAIN" "$PHASE"
+[ $? -eq 0 ] && PASS=$((PASS+1)) || FAIL=$((FAIL+1))
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then

@@ -40,6 +40,8 @@ local FIRE_MAX         = 3    -- accepted fire missions per phase
 local PROBE_GLOBALS    = true -- one-shot diagnostic: is `global` shared brain <-> phase?
 local PROBE_EVERY      = 30   -- cycles between gprobe lines (never per tick)
 local fireTick         = 0
+local ROLE_REFRESH     = 5    -- loop cycles between role-cache refresh passes
+local ROLE_REFRESH_MAX = 60   -- soldiers re-checked per pass, so one pass is never a spike
 local FIRE_SHELLS_TICK = 3    -- hard cap on shells fired in one 1 s cycle (the loop paces the barrage)
 
 -- Crew bail-out (feature 18) — phase half.
@@ -51,6 +53,11 @@ local BAIL_QUEUE_MAX  = 24    -- queued wrecks; further events are dropped rathe
 --========================== HELPERS =========================================
 local function dbg(m) if DEBUG then log("[EVENTS] "..m) end end
 local function safeGet(fn) local ok, v = pcall(fn); if ok then return v end return nil end
+-- safe(): run a VOID call, return whether it succeeded. Distinct from safeGet, which returns the
+-- VALUE. This was used four times before it existed — a nil global, so every call raised and the
+-- enclosing pcall swallowed it. That silently disabled the role refresher, both speaker-election
+-- paths of the death callout, AND the say() itself. Nothing errored; the feature just never fired.
+local function safe(fn) local ok = pcall(fn); return ok end
 local function announce(m) log("[EVENTS] "..m); pcall(function() print(m) end) end  -- on-screen + log
 local function logonly(m) if DEBUG then log("[EVENTS] "..m) end end                 -- log only
 local function now() return safeGet(function() return er2.time() end) or 0 end
@@ -292,6 +299,12 @@ end
 -- which a spawner field set once would miss. Set to nil to disable.
 local AUTO_ATTACH_BRAIN = "Realistic.lua"
 local attached = 0
+-- Role cache, keyed by uid. NOT trustworthy at spawn: getSquad()/isSquadLeader() are nil for
+-- the first seconds of a soldier's life (the same bootstrap race the brain works around with
+-- SQUAD_RETRY). Capturing at attachBrain therefore records "rifleman" for EVERYONE — measured:
+-- 80 deaths, 80 skips, every one role=rifleman, zero leaders across a whole battle.
+-- So the cache is REFRESHED from the 1 s loop until each man resolves to a real role; only the
+-- still-ambiguous "rifleman" entries are re-checked, so the work converges and then stops.
 -- Role captured at SPAWN, keyed by uid. Native role flags are read here, while the soldier is
 -- alive and fully constructed; reading them off a corpse inside soldier_died is not dependable,
 -- and a wrong "rifleman" answer suppresses the callout silently with no error to show for it.
@@ -853,6 +866,30 @@ end)
 
 -- ONE 1 s step of the fire-mission state machine. No coroutine and no sleep(): the main loop
 -- already sleeps 1 s, so the barrage is paced off er2.time() instead of off its own stack.
+-- Re-read the role of everyone still cached as the ambiguous default. A soldier's squad (and
+-- therefore isSquadLeader) resolves a few seconds after spawn, so the value captured at
+-- attachBrain is wrong for leaders, gunners and radiomen. Bounded per pass and self-limiting:
+-- once a man resolves to a real role he is never re-checked.
+local roleScan = 0
+local function refreshRoles()
+    local sol = {}
+    if not safe(function() er2.getAllSoldiers(sol) end) then return end
+    local n, seen = 0, 0
+    for _, s in pairs(sol) do
+        if n >= ROLE_REFRESH_MAX then break end
+        seen = seen + 1
+        if seen > roleScan then
+            local suid = safeGet(function() return s.getUniqueId() end)
+            if suid and (roleAtSpawn[suid] == nil or roleAtSpawn[suid] == "rifleman") then
+                local r = roleOf(s)
+                if r ~= "rifleman" then roleAtSpawn[suid] = r end
+                n = n + 1
+            end
+        end
+    end
+    roleScan = (seen > roleScan + ROLE_REFRESH_MAX) and (roleScan + ROLE_REFRESH_MAX) or 0
+end
+
 local function fireMissionStep()
     local t = now()
 
@@ -959,6 +996,7 @@ while true do
 
     -- (c) radioman fire mission — one step of the state machine. No coroutine: the loop already
     -- sleeps 1 s, which is the only clock the barrage needs.
+    if (tick % ROLE_REFRESH) == 0 then pcall(refreshRoles) end
     pcall(fireMissionStep)
 
     if battleOver then break end
