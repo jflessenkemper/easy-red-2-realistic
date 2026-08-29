@@ -80,6 +80,18 @@ else
   ok "no degenerate uid % N split"
 fi
 
+echo "== 4b. Fill-style APIs are called WITH a table argument =="
+# These engine calls FILL a caller-supplied table and return nothing useful. Calling them with no
+# argument throws "Expected a table as Nth parameter" on EVERY invocation - getAllMembers() was
+# called bare in two per-tick paths and produced 279 errors in a single battle.
+fill_bad=""
+for fn in getAllMembers getSoldiersInArea getVehiclesInArea; do
+  if strip "$BRAIN" | grep -qE "$fn\s*\(\s*\)"; then fill_bad="$fill_bad $fn"; fi
+  if strip "$PHASE" | grep -qE "$fn\s*\(\s*\)"; then fill_bad="$fill_bad $fn(phase)"; fi
+done
+[ -z "$fill_bad" ] && ok "no fill-style API called with an empty argument list" \
+                   || bad "called with NO table argument:$fill_bad"
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then

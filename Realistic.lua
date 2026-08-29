@@ -681,8 +681,11 @@ end
 local function boundTeam()
     local idx
     if mySquad then
-        local members = safeGet(function() return mySquad.getAllMembers() end)
-        if type(members) == "table" then
+        -- getAllMembers FILLS a caller-supplied table (verified-api.md: "getAllMembers(t)
+        -- FILLED 2 members"), exactly like getSoldiersInArea. Calling it with no argument
+        -- throws "Expected a table as 1st parameter" - 279 errors in one battle.
+        local members = {}
+        if safe(function() mySquad.getAllMembers(members) end) then
             local i = 0
             for _, m in pairs(members) do
                 i = i + 1
@@ -702,8 +705,9 @@ end
 -- a proximity election) is a real per-tick cost for a rare event.
 local function iAmNearestTo(pos, casP)
     if not mySquad then return false end
-    local members = safeGet(function() return mySquad.getAllMembers() end)
-    if type(members) ~= "table" then return false end
+    -- FILLS the table; see the note in boundTeam(). Never call this with no argument.
+    local members = {}
+    if not safe(function() mySquad.getAllMembers(members) end) then return false end
     local myD = distance(pos, casP)
     for _, m in pairs(members) do
         if m then
