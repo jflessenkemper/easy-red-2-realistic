@@ -102,6 +102,10 @@ local DRAG_MAX_TIME  = 12     -- s — hard ceiling on one drag attempt, then ab
 local CARRY_MAX_TRIES = 3     -- attempts before this soldier gives up dragging entirely
 local CARRY_ADJACENT = 3      -- m — close enough to attempt the pick-up
 -- Bounding overwatch: one half of the squad moves while the other half watches and fires.
+-- Consolidation. An attacker standing on the objective has nothing left to march to; ordering
+-- him to a point he occupies makes him log ROAD-MARCH forever while stationary. Digging in to
+-- face the counter-attack is also what he should be doing.
+local ARRIVE_RADIUS  = 30     -- m from the objective at which an attacker consolidates
 local BOUND_PERIOD   = 8      -- s per bound before the halves swap
 local BOUND_STEP     = 20     -- m covered by one bound
 local STALL_DIST     = 15     -- m — moved less than this in STALL_WINDOW counts as stalled
@@ -1094,6 +1098,22 @@ while true do
                 releaseToBaseAI()                  -- let base AI pick defensive positions
                 takeCover(pos, now)
                 decision, detail = "DEFEND-hold", (obj and ("obj d="..string.format("%.0f", d)) or "")
+            elseif obj and distance(pos, obj) <= ARRIVE_RADIUS then
+                -- ARRIVED. He is standing on the objective, so there is nothing left to march to.
+                -- Without this he keeps being ordered to a point he already occupies and keeps
+                -- logging ROAD-MARCH while stationary. MEASURED 2026-08-29: six attackers marched
+                -- 128-283 m and closed to 0-2 m of the objective, then sat there still labelled
+                -- ROAD-MARCH, which dragged the pooled march speed down to 0.32 m/s and read as
+                -- "not moving" — a real behaviour bug that the metric had made look like a
+                -- measurement bug.
+                -- Consolidating on a captured position (dig in, face the counter-attack) is also
+                -- what the men should actually be doing, so this fixes the behaviour and the
+                -- number together.
+                releaseToBaseAI()
+                takeCover(pos, now)
+                decision, detail = "CONSOLIDATE",
+                    "obj d="..string.format("%.0f", distance(pos, obj))
+
             else
                 local far = obj and distance(pos, obj) > REBOARD_MIN_DIST
                 local reused = far and reuseTransport(pos, now) or nil

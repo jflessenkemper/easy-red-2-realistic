@@ -83,6 +83,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | 3 | **Pinned reaction** — go to ground and scream when the engine itself says he is suppressed | ✅ | native `isSuppressed()` (**primary**) · or ≥`PINNED_ENEMIES` within `PINNED_RADIUS` (secondary) | `isSuppressed`, `findCover`, `say`, `allowFindCoverWhenSuppressed` | `PINNED` |
 | 4 | **Bounding overwatch** — half the squad moves while the other half watches and fires, swapping every bound | 🔧 | attacker · threatened · morale ≥ `moraleFloor` · not MG/mortar/medic/leader/AT | `Squad.getAllMembers` splits the REAL roster by index; a shared wall clock picks the phase, so the halves alternate with zero messaging. `uid` parity is only the fallback when a squad will not resolve | `BOUND-move`, `BOUND-move-cover`, `BOUND-overwatch` |
 | 5 | **Advance behind armour** — keep a friendly *armoured* hull between yourself and the enemy | ✅ | **attacker only** (see §7 — defenders ignore `moveTo`) · friendly vehicle within `ARMOUR_SCAN` that passes the `ARMOUR_ALLOW`/`ARMOUR_DENY` name filter, is not destroyed and is not artillery | `getVehiclesInArea`, `Vehicle.getName`, `isDestroyed`, `isArtilleryVehicle`, `moveTo` | `ADVANCE-behind-armour` |
+| 5b | **Consolidate on a captured objective** — an attacker who has arrived digs in instead of marching on the spot | ✅ | attacker · no contact · objective within `ARRIVE_RADIUS` | `releaseToBaseAI`, `findCover` | `CONSOLIDATE` |
 | 6 | **Defenders hold their line** — a defender **never** receives a move order, at any range | ✅ | defender · no contact | `findCover`, `releaseToBaseAI` | `DEFEND-hold` |
 | 7 | **Transport reuse** — remount the truck you rode in instead of abandoning it | 🔧 | see §1.7 | `findVehicle`, `boardVehicle`, `moveTo` | `RETURN-to-transport`, `REBOARD-transport` |
 
@@ -227,6 +228,7 @@ a higher branch silently consumed the only conditions under which a lower one co
 9  NO CONTACT                                                    -> sub-cascade:
      a  DEFEND-hold                    defender - ALWAYS holds; never gets a move order
      b  RETURN-/REBOARD-transport      attacker, suitability rule met (§1.7)
+     b2 CONSOLIDATE                   attacker within ARRIVE_RADIUS of the objective
      c  RALLY-on-MG                    attacker, mgCentric, gun > MG_COHESION away
      d  ROAD-MARCH                     attacker with an objective
      d  ADVANCE-baseAI                 no objective visible
@@ -305,6 +307,7 @@ Every constant below exists in the source. Nothing is listed here that the code 
 | `ARMOUR_SCAN` | 45 m | friendly-vehicle scan radius |
 | `AT_RANGE` | 120 m | how far an AT man will acquire an enemy vehicle |
 | `AT_EFFECTIVE` | 60 m | inside this he stops closing and shoots (`AT-hunt`); beyond it he closes by covered bounds (`AT-stalk`) |
+| `ARRIVE_RADIUS` | 30 m | distance from the objective at which an attacker stops marching and consolidates |
 | `ARMOUR_HUG` | 10 m | stand-off behind the hull, enemy-opposite side |
 | `REUSE_TRANSPORT` | true | master switch for §1.7 |
 | `REBOARD_MIN_DIST` | 120 m | objective must be at least this far to bother |
