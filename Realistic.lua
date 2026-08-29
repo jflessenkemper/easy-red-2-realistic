@@ -336,11 +336,15 @@ else               override = global.get("realistic_nation_defenders") end
 local myNation = override or nationFromFaction(myFaction) or "default"
 local DOC = DOCTRINE[myNation] or DOCTRINE_DEFAULT
 
--- AiParams resolved ONCE, getter-first (the .aiParams PROPERTY throws on v2.0.9; the
--- getter works — BENCH: "me.getAiParams() = ok"). Route every toggle through aiSet():
--- silent no-op if the member is unavailable, idempotent so re-setting a held value is free.
+-- AiParams resolved ONCE via the GETTER ONLY (BENCH: "me.getAiParams() = ok").
+-- There used to be an `or safeGet(function() return me.aiParams end)` fallback here. The
+-- PROPERTY form throws on v2.0.9 and is what produced 20,689 errors in one battle; the fallback
+-- was dormant only because the getter always wins, so it was a landmine waiting for a build
+-- where the getter is missing — on which it would fire once per soldier. Removed rather than
+-- kept guarded: there is no build where the property is the right answer.
+-- Route every toggle through aiSet(): silent no-op if the member is unavailable, idempotent so
+-- re-setting a held value is free.
 local AIP = safeGet(function() return me.getAiParams() end)
-         or safeGet(function() return me.aiParams end)
 local AIP_DEAD, AIP_STATE = {}, {}
 local function aiSet(name, value)
     if not AIP or AIP_DEAD[name] then return false end
