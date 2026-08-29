@@ -94,7 +94,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | 8 | **Per-nation doctrine** — 10 nations, each with its own morale, aggression, assault range, MG-centricity and cover discipline | ✅ | nation parsed from the soldier's own faction string | doctrine table | line prefix `germany/…` |
 | 9 | **MG-centric cohesion** — in armies built around the LMG, riflemen cohere on the Support gunner **while moving up**, not under fire | ✅ | **no contact** · attacker · mgCentric doctrine · gun >`MG_COHESION` away | `moveTo` | `RALLY-on-MG` |
 | 10 | **Close assault** — aggressive, steady doctrines close and finish it | ✅ | threatened · enemy centroid within `assaultRange` · `aggression` ≥ `ASSAULT_MIN_AGGR` · forceRatio ≥ `moraleFloor + ASSAULT_MARGIN` · aggression roll · **not** MG/mortar/medic/leader | `moveTo`, `findCover`, `say` | `ASSAULT`, `ASSAULT-cover` |
-| 11 | **AT teams hunt armour** — anti-tank men acquire and engage enemy *vehicles*, and are excluded from the close assault so the battalion's only anti-tank capability is never spent charging infantry | 🔧 | native `isATSoldier()` · live enemy vehicle within `AT_RANGE`. Evaluated **above** ASSAULT. Issues **no `moveTo`**, so it works identically for defenders | `getVehiclesInArea`, `isDestroyed`, `forceTarget` (guarded — see §7), `alertFor`, `findCover`, `say` | `AT-stalk` (>`AT_EFFECTIVE`), `AT-hunt` (within) |
+| 11 | **AT teams hunt armour** — anti-tank men acquire and engage enemy *vehicles*, and are excluded from the close assault so the battalion's only anti-tank capability is never spent charging infantry | ✅ **observed: AT-stalk 188 / AT-hunt 118** | native `isATSoldier()` · live enemy vehicle within `AT_RANGE`. Evaluated **above** ASSAULT. Issues **no `moveTo`**, so it works identically for defenders | `getVehiclesInArea`, `isDestroyed`, `forceTarget` (guarded — see §7), `alertFor`, `findCover`, `say` | `AT-stalk` (>`AT_EFFECTIVE`), `AT-hunt` (within) |
 | 12 | **Support weapons hold fire positions** — the LMG/mortar *is* the base of fire; it never rushes | ✅ | class Support/mortar · threatened | `findCover`, `say` | `SUPPORT-hold-fire` |
 | 13 | **Cover discipline** — per-nation probability that the assault bound routes via cover instead of straight at the enemy | ✅ | wired into #10: `math.random() < coverDiscipline` picks `findCover` one `ASSAULT_BOUND` toward the enemy instead of `moveTo` | `findCover` vs `moveTo` | `ASSAULT-cover` |
 
@@ -482,7 +482,7 @@ Set `VERBOSE = true` for verification runs only; return it to `false` afterwards
 | 1 | Road march | `ROAD-MARCH`, `obj d=` falling | present; distance closing for the majority |
 | 2 | Cover | `FIGHT-from-cover` | present; median path < 10 m |
 | 3 | Pinned | `PINNED`, detail `suppressed` vs `nec=N` | present; median path < 10 m. **`suppressed` should dominate** — if it is rare, `isSuppressed()` is not reporting and the branch has silently reverted to the old proximity proxy |
-| 4 | Bounding | `BOUND-move*` : `BOUND-overwatch` ≈ **1:1** (the halves alternate) | 🔧 implemented; attacker-only, so absent on a defence-only sample |
+| 4 | Bounding | `BOUND-move*` : `BOUND-overwatch` ≈ **1:1** (the halves alternate) | ✅ **measured 216 : 154** (~1.4:1); attacker-only, so absent on a defence-only sample |
 | 5 | Armour advance | `ADVANCE-behind-armour` | present when friendly armour is on the field; `armour filter: unclassified '<name>'` used to tune the lists (see the blind spot in §7) |
 | 6 | Defender hold | `DEFEND-hold` | present; median path < 10 m |
 | 7 | Transport reuse | `REBOARD-transport` | present on a road-march map; **absent** at Donchery (correct) |
@@ -495,7 +495,7 @@ Set `VERBOSE = true` for verification runs only; return it to `false` afterwards
 | 14 | Rout | `ROUT`, then `ROUT-cover` ~3 s later | 1–4% of decisions, concentrated in losing squads (was 0). Every `ROUT` should be followed by a `ROUT-cover` for the same uid |
 | 15 | Leader | `LEADER-cover` | present (was 0 before the `isSquadReady` fix); must **not** regress now that ASSAULT is hoisted — leaders are excluded from it |
 | 16 | Medic | `MEDIC-sortie` | tens per battle (was 0) |
-| 17 | Wounded drag | `DRAG-approach` → `DRAG-pickup` → `DRAG-to-cover`; `DRAG-abandon` should be rare. Needs casualties with no enemy inside `PINNED_RADIUS`, so it is scenario-dependent | 🔧 implemented, not yet observed |
+| 17 | Wounded drag | `DRAG-approach` → `DRAG-pickup` → `DRAG-to-cover`; `DRAG-abandon` should be rare. Needs casualties with no enemy inside `PINNED_RADIUS`, so it is scenario-dependent | ✅ **observed: approach 64 / pickup 9 / to-cover 16 / abandon 9** |
 | 18 | Crew bail | `bail-out: N crew left vehicle … via kickEveryoneOut/leaveVehicle` | present after a vehicle is destroyed; `dropped N queued wreck(s)` should be rare (raise `BAIL_PER_TICK` if not) |
 | 19 | Radioman | `RADIO-fire-mission …` | **consumer only**: with no brain-side producer, expect lines only from scripted `FIRE_SUPPORT_TARGETS`. Danger-close and cooldown refusals present and correct when exercised |
 | 20 | Attraction | `invAttract=false` on a held objective | appears once obj1 is held and another is not (was never — the one-pass `allHeld` bug) |
