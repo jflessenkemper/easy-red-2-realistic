@@ -377,6 +377,10 @@ else
     dbg("aiParams unavailable — running sense/override only")
 end
 local sqSize = mySquad and safeGet(function() return mySquad.getSquadSize() end) or nil
+-- CROSS-CONTEXT PROBE: write a known integer the phase script can look for. If the phase
+-- never sees it, `global` is not shared between a brain and the master-client phase script,
+-- which would make the whole RQ_* fire-mission protocol a no-op. Integer only.
+safe(function() global.set(4242, "PROBE_B2P") end)
 dbg(string.format("ONLINE #%s %s/%s class='%s' faction=%s %s aiParams=%s squad=%s size=%s",
     tostring(uid), myNation, roleTag, myClass, tostring(myFaction),
     DOC.mgCentric and "[MG-centric]" or "[rifle-centric]", AIP and "ok" or "MISSING",

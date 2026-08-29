@@ -386,3 +386,25 @@ These are language-proof and mod-proof, unlike substring matching on getClassNam
 had an ordering hazard: isCrew matched "tank" and would swallow a "Tank Hunter" class).
 ACTION: switch isMG/isMortar/isMedic/isAT/isRadio/isLeader detection to the native flags;
 keep a getClassName fallback only for Support-gunner/mortar, which have no native flag.
+
+## 2026-08-29 — `global` IS shared between a brain and the phase script (PROVEN)
+
+**Question:** the brain (client-local, one Lua context per soldier) writes `global.set(...)`; the
+phase script runs on the MASTER CLIENT. Are those the same global store? The whole `RQ_*` integer
+fire-mission protocol (feature 19) depends on it, and it had never been proven.
+
+**Probe:** brain writes `global.set(4242, "PROBE_B2P")` once at boot; phase script logs what it
+reads every 30 loop cycles.
+
+```
+[EVENTS] gprobe: RQ_T=-1 PROBE_B2P=nil    <- immediately after phase load, no brain booted yet
+[EVENTS] gprobe: RQ_T=-1 PROBE_B2P=4242   <- after brains booted: the value IS visible
+```
+
+**CONFIRMED: shared.** A brain-written global is readable by the master-client phase script. The
+`RQ_*` protocol is architecturally sound. `RQ_T=-1` in both samples simply means no fire mission
+was pending at those instants — the consumer clears it within one cycle, so a 30-cycle sampler
+will almost never catch a live request.
+
+**Still integers/strings/booleans ONLY.** This says globals CROSS contexts; it does NOT relax the
+UserData ban, which is a separate and still-fatal rule.

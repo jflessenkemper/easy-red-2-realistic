@@ -61,6 +61,7 @@ implemented · **⛔** impossible on this build
 | 21 | Setup | Brain must be set per Squad Spawner | ✅ Attaches itself to every soldier, including reinforcements a spawner field would miss |
 | 22 | Kill feed | Team-wide feed | ✅ **Your squad only**, as `<name> (<role>) killed by <weapon>` — the weapon, never the killer. Nothing else is drawn on screen |
 | 23 | Battalion tally | — | ✅ Both sides' losses and live counts, to the log |
+| 23b | Squadmate deaths | No squad-level reaction | 🔧 **One** surviving squadmate calls it out — elected on the master client so a squad never yells over itself. Only for roles the engine has a clip for (radioman, MG gunner, leader); silent otherwise, because substituting a wrong line is worse than silence |
 | 24 | Voice | Engine chatter | ✅ 8 situational kinds wired to real branches — first contact, taking fire, being hit, panicking, retreating, charging, covering, tank spotted |
 
 ### Infrastructure

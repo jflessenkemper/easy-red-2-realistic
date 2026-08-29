@@ -117,6 +117,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | 21 | **Auto-attach brain** — no Brain field needed, covers reinforcements | ✅ | `soldier_spawned` + initial sweep | `setBrain`, `getAllSoldiers` | `brain attached to N` |
 | 22 | **Kill feed** — `<name> (<role>) killed by <weapon>`, scoped to the **player's own squad** | ✅ | death in scope (three tiers — see §1.8) | `soldier_died`, `getSquad`, `isPlayerInSquad`, `getAllMembers`, native role flags, `print` | on-screen |
 | 23 | **Battalion tally** — both sides' losses and live counts, log only | ✅ | every death + every cycle | `countAliveInvaders/Defenders` | `tally invaders:N` |
+| 23b | **Squadmate death callout** — ONE surviving squadmate reacts when a keyed man goes down | 🔧 | `soldier_died` on the master client, so the speaker is elected deterministically and a squad cannot produce a chorus. Nearest LIVING squadmate speaks; `CALLOUT_GAP` throttles a wipe. **Silent for roles the engine has no clip for** — see below | `getSquad`, `getAllMembers`, `isAlive`, `isIncapacitated`, `say(VoiceClip.X)` | `callout: <clip> (<role> down)` |
 | 24 | **Situational voice** — from the 52-clip built-in enum, 8 kinds wired | ✅ | per branch, `VOICE_COOLDOWN` per kind. `enemySpot` fires on **first contact** and re-arms when contact is fully broken; `hit` (`iVeBeenHit`) fires on any drop in `getHealth()` | `say(VoiceClip.X)` | `react:*` |
 
 ## 1.5 Infrastructure
@@ -128,6 +129,20 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | 27 | **Logging discipline** | ✅ | sampled + throttled per-tick lines, first-occurrence-only guard logs; `log()` costs ~1.1 KB + a managed stack walk per call. The sample is taken on `math.floor(uid/2) % DBG_SAMPLE` — **never** `uid % N` (see §5.4) |
 | 28 | **Native role flags** | ✅ | `isSquadLeader` / `isATSoldier` / `isMedic` / `isRadioman` / `isMarksman` replace all `getClassName` substring matching for those roles, in both scripts. Language- and mod-proof, and it removes a real ordering hazard (the old crew test matched `"tank"` and swallowed a *Tank Hunter*). `getClassName` survives **only** for the two jobs with no native flag — the Support (LMG) gunner and the mortar crew — plus the crew/pilot belt-and-braces test |
 | 29 | **Lazy squad resolution** | ✅ | `getSquad()` is re-attempted every `SQUAD_RETRY` ticks until it resolves, then cached in a **local upvalue** (a Squad is UserData — fatal in a global). Recovers the ~15% of soldiers whose squad is not ready inside the 3 s bootstrap poll; `isSquadLeader` and the role tag are recomputed when it lands |
+
+### Death callouts — what the engine actually provides
+
+The 52-clip `VoiceClip` enum contains exactly **four** death callouts, all role-specific:
+`radiomanIsDead`, `gunnerIsDead`, `commanderIsDead`, `driverIsDead`. There is **no generic
+"man down" clip and no grief clip** — `enemyDown` fires for killing an *enemy*, and `AAAAAH` is
+the agony scream of the man being hit, not a reaction to someone else dying.
+
+So feature 23b maps radioman → `radiomanIsDead`, Support/LMG gunner → `gunnerIsDead`, and squad
+leader → `commanderIsDead`. A **rifleman, medic, marksman, AT man or mortar crewman dying is
+silent**. That is deliberate: substituting an ill-fitting clip would be audibly wrong on every
+rifleman casualty, which is the majority of them, and wrong audio is worse than none.
+`driverIsDead` is unmapped because `roleOf()` cannot identify a driver and inferring one from a
+corpse's last vehicle is unreliable.
 
 ## 1.6 Not possible on this build ⛔
 
@@ -351,6 +366,7 @@ value of it made an ignored order work.
 | `FIRE_MIN_GAP` | 150 s | minimum gap between two *accepted* fire missions, phase-wide anti-spam |
 | `FIRE_MAX` | 3 | accepted fire missions per phase |
 | `FIRE_SHELLS_TICK` | 3 | hard cap on shells fired in one 1 s cycle; the loop paces the barrage off `er2.time()`, never a coroutine |
+| `CALLOUT_GAP` | 8 s | minimum gap between squadmate-death callouts, so a squad being wiped is not a chorus |
 | `BAIL_RADIUS` | 10 m | wreck-side scan radius, used only when the native crew query comes up empty |
 | `BAIL_ALERT` | 20 s | `alertFor()` applied to a crewman who has just bailed out |
 | `BAIL_PER_TICK` | 4 | wrecks processed per 1 s cycle — the **queue** is drained, never the callback |

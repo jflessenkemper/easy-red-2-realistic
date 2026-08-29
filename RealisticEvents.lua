@@ -37,6 +37,9 @@ local FEED_RADIUS     = 120   -- m
 local FIRE_DANGER_R    = 90   -- m, refuse the mission if ANY friendly of the requesting side is this close
 local FIRE_MIN_GAP     = 150  -- s, minimum gap between two accepted fire missions (phase-wide anti-spam)
 local FIRE_MAX         = 3    -- accepted fire missions per phase
+local PROBE_GLOBALS    = true -- one-shot diagnostic: is `global` shared brain <-> phase?
+local PROBE_EVERY      = 30   -- cycles between gprobe lines (never per tick)
+local fireTick         = 0
 local FIRE_SHELLS_TICK = 3    -- hard cap on shells fired in one 1 s cycle (the loop paces the barrage)
 
 -- Crew bail-out (feature 18) — phase half.
@@ -289,12 +292,20 @@ end
 -- which a spawner field set once would miss. Set to nil to disable.
 local AUTO_ATTACH_BRAIN = "Realistic.lua"
 local attached = 0
+-- Role captured at SPAWN, keyed by uid. Native role flags are read here, while the soldier is
+-- alive and fully constructed; reading them off a corpse inside soldier_died is not dependable,
+-- and a wrong "rifleman" answer suppresses the callout silently with no error to show for it.
+-- Strings and numbers only — never a Soldier handle (that would pin every corpse in the battle).
+local roleAtSpawn = {}
+
 local function attachBrain(s)
     if not (AUTO_ATTACH_BRAIN and s) then return end
     local ok = pcall(function() s.setBrain(AUTO_ATTACH_BRAIN) end)
     if not ok then ok = pcall(function() s:setBrain(AUTO_ATTACH_BRAIN) end) end
     if ok then
         attached = attached + 1
+        local suid = safeGet(function() return s.getUniqueId() end)
+        if suid then roleAtSpawn[suid] = roleOf(s) end
         if attached <= 3 or attached % 25 == 0 then
             dbg("brain attached to " .. attached .. " soldier(s)")
         end
@@ -436,6 +447,90 @@ local function probeApis()
     log("[BENCH] ===== PROBE COMPLETE =====")
 end
 
+--===================== SQUADMATE DEATH CALLOUT ==============================
+-- ONE surviving squadmate calls out when a keyed man goes down. Deliberately one, not all: this
+-- runs on the master client from the soldier_died event, so the speaker is elected deterministically
+-- and a squad cannot produce a chorus of overlapping lines.
+--
+-- The engine's 52-clip VoiceClip enum contains exactly FOUR death callouts and every one of them
+-- is role-specific: radiomanIsDead, gunnerIsDead, commanderIsDead, driverIsDead. There is NO
+-- generic "man down" and no grief clip — `enemyDown` is for killing an ENEMY, and `AAAAAH` is the
+-- agony scream of the man being hit, not a reaction to someone else's death.
+--
+-- So a rifleman, medic, marksman, AT man or mortar crewman dying produces SILENCE rather than a
+-- wrong line. Substituting an ill-fitting clip would be worse than saying nothing: it would be
+-- audibly incorrect on every rifleman casualty, which is most of them.
+-- `driverIsDead` is not mapped either — roleOf() cannot identify a driver, and guessing from a
+-- corpse's last vehicle is unreliable.
+local DEATH_CLIP = {
+    radioman = "radiomanIsDead",
+    gunner   = "gunnerIsDead",     -- the Support/LMG gunner: losing the gun matters to the squad
+    leader   = "commanderIsDead",
+}
+local CALLOUT_GAP = 8             -- s between callouts, so a squad being wiped is not a chorus
+local CALLOUT_RADIUS = 60         -- m, fallback scan when the victim's squad will not resolve
+local lastCallout = -1000
+
+-- pick the nearest LIVING candidate to the victim from a caller-supplied list
+local function nearestLiving(list, vp, vuid)
+    local best, bestD = nil, 1e9
+    for _, m in pairs(list) do
+        if m then
+            local muid = safeGet(function() return m.getUniqueId() end)
+            if muid and muid ~= vuid
+               and safeGet(function() return m.isAlive() end) ~= false
+               and safeGet(function() return m.isIncapacitated() end) ~= true then
+                local mp = safeGet(function() return m.getPosition() end)
+                local d  = (mp and vp) and distance(mp, vp) or 1e8
+                if d < bestD then best, bestD = m, d end
+            end
+        end
+    end
+    return best, bestD
+end
+
+local function callOutDeath(victim)
+    local vuid0 = safeGet(function() return victim.getUniqueId() end)
+    local role  = (vuid0 and roleAtSpawn[vuid0]) or roleOf(victim)
+    local clip = DEATH_CLIP[role]
+    if not clip then logonly("callout skip: role="..tostring(role).." (no clip for this role)") return end
+    local t = now()
+    if (t - lastCallout) < CALLOUT_GAP then logonly("callout skip: cooldown") return end
+    local vp, vuid = safeGet(function() return victim.getPosition() end), vuid0
+    -- PREFERRED speaker: a surviving member of the victim's own squad.
+    local best, bestD, how = nil, 1e9, "squad"
+    local sq = safeGet(function() return victim.getSquad() end)
+    if sq then
+        local members = {}
+        if safe(function() sq.getAllMembers(members) end) then      -- FILLS the table
+            best, bestD = nearestLiving(members, vp, vuid)
+        end
+    end
+    -- FALLBACK: nearest living friendly nearby. getSquad() is not guaranteed to resolve on a
+    -- corpse, and silence is worse than the line coming from the man standing next to him — who
+    -- in practice is almost always a squadmate anyway.
+    if not best and vp then
+        local near = {}
+        if safe(function() er2.getSoldiersInArea(vp, CALLOUT_RADIUS, near) end) then
+            local vf, mates = safeGet(function() return victim.getFaction() end), {}
+            for _, m in pairs(near) do
+                local mf = m and safeGet(function() return m.getFaction() end) or nil
+                if mf ~= nil and vf ~= nil
+                   and safeGet(function() return er2.isSameFaction(mf, vf) end) == true then
+                    mates[#mates + 1] = m
+                end
+            end
+            best, bestD = nearestLiving(mates, vp, vuid)
+            how = "nearby"
+        end
+    end
+    if not best then logonly("callout skip: no living speaker ("..tostring(role)..")") return end
+    if safe(function() best.say(VoiceClip[clip]) end) then
+        lastCallout = t
+        logonly(string.format("callout: %s (%s down) by 1 %s mate at %.0fm", clip, role, how, bestD))
+    end
+end
+
 --========================== KILL FEED (deaths only) =========================
 local invDead, defDead = 0, 0
 local battleOver = false      -- set by battle_ended; stops the attraction loop
@@ -446,6 +541,8 @@ pcall(function() er2.setCallback("soldier_died", function(victim)
     if side == "invader" then invDead = invDead + 1
     elseif side == "defender" then defDead = defDead + 1 end
     logonly("tally invaders:"..invDead.."  defenders:"..defDead)
+    -- one surviving squadmate reacts; silent for roles the engine has no death clip for
+    callOutDeath(victim)
     if onChosenSquad(victim) then
         announce(nameOf(victim).." ("..roleOf(victim)..") killed by "..weaponForDeath(victim))
     end
@@ -761,6 +858,19 @@ local function fireMissionStep()
 
     -- 1. consume any pending request FIRST, in every state, so the brain is never left holding
     --    a request that nobody clears.
+    -- CROSS-CONTEXT PROBE. The brain (client-local, per soldier) writes RQ_* and PROBE_B2P;
+    -- this phase script runs on the MASTER CLIENT. Whether `global` is shared between those two
+    -- contexts has never been proven. RADIO-fire-mission fired 7 times brain-side while this
+    -- consumer logged nothing at all, and "the consumer is wired" has been verified (it is called
+    -- as pcall(fireMissionStep) in the 1 s loop) — so a shared-global assumption is the remaining
+    -- suspect. Throttled hard: one line per PROBE_EVERY cycles, never per tick.
+    if PROBE_GLOBALS and (fireTick % PROBE_EVERY) == 0 then
+        logonly(string.format("gprobe: RQ_T=%s PROBE_B2P=%s (nil => the brain's globals are NOT visible here)",
+            tostring(safeGet(function() return global.get(RQ_T) end)),
+            tostring(safeGet(function() return global.get("PROBE_B2P") end))))
+    end
+    fireTick = fireTick + 1
+
     local rq = readInt(RQ_T)
     if rq ~= nil and rq >= 0 then
         local rx, rz, rs = readInt(RQ_X), readInt(RQ_Z), readInt(RQ_S)
