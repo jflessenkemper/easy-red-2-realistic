@@ -408,3 +408,26 @@ will almost never catch a live request.
 
 **Still integers/strings/booleans ONLY.** This says globals CROSS contexts; it does NOT relax the
 UserData ban, which is a separate and still-fatal rule.
+
+## 2026-08-29 — SMOKE ON DEMAND IS ⛔ NOT SCRIPTABLE (probed, not assumed)
+
+**What the engine has.** `global-metadata.dat` contains `RequestArtilleryHE`,
+`RequestArtilleryAPHE`, **`RequestArtillerySMOKE`**, `RequestArtillerySMOKE_AsRadioman`,
+`OnSmokeAccepted`, `marker_request_artillerySmoke`, and item strings `smokeGrenade` /
+`SmokeGrenade` / `smokeGranade` / `VirtualSmokeGrenade`. So a radioman-called smoke SCREEN
+plainly exists inside the game.
+
+**What Lua can reach: none of it.** An in-game probe indexed 15 candidate spellings on `er2`,
+`Soldier` and `Squad` — `RequestArtillerySMOKE`, `requestArtillerySmoke`,
+`RequestArtillerySMOKE_AsRadioman`, `RequestArtilleryHE`, `TryAssignRadioOrder`,
+`requestSmoke`, `requestArtillery`, `RequestAmmoDrop` and case variants. **Zero were present.**
+The artillery-request system is engine-internal and unbound.
+
+**Equipping is not a workaround.** `containsItem("smokeGrenade")` returns `false` cleanly (so the
+method works and takes a string), but a `false` cannot distinguish "valid item, not carried" from
+"invalid identifier". Even if `addNewItem` did equip one, **nothing binds a THROW** — base AI
+alone decides when to use smoke. Scripting *who carries* smoke is not the same as scripting
+*smart smoke usage*, and shipping it as the latter would be a lie.
+
+**Conclusion:** smoke stays ⛔. The honest substitute already in the mod is the scripted
+`er2.explosion` barrage (feature 19), which is HE, not smoke.

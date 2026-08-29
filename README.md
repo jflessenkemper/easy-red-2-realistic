@@ -85,6 +85,58 @@ implemented · **⛔** impossible on this build
 
 ---
 
+## Seeing it work
+
+![Donchery, 16:00, 13 May 1940 — Kradschützen-Bataillon 2 attacking across the river](docs/images/donchery.jpg)
+
+*Crossing at Donchery. Casualties and a burning wreck on the right; the objective is the village.*
+
+A screenshot cannot prove an AI behaviour — a picture of soldiers looks the same whether they are
+bounding by half-sections or wandering. So the evidence below is **measured**, not illustrated:
+these are decision counts from one continuous battle on the map above, taken straight from
+`Player.log` with **0 Lua errors**.
+
+| Behaviour | Log label | Fired |
+|---|---|---:|
+| Riding / crewing — deferred to base AI | `MOUNTED/CREW-defer` | 1408 |
+| Suppressed, gone to ground | `PINNED` | 583 |
+| Defenders holding their line | `DEFEND-hold` | 524 |
+| Fighting from cover | `FIGHT-from-cover` | 187 |
+| Leaders directing from cover | `LEADER-cover` | 93 |
+| Medics holding / sortieing | `MEDIC-hold-cover` / `MEDIC-sortie` | 87 / 16 |
+| **AT teams stalking and engaging armour** | `AT-stalk` / `AT-hunt` | 86 / 16 |
+| Approach march along roads | `ROAD-MARCH` | 39 |
+| Close assault, routed through cover | `ASSAULT-cover` / `ASSAULT` | 16 / 6 |
+| Morale break | `ROUT-cover` / `ROUT` | 14 / 3 |
+| **Dragging wounded to cover** | `DRAG-to-cover` / `pickup` / `abandon` | 2 / 1 / 1 |
+| Bounding overwatch | `BOUND-overwatch` | 1 |
+| Re-boarding transport | `REBOARD-transport` | 2 |
+
+Verified separately, in their own battles:
+
+- **Squadmate death callout** — `callout: commanderIsDead (leader down) by 1 squad mate at 1m`,
+  and again at 8 m. Exactly one man speaks per death; the `callout skip: cooldown` line shows the
+  anti-chorus guard working.
+- **Bounding overwatch ratio** — `BOUND-move` 216 : `BOUND-overwatch` 154 across a battle where
+  attackers were in sustained contact, against a predicted 1:1. The halves really do alternate,
+  with no messaging between soldiers.
+- **Approach march** — `ROAD-MARCH` 14 of 15 men closing on the objective, trend 15 closing /
+  0 away.
+- **Objective captured** — `obj1 inv=15 def=0 held=true ... CAPTURED by attackers`.
+
+Reproduce any of it yourself:
+
+```bash
+grep -aoE '\-> [A-Z][A-Za-z/-]+' ~/.config/unity3d/Corvostudio/'Easy Red 2'/Player.log \
+  | sort | uniq -c | sort -rn
+```
+
+**What these numbers honestly show.** The mix is scenario-dependent, and this battle was a
+dismounted river assault: the attackers spent most of it mounted or pinned, so `ROAD-MARCH` and
+`BOUND-*` are low here and much higher on a road-march map. A label at zero is not automatically
+a bug — but it is not evidence of working either, which is why the unverified ones are listed as
+such rather than quietly omitted.
+
 ## Install
 
 ```

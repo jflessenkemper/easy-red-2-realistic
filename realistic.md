@@ -151,7 +151,7 @@ corpse's last vehicle is unreliable.
 | Aircraft / CAS control | the support enum is artillery + armour only; there is no aircraft support type |
 | Real road pathing | `RoadSystem`/`RoadNetwork`/`Pathfinder` are engine-internal, unbound to Lua |
 | True line/column **formation** | engine-internal only. Squad *tactical* orders are a different thing and they **do** exist — see below |
-| Smoke **on demand** | partial: smoke-grenade items exist and `addNewItem`/`containsItem` can equip them, but nothing binds a *throw*. Base AI decides when to lay its own assault smoke |
+| Smoke **on demand** | **⛔ confirmed unscriptable 2026-08-29.** The engine has `RequestArtillerySMOKE` and `RequestArtillerySMOKE_AsRadioman`, but an in-game probe of 15 candidate spellings on `er2`/`Soldier`/`Squad` found **none** bound to Lua. `containsItem` works but cannot validate an identifier, and nothing binds a *throw* regardless — base AI alone decides when to use smoke |
 
 ### Retracted — these were listed here and are now confirmed **possible**
 The 2026-08-29 in-game probe (`docs/verified-api.md` L310–321, L342–350, L371–379) overturned
