@@ -1,5 +1,11 @@
 # PLAN-1.0 — contract for finishing the mod and the plugin
 
+> **STATUS 2026-08-29 (updated):** §1 callout **DONE/VERIFIED**. §2 globals **RESOLVED — shared**.
+> §5 doc truth pass **DONE**. Remaining: **§6 plugin reliability**, §3 CREW-onfoot, §4
+> ADVANCE-baseAI, then the final gate. Two NEW root causes were found and fixed along the way:
+> `safe()` undefined in the phase script (silently disabled four call sites), and the phase script
+> not reloading per battle. See the closing notes at the bottom.
+
 Written 2026-08-29 from **measured evidence**, not from recollection. Re-read this at the start of
 every iteration and keep it current; it must survive context compaction.
 
@@ -136,3 +142,43 @@ The NEVER list in the loop prompt is binding. The two that nearly bit again this
   tell twice: cover orders misclassified as holds, and the segment-vs-pooled speed bug).
 - **When an aggregate looks wrong, trace individual soldiers.** That is what separated "the metric
   is broken" from "the men arrived and had nothing left to do".
+
+
+---
+
+## CLOSING NOTES — what actually happened (append-only)
+
+**§1 callout — DONE.** Verified live: `callout: commanderIsDead (leader down) by 1 squad mate at 1m`
+(and again at 8 m). Exactly one speaker per death. 8 deaths → 2 callouts, 0 errors.
+
+Two root causes, neither the one predicted:
+1. **`safe()` was called four times in RealisticEvents.lua and only ever defined in
+   Realistic.lua.** A nil-global call raises, the enclosing `pcall` swallows it, and the feature
+   silently never runs. It disabled the role refresher, BOTH speaker-election paths, and the
+   `say()` itself. Invisible to luajit (runtime lookup). Now caught by `tests/undefined_helpers.py`
+   / check 4c, whose contract is deliberately narrow (project helper vocabulary only) because a
+   general undefined-identifier scan produced 20 false positives, and a noisy check gets ignored.
+2. **The role cache read roles at `attachBrain`** — exactly when `isSquadLeader` is still nil.
+   Measured 81 deaths, 81 skips, all `rifleman`. Now refreshed from the 1 s loop, re-checking only
+   entries still holding the ambiguous default so the work converges and stops.
+
+**§2 globals — RESOLVED, they ARE shared.** Brain wrote `PROBE_B2P=4242`; the master-client phase
+script read it back. The `RQ_*` protocol is sound. Banked to `docs/verified-api.md`.
+
+**NEW — the phase script does not reload per battle.** Its loop breaks at the battle boundary
+while its callbacks keep firing, so it looks alive. Two verification runs tested stale phase code
+before this was found. **Rule: restart the game after changing `RealisticEvents.lua`; the only
+reliable proof of a reload is a fresh `initial brain sweep` line.** Banked to
+`er2-plugin/docs/ui-map.md`. Still open as a code question — see §6g below.
+
+**§5 doc truth pass — DONE.** Features 4, 11, 17, 19, 23b and 5b now carry measured counts.
+Feature 7 (transport reuse) deliberately stays partial: it needs a road-march map to exercise the
+direction/cooldown logic, and this mission is a dismounted river assault. Named gap, not drift.
+
+## §6g (new) — phase loop dies at the battle boundary
+`while true do ... if getCurrentPhaseId() ~= MY_PHASE then break end`. Decide: make it wait and
+resume when the phase returns, or keep the break and treat the game-restart rule as the answer.
+Leaning toward **wait-and-resume**, because a player who runs two battles without restarting
+currently loses objective attraction, bail-out drain and fire missions with no symptom.
+- **Done =** a second battle in the same process shows fresh `invAttract` lines.
+- **Risk =** a resurrected loop touching a stale phase's objects. Guard by re-reading MY_PHASE.
