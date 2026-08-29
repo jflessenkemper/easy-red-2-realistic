@@ -183,10 +183,14 @@ with no per-map configuration. **As actually implemented**, a soldier remounts o
 Beyond `BOARD_ADJACENT` he walks to it (`RETURN-to-transport`); adjacent, he boards, throttled to
 one attempt per `BOARD_REISSUE` (`REBOARD-transport`).
 
-**Not implemented, despite earlier drafts of this document claiming otherwise:** the "not carrying
-a casualty" gate (there is no drag code — feature 17), the "transport lies roughly toward the
-objective" direction test, and the `CONTACT_COOLDOWN` post-firefight lockout. `CONTACT_COOLDOWN`
-does not exist in the source. At Donchery the feature is suppressed by rule 3 rather than by any
+6. he is **not carrying a wounded comrade** (`isCarryingBody`) — a man with a casualty on his
+   shoulders does not go looking for a truck. This rule was documented before it could exist,
+   back when feature 17 was unimplemented and there was no such thing as "carrying"; it is real
+   now that the drag branch is.
+
+**Still not implemented, despite earlier drafts of this document claiming otherwise:** the
+"transport lies roughly toward the objective" direction test, and the `CONTACT_COOLDOWN`
+post-firefight lockout. `CONTACT_COOLDOWN` does not exist in the source. At Donchery the feature is suppressed by rule 3 rather than by any
 direction/cooldown logic. Status stays 🔧 until a road-march map exercises it — `boardVehicle`
 behaviour, and whether base AI then *drives* a remounted truck, are still unverified.
 

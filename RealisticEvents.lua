@@ -994,18 +994,25 @@ while true do
     -- Measured: only 6 script loads across a 495k-line log, loop output stopping at line 462,427
     -- while battles continued past 495,000.
     local ph = safeGet(function() return er2.getCurrentPhaseId() end)
-    if ph ~= MY_PHASE then
+    if ph ~= MY_PHASE or battleOver then
+        -- IDLE, do not exit. There are TWO ways out of this loop and the first fix only closed
+        -- one of them: `battleOver`, set by the battle_ended callback, used to `break` here.
+        -- Capturing an objective ends the phase, so the loop was dying MID-SESSION - measured
+        -- once at log line 17,805 while the battle ran on to line 103,882, with no idle message
+        -- because the phase check never got a look in. Since the game does not re-load the phase
+        -- script for the next battle, that break was permanent and silent.
         if not phasePaused then
             phasePaused = true
-            logonly("phase " .. tostring(ph) .. " is not ours (" .. tostring(MY_PHASE)
-                .. ") - idling until it returns")
+            logonly("idling: phase=" .. tostring(ph) .. " ours=" .. tostring(MY_PHASE)
+                .. " battleOver=" .. tostring(battleOver))
         end
         sleep(1)
     else
         if phasePaused then
             phasePaused = false
+            battleOver = false    -- a new battle: the previous one's end no longer applies
             objList = {}          -- objects from the previous phase are stale; re-query them
-            logonly("our phase is active again - resuming (objectives re-queried)")
+            logonly("RESUMED: our phase is active again (objectives re-queried)")
         end
 
     -- (a) objective attraction — throttled, with comprehensive per-objective logging.
@@ -1057,7 +1064,8 @@ while true do
     if (tick % ROLE_REFRESH) == 0 then pcall(refreshRoles) end
     pcall(fireMissionStep)
 
-    if battleOver then break end
+    -- NO break on battleOver: the idle branch above handles it, so the loop survives to serve
+    -- the next battle in this process.
     tick = tick + 1
     end   -- phase-active branch
     sleep(1)

@@ -789,6 +789,10 @@ end
 -- safe, far-objective advance. Returns a decision label if it acted, else nil (walk on foot).
 local function reuseTransport(pos, now)
     if not (REUSE_TRANSPORT and myTransportId and not isCrew) then return nil end
+    -- A man carrying a wounded comrade does not go looking for a truck. This gate was documented
+    -- as a suitability rule long before it could exist (feature 17 was unimplemented, so there
+    -- was no such thing as "carrying"); now that the drag branch is real, the rule is real too.
+    if safeGet(function() return me.isCarryingBody() end) == true then return nil end
     local veh = safeGet(function() return er2.findVehicle(myTransportId) end)
     if not veh then myTransportId = nil; return nil end          -- transport destroyed/gone -> forget it
     local vp = safeGet(function() return veh.getPosition() end)
