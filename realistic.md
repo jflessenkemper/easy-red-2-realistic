@@ -93,7 +93,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | 8 | **Per-nation doctrine** — 10 nations, each with its own morale, aggression, assault range, MG-centricity and cover discipline | ✅ | nation parsed from the soldier's own faction string | doctrine table | line prefix `germany/…` |
 | 9 | **MG-centric cohesion** — in armies built around the LMG, riflemen cohere on the Support gunner **while moving up**, not under fire | ✅ | **no contact** · attacker · mgCentric doctrine · gun >`MG_COHESION` away | `moveTo` | `RALLY-on-MG` |
 | 10 | **Close assault** — aggressive, steady doctrines close and finish it | ✅ | threatened · enemy centroid within `assaultRange` · `aggression` ≥ `ASSAULT_MIN_AGGR` · forceRatio ≥ `moraleFloor + ASSAULT_MARGIN` · aggression roll · **not** MG/mortar/medic/leader | `moveTo`, `findCover`, `say` | `ASSAULT`, `ASSAULT-cover` |
-| 11 | **AT teams hunt armour** — anti-tank men acquire and stalk enemy *vehicles*, not infantry | ⬜ | *(planned)* `isATSoldier()` · enemy vehicle in range | would use `getVehiclesInArea`, `forceTarget`, `alertFor` | `AT-stalk`, `AT-hunt` |
+| 11 | **AT teams hunt armour** — anti-tank men acquire and engage enemy *vehicles*, and are excluded from the close assault so the battalion's only anti-tank capability is never spent charging infantry | 🔧 | native `isATSoldier()` · live enemy vehicle within `AT_RANGE`. Evaluated **above** ASSAULT. Issues **no `moveTo`**, so it works identically for defenders | `getVehiclesInArea`, `isDestroyed`, `forceTarget` (guarded — see §7), `alertFor`, `findCover`, `say` | `AT-stalk` (>`AT_EFFECTIVE`), `AT-hunt` (within) |
 | 12 | **Support weapons hold fire positions** — the LMG/mortar *is* the base of fire; it never rushes | ✅ | class Support/mortar · threatened | `findCover`, `say` | `SUPPORT-hold-fire` |
 | 13 | **Cover discipline** — per-nation probability that the assault bound routes via cover instead of straight at the enemy | ✅ | wired into #10: `math.random() < coverDiscipline` picks `findCover` one `ASSAULT_BOUND` toward the enemy instead of `moveTo` | `findCover` vs `moveTo` | `ASSAULT-cover` |
 
@@ -303,6 +303,8 @@ Every constant below exists in the source. Nothing is listed here that the code 
 | `ROAD_STEP` | 25 m | look-ahead waypoint distance |
 | `USE_ARMOUR_COVER` | true | enable advance-behind-armour |
 | `ARMOUR_SCAN` | 45 m | friendly-vehicle scan radius |
+| `AT_RANGE` | 120 m | how far an AT man will acquire an enemy vehicle |
+| `AT_EFFECTIVE` | 60 m | inside this he stops closing and shoots (`AT-hunt`); beyond it he closes by covered bounds (`AT-stalk`) |
 | `ARMOUR_HUG` | 10 m | stand-off behind the hull, enemy-opposite side |
 | `REUSE_TRANSPORT` | true | master switch for §1.7 |
 | `REBOARD_MIN_DIST` | 120 m | objective must be at least this far to bother |
@@ -317,9 +319,14 @@ Every constant below exists in the source. Nothing is listed here that the code 
 
 Constants that earlier versions of this table listed and the source does **not** contain:
 `CONTACT_COOLDOWN`, `DRAG_RADIUS`, `DRAG_MIN_HP`, `CARRY_ADJACENT`, `CARRY_MAX_TRIES`,
-`DRAG_MAX_TIME`, `AT_RANGE`, `AT_EFFECTIVE`, `AT_BOUND`, `BOUND_PERIOD`, `BOUND_STEP`,
-`STALL_WINDOW`, `STALL_DIST`, `RADIO_COOLDOWN`. They belong to features 4, 11, 17 and the
-brain-side half of 19, none of which is implemented (§1.1–§1.4).
+`DRAG_MAX_TIME`, `AT_BOUND`, `BOUND_PERIOD`, `BOUND_STEP`, `STALL_WINDOW`, `STALL_DIST`,
+`RADIO_COOLDOWN`. They belong to features 4 and 17 and the brain-side half of 19, none of which
+is implemented. (`AT_RANGE` and `AT_EFFECTIVE` were on this list until feature 11 landed;
+`AT_BOUND` is still absent because the AT branch closes via `findCover` rather than a fixed
+bound, so no bound length is needed.)
+
+`DEFEND_RADIUS` was deleted outright — see the changelog. It is not missing, it is retired: no
+value of it made an ignored order work.
 
 ## 3.2 Phase script (`RealisticEvents.lua`)
 

@@ -85,6 +85,12 @@ local ROAD_STEP      = 25     -- m, look-ahead waypoint distance
 local USE_ARMOUR_COVER = true
 local ARMOUR_SCAN    = 45     -- m
 local ARMOUR_HUG     = 10     -- m behind the hull, enemy-opposite side (was 7 = too tight)
+-- Anti-tank. An AT man is the battalion's ONLY answer to armour, so he must not be spent as a
+-- rifleman: without this branch `isATSoldier` only tagged the role and the man fell through into
+-- the hoisted ASSAULT and charged infantry. This branch issues NO moveTo, so it behaves the same
+-- for defenders (who ignore move orders) as for attackers — see §7 of realistic.md.
+local AT_RANGE       = 120    -- m — acquire an enemy vehicle out to here
+local AT_EFFECTIVE   = 60     -- m — inside this he stops closing and shoots
 
 -- Reuse transport: passengers remember the vehicle they rode in and, when it's SAFE and the
 -- next objective is far, walk back and re-board instead of abandoning it. EXPERIMENTAL —
@@ -111,6 +117,7 @@ local VOICE_ENUM = {
     charge    = "imCharging",
     covering  = "coveringFire",
     leader    = "keepYourHeadDown",
+    enemyTank = "enemyTankSpotted",       -- AT man has acquired an enemy vehicle
 }
 
 --========================== FACTION DOCTRINE ================================
@@ -588,6 +595,50 @@ end
 -- fall back away from the enemy (or toward home). Returns true if an order was issued, so the
 -- ROUT branch can arm the follow-up findCover for a LATER tick — a findCover here would be
 -- countermanded by this very moveTo, which is why the "ends in cover" comment used to be a lie.
+-- ANTI-TANK: acquire the nearest live enemy vehicle and engage it. Returns a decision label plus
+-- the range, or nil when there is nothing to hunt (caller then falls through to the ordinary
+-- cascade and the AT man fights as infantry, which is correct once the armour is dead).
+--
+-- Deliberately issues NO moveTo. `findCover` is the only relocation used, so this behaves
+-- identically on the defending side, which provably ignores move orders — the same constraint
+-- that forced ADVANCE-behind-armour and the ROUT fallback to become attacker-only.
+local atTargetId, atForceFailed = nil, false
+local function huntArmour(pos, now)
+    local vlist = {}
+    if not safe(function() er2.getVehiclesInArea(pos, AT_RANGE, vlist) end) then return nil end
+    local best, bestD = nil, 1e9
+    for _, v in pairs(vlist) do
+        if v then
+            local vf = safeGet(function() return v.getFaction() end)
+            if vf ~= nil and safeGet(function() return er2.isSameFaction(vf, myFaction) end) == false
+               and safeGet(function() return v.isDestroyed() end) ~= true then
+                local vp = safeGet(function() return v.getPosition() end)
+                if vp then local d = distance(pos, vp); if d < bestD then best, bestD = v, d end end
+            end
+        end
+    end
+    if not best then
+        atTargetId = nil          -- nothing left to hunt; stop holding a stale forced target
+        return nil
+    end
+    -- forceTarget is VERIFIED only against a SOLDIER (verified-api.md:189 `.forceTarget(enemySoldier)`
+    -- [SDKFZ:37]); passing a Vehicle is unproven on this build. Guard it and degrade honestly to
+    -- alert-only rather than reporting a capability we do not have. Logged once per brain.
+    local id = safeGet(function() return best.getUniqueId() end)
+    if id and id ~= atTargetId then
+        atTargetId = id
+        if not safe(function() me.forceTarget(best) end) and not atForceFailed then
+            atForceFailed = true
+            dbg("AT: forceTarget(vehicle) rejected — engaging via alert only")
+        end
+    end
+    safe(function() me.alertFor(15) end)
+    react("enemyTank", now)
+    -- Outside effective range he closes by covered bounds; inside it he stops and shoots.
+    takeCover(pos, now)
+    return (bestD > AT_EFFECTIVE) and "AT-stalk" or "AT-hunt", bestD
+end
+
 local function fallbackFrom(pos, ec, now)
     -- ATTACKERS ONLY, for the same reason as advanceBehindArmour: this ends in a moveTo and
     -- defenders will not obey it. MEASURED 2026-08-29: ROUT ran at 0.06-0.08 m/s with 100% of
@@ -690,8 +741,17 @@ while true do
         -- healthy morale. No `not shaken` guard is needed — the ROUT branch above consumes
         -- every shaken man, so testing it here was tautological. Support weapons, medics and
         -- leaders are excluded: the gun IS the base of fire, and a leader never walks point.
+        -- ANTI-TANK acquisition, resolved before the cascade so its branch stays terminal.
+        -- Scanned ONLY for AT men: an AT_RANGE getVehiclesInArea sweep every tick for every
+        -- soldier would be a real per-tick cost for the ~3% of the battalion who are AT.
+        local atLabel, atDist = nil, nil
+        if isAT then atLabel, atDist = huntArmour(pos, now) end
+
+        -- isAT is excluded too: an AT man is the battalion's only answer to armour, and the AT
+        -- branch above already handled him whenever there was a vehicle to hunt. Letting him
+        -- charge infantry spends the anti-tank capability on a job any rifleman can do.
         local assaultNow = threatened and (not isMG) and (not isMortar)
-                           and (not isMedic) and (not isLeader)
+                           and (not isMedic) and (not isLeader) and (not isAT)
                            and edist <= DOC.assaultRange
                            and (DOC.aggression or 0) >= ASSAULT_MIN_AGGR
                            and forceRatio >= (DOC.moraleFloor + ASSAULT_MARGIN)
@@ -737,6 +797,11 @@ while true do
                 takeCover(pos, now)      -- nowhere to run to: go to ground where he stands
                 decision, detail = "ROUT-cover", "no rally point"
             end
+
+        elseif isAT and atLabel then
+            -- ANTI-TANK, above ASSAULT so the AT man is never spent charging infantry while a
+            -- vehicle is on the field. Falls through when there is nothing to hunt.
+            decision, detail = atLabel, "veh d="..string.format("%.0f", atDist or 0)
 
         elseif assaultNow then
             react("charge", now)
