@@ -91,6 +91,23 @@ local ARMOUR_HUG     = 10     -- m behind the hull, enemy-opposite side (was 7 =
 -- for defenders (who ignore move orders) as for attackers — see §7 of realistic.md.
 local AT_RANGE       = 120    -- m — acquire an enemy vehicle out to here
 local AT_EFFECTIVE   = 60     -- m — inside this he stops closing and shoots
+-- Radioman fire mission. A radioman calls for fire when the advance has STALLED against something
+-- worth shelling — not on first contact. The phase script owns the danger-close refusal and the
+-- gun itself; the brain only publishes a request. See RQ_* in the cascade for the wire protocol.
+-- Wounded drag. There is NO dropBody on this build (verified-api.md: ABSENT), so `stop()` is the
+-- only release once a man picks a body up. Every guard below exists to bound that: a no-op
+-- carryBody must cost one man a few seconds, never freeze him for the rest of the battle.
+local DRAG_RADIUS    = 30     -- m — how far a man will go to fetch a casualty
+local DRAG_MAX_TIME  = 12     -- s — hard ceiling on one drag attempt, then abandon
+local CARRY_MAX_TRIES = 3     -- attempts before this soldier gives up dragging entirely
+local CARRY_ADJACENT = 3      -- m — close enough to attempt the pick-up
+-- Bounding overwatch: one half of the squad moves while the other half watches and fires.
+local BOUND_PERIOD   = 8      -- s per bound before the halves swap
+local BOUND_STEP     = 20     -- m covered by one bound
+local STALL_DIST     = 15     -- m — moved less than this in STALL_WINDOW counts as stalled
+local STALL_WINDOW   = 30     -- s
+local RADIO_MIN_ENEMIES = 3   -- sensed enemies needed before a mission is worth asking for
+local RADIO_COOLDOWN = 120    -- s between requests from ONE radioman (the phase caps them again)
 
 -- Reuse transport: passengers remember the vehicle they rode in and, when it's SAFE and the
 -- next objective is far, walk back and re-board instead of abandoning it. EXPERIMENTAL —
@@ -367,6 +384,7 @@ local function sense(pos)
     local ex, ez, en = 0, 0, 0
     local mgPos, mgD = nil, 1e9
     local casPos, casD = nil, 1e9
+    local casS = nil          -- the casualty's own handle: carryBody needs the Soldier, not a point
     for _, s in pairs(list) do
         -- SKIP SELF. getSoldiersInArea returns the caller too, so every soldier counted itself
         -- as a friend: nf was inflated by one, which biased the force ratio toward "not shaken"
@@ -382,7 +400,9 @@ local function sense(pos)
                 local down = safeGet(function() return s.isIncapacitated() end) == true
                 if down then
                     ncas = ncas + 1
-                    if sp then local d = distance(pos, sp); if d < casD then casPos, casD = sp, d end end
+                    if sp then local d = distance(pos, sp)
+                        if d < casD then casPos, casD, casS = sp, d, s end
+                    end
                 elseif alive ~= false then
                     nf = nf + 1
                     -- Support/MG is one of the two roles with NO native flag, so the gunner is
@@ -402,7 +422,7 @@ local function sense(pos)
         end
     end
     local centroid = (en > 0) and vec3(ex/en, pos.y, ez/en) or nil
-    return ne, nec, nf, centroid, mgPos, casPos, ncas
+    return ne, nec, nf, centroid, mgPos, casPos, ncas, casS
 end
 
 --========================== TERRAIN / ROADS =================================
@@ -499,6 +519,12 @@ local lastDest, lastMoveT = nil, -1000
 -- should go to ground in cover. Deferred to a LATER tick on purpose (findCover + moveTo in the
 -- same tick cancel each other).
 local routCoverAt = nil
+-- Radioman stall tracking. stallPos holds a vec3, which is fine ONLY because it is a local
+-- upvalue — a vec3 in a global is the fatal error that killed every brain at boot.
+local stallPos, stallT, lastRadioT = nil, -1000, -1000
+-- Wounded-drag state. dragBlack is keyed by casualty uid so one unreachable body cannot trap this
+-- soldier in a retry loop for the whole battle.
+local dragTarget, dragStartT, dragTries, dragBlack = nil, -1000, 0, {}
 local function orderMove(dest, now)
     if not dest then return end
     if lastDest and distance(lastDest, dest) < MOVE_DEADBAND and (now - lastMoveT) < MOVE_REISSUE then
@@ -639,6 +665,57 @@ local function huntArmour(pos, now)
     return (bestD > AT_EFFECTIVE) and "AT-stalk" or "AT-hunt", bestD
 end
 
+-- BOUNDING OVERWATCH team assignment. Returns 0 or 1 — which half of the squad this man is in.
+-- No messaging is required: every man derives the same answer from the same roster and the same
+-- wall clock, so the halves alternate in step without any coordination.
+--
+-- This used to be a raw uid-parity proxy, adopted ONLY because squad rosters were believed
+-- impossible on this build. The 2026-08-29 probe retracted that, so the real roster is used and
+-- the proxy is now just the fallback for a soldier whose squad never resolves. The fallback must
+-- stay floor(uid/2) % 2: ER2 unique-ids have an EVEN STRIDE of 262, so `uid % 2` is degenerate
+-- and puts every man on the same team.
+local function boundTeam()
+    local idx
+    if mySquad then
+        local members = safeGet(function() return mySquad.getAllMembers() end)
+        if type(members) == "table" then
+            local i = 0
+            for _, m in pairs(members) do
+                i = i + 1
+                if m and safeGet(function() return m.getUniqueId() end) == uid then idx = i break end
+            end
+        end
+    end
+    return (idx or math.floor(uid / 2)) % 2
+end
+
+-- Elect exactly ONE man to fetch a casualty: the closest healthy member of his squad who is not
+-- already carrying someone. Every member evaluates the same roster against the same casualty, so
+-- exactly one of them gets the answer "me" — no globals, no messaging, no election protocol.
+--
+-- A soldier whose squad never resolved simply does not drag. The measured squad-bind rate is
+-- 100%, so this costs almost nothing, and the alternative (a second area scan every tick to run
+-- a proximity election) is a real per-tick cost for a rare event.
+local function iAmNearestTo(pos, casP)
+    if not mySquad then return false end
+    local members = safeGet(function() return mySquad.getAllMembers() end)
+    if type(members) ~= "table" then return false end
+    local myD = distance(pos, casP)
+    for _, m in pairs(members) do
+        if m then
+            local muid = safeGet(function() return m.getUniqueId() end)
+            if muid and muid ~= uid
+               and safeGet(function() return m.isIncapacitated() end) ~= true
+               and safeGet(function() return m.isAlive() end) ~= false
+               and safeGet(function() return m.isCarryingBody() end) ~= true then
+                local mp = safeGet(function() return m.getPosition() end)
+                if mp and distance(mp, casP) < myD then return false end
+            end
+        end
+    end
+    return true
+end
+
 local function fallbackFrom(pos, ec, now)
     -- ATTACKERS ONLY, for the same reason as advanceBehindArmour: this ends in a moveTo and
     -- defenders will not obey it. MEASURED 2026-08-29: ROUT ran at 0.06-0.08 m/s with 100% of
@@ -700,7 +777,7 @@ while true do
     local pos = safeGet(function() return me.getPosition() end)
 
     if pos then
-        local ne, nec, nf, ec, mgPos, casPos, ncas = sense(pos)
+        local ne, nec, nf, ec, mgPos, casPos, ncas, casS = sense(pos)
         -- lazy squad: recovers the ~15% of soldiers whose squad was not ready at boot, and
         -- returns the current roster size (nil while unresolved).
         local sqNow = resolveSquad()
@@ -741,6 +818,26 @@ while true do
         -- healthy morale. No `not shaken` guard is needed — the ROUT branch above consumes
         -- every shaken man, so testing it here was tautological. Support weapons, medics and
         -- leaders are excluded: the gun IS the base of fire, and a leader never walks point.
+        -- BOUNDING OVERWATCH eligibility. Attacker only (it ends in a moveTo), under threat, with
+        -- morale intact. Excludes the men whose job is to BE the base of fire or to stay out of
+        -- the firing line: MG, mortar, medic, leader and AT.
+        local boundNow = threatened and amInvader and ec
+                         and (not isMG) and (not isMortar) and (not isMedic)
+                         and (not isLeader) and (not isAT)
+                         and forceRatio >= DOC.moraleFloor
+
+        -- RADIOMAN stall detection. Resetting the clock whenever he makes ground means the
+        -- trigger is "the advance has stopped", not "he has been alive a while".
+        local radioNow = false
+        if isRadio then
+            if (not stallPos) or distance(pos, stallPos) > STALL_DIST then
+                stallPos, stallT = pos, now
+            elseif (now - stallT) >= STALL_WINDOW and ne >= RADIO_MIN_ENEMIES
+                   and (now - lastRadioT) >= RADIO_COOLDOWN and ec then
+                radioNow = true
+            end
+        end
+
         -- ANTI-TANK acquisition, resolved before the cascade so its branch stays terminal.
         -- Scanned ONLY for AT men: an AT_RANGE getVehiclesInArea sweep every tick for every
         -- soldier would be a real per-tick cost for the ~3% of the battalion who are AT.
@@ -761,15 +858,46 @@ while true do
         local casD       = casPos and distance(pos, casPos) or 1e9
         local medicSortie = isMedic and casPos and (nec == 0) and (casD <= MEDIC_REACH)
 
+        -- WOUNDED DRAG. Medics HEAL; everyone else CARRIES. Excludes the base-of-fire roles and
+        -- the leader. `nec == 0` keeps it out of a live firefight — dragging a man across beaten
+        -- ground kills two soldiers instead of one. The approach leg needs a moveTo, so for a
+        -- defender it is limited to a casualty already within arm's reach.
+        local casUid  = casS and safeGet(function() return casS.getUniqueId() end) or nil
+        local dragNow = false
+        if casPos and casS and casUid and (nec == 0) and (casD <= DRAG_RADIUS)
+           and (not isMedic) and (not isLeader) and (not isMG) and (not isMortar)
+           and dragTries < CARRY_MAX_TRIES and not dragBlack[casUid]
+           and (amInvader or casD <= CARRY_ADJACENT) then
+            if safeGet(function() return me.isCarryingBody() end) == true then
+                dragNow = true                       -- already carrying: finish the job
+            elseif iAmNearestTo(pos, casPos) then
+                dragTarget, dragNow = casUid, true
+            end
+        end
+
         --------- PRIORITY CASCADE (survival-first) ---------
         -- each branch sets `decision`(+`detail`); ONE comprehensive trace line is emitted below.
         -- Every branch is terminal, and no branch may be gated by a condition a higher branch
         -- has already consumed (that is what made ASSAULT, ROUT and MEDIC-sortie unreachable).
         local decision, detail = nil, ""
-        if inVehicle or isCrew then
-            -- ANY non-infantry unit (tank crew, plane pilot, gun crew, mounted infantry):
-            -- this is an INFANTRY brain — never issue ground-move orders to a vehicle/aircraft.
-            -- Defer fully to base AI; dismounted infantry resume the full brain automatically.
+        if isCrew and not inVehicle then
+            -- DISMOUNTED CREWMAN: his vehicle is gone (destroyed, disabled, or he was kicked out
+            -- by the bail-out handler in the phase script). He used to stay in the branch below
+            -- and defer to base AI forever, which is wrong twice over: he is no longer crewing
+            -- anything, and a tank crew is NOT a rifle section — pistols and coveralls, no
+            -- section weapons, and worth far more alive as replacement crew. So he breaks
+            -- contact and goes to ground rather than joining the firing line.
+            aiSet("enableAiBehaviour", true)
+            aiSet("allowFindCoverWhenSuppressed", true)
+            react("scared", now)
+            takeCover(pos, now)
+            decision, detail = "CREW-onfoot", (threatened and "under threat" or "vehicle lost")
+
+        elseif inVehicle or isCrew then
+            -- ANY non-infantry unit still with its vehicle (tank crew, plane pilot, gun crew,
+            -- mounted infantry): this is an INFANTRY brain — never issue ground-move orders to a
+            -- vehicle or aircraft. Defer fully to base AI; dismounted infantry (NOT crew, see the
+            -- branch above) resume the full brain automatically once they get out.
             aiSet("enableAiBehaviour", true)
             releaseToBaseAI()
             aiSet("allowLeaveVehicle", true)   -- mounted infantry must be free to dismount and fight
@@ -835,6 +963,52 @@ while true do
             takeCover(pos, now)
             decision, detail = "MEDIC-hold-cover", (casPos and "casualty out of reach/unsafe" or "no casualty")
 
+        elseif dragNow then
+            if safeGet(function() return me.isCarryingBody() end) == true then
+                if (now - dragStartT) > DRAG_MAX_TIME then
+                    -- HARD CEILING. There is no dropBody on this build, so stop() is the only
+                    -- way to put a body down. Without this a single failed carry would pin a
+                    -- soldier in place for the rest of the battle.
+                    safe(function() me.stop() end)
+                    dragTarget, dragTries = nil, dragTries + 1
+                    decision, detail = "DRAG-abandon", "time ceiling"
+                else
+                    takeCover(pos, now)          -- carry him INTO cover, not just away
+                    decision, detail = "DRAG-to-cover", "carrying"
+                end
+            elseif casD <= CARRY_ADJACENT then
+                if safe(function() me.carryBody(casS) end) then
+                    dragStartT = now
+                    decision, detail = "DRAG-pickup", string.format("d=%.0f", casD)
+                else
+                    -- carryBody refused. Blacklist THIS casualty rather than retrying him every
+                    -- tick, and count the attempt against the per-soldier cap.
+                    dragBlack[casUid], dragTarget = true, nil
+                    dragTries = dragTries + 1
+                    decision, detail = "DRAG-abandon", "carryBody rejected"
+                end
+            else
+                orderMove(casPos, now)
+                decision, detail = "DRAG-approach", string.format("d=%.0f", casD)
+            end
+
+        elseif radioNow then
+            -- Publish the request as FOUR INTEGERS. Never a vec3 — UserData in a global is the
+            -- fatal error that killed every brain at boot. Write order matters: X, Z and side
+            -- FIRST and the timestamp LAST, because the phase-side consumer treats RQ_T >= 0 as
+            -- "a complete request is ready to read". Reversing that races a half-written request.
+            safe(function()
+                global.set(math.floor(ec.x), "RQ_X")
+                global.set(math.floor(ec.z), "RQ_Z")
+                global.set(amInvader and 1 or 2, "RQ_S")
+                global.set(math.floor(now), "RQ_T")
+            end)
+            lastRadioT, stallT = now, now      -- one mission per stall, not one per tick
+            react("covering", now)
+            takeCover(pos, now)                -- he calls it in from cover, not standing up
+            decision, detail = "RADIO-fire-mission",
+                string.format("ne=%d target=(%.0f,%.0f)", ne, ec.x, ec.z)
+
         elseif isLeader and threatened then
             react("leader", now)
             takeCover(pos, now)
@@ -853,6 +1027,34 @@ while true do
                 local armoured, aD = advanceBehindArmour(pos, ec, now)
                 if armoured then
                     decision, detail = "ADVANCE-behind-armour", "tank d="..string.format("%.0f", aD or 0)
+
+                elseif boundNow then
+                    -- BOUNDING OVERWATCH: the signature 1940 infantry tactic. One half of the
+                    -- squad moves while the other half watches its ground and fires. Attacker
+                    -- only — this ends in a moveTo and defenders ignore those.
+                    local team  = boundTeam()
+                    local phase = math.floor(now / BOUND_PERIOD) % 2
+                    if team == phase then
+                        if math.random() < (DOC.coverDiscipline or 0) then
+                            -- coverDiscipline again: the same doctrine lever the assault uses.
+                            -- A German squad bounds cover-to-cover; a low-discipline army just
+                            -- gets up and goes.
+                            takeCover(pos, now)
+                            decision, detail = "BOUND-move-cover", "phase="..tostring(phase)
+                        else
+                            local dx, dz = ec.x - pos.x, ec.z - pos.z
+                            local mag = math.sqrt(dx * dx + dz * dz)
+                            if mag < 0.001 then dx, dz, mag = 1, 0, 1 end
+                            orderMove(vec3(pos.x + (dx / mag) * BOUND_STEP, pos.y,
+                                           pos.z + (dz / mag) * BOUND_STEP), now)
+                            decision, detail = "BOUND-move", "phase="..tostring(phase)
+                        end
+                    else
+                        takeCover(pos, now)
+                        safe(function() me.alertFor(BOUND_PERIOD) end)
+                        decision, detail = "BOUND-overwatch", "phase="..tostring(phase)
+                    end
+
                 else
                     -- MG cohesion deliberately does NOT live here any more; it moved to the
                     -- no-contact path. A man under fire will not walk to the gun, and issuing the
