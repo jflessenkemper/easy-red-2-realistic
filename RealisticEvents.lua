@@ -352,7 +352,7 @@ end
 -- the battle. Set false once verified-api.md is updated.
 -- The 2026-08-29 run is folded into verified-api.md, so the probe is OFF. The function and its
 -- call site are deliberately KEPT: the next unknown binding gets probed by flipping this back on.
-local PROBE_APIS = false
+local PROBE_APIS = true
 local probeDone = false
 
 local function memberKind(obj, name)
@@ -457,6 +457,42 @@ local function probeApis()
         end
     else
         log("[BENCH]   no vehicle in range to probe")
+    end
+    -- SMOKE / ARTILLERY REQUEST BINDING. The engine has RequestArtilleryHE, RequestArtilleryAPHE,
+    -- RequestArtillerySMOKE and RequestArtillerySMOKE_AsRadioman (recovered from
+    -- global-metadata.dat), plus OnSmokeAccepted and marker_request_artillerySmoke. Whether any
+    -- of them is Lua-BOUND has never been established, and guessing a binding name is banned.
+    -- This tests candidate spellings by indexing; a non-nil result means the member exists.
+    do
+        local cand = {
+            "RequestArtillerySMOKE", "requestArtillerySmoke", "requestArtillerySMOKE",
+            "RequestArtillerySMOKE_AsRadioman", "requestArtillerySmokeAsRadioman",
+            "RequestArtilleryHE", "requestArtilleryHe", "requestArtilleryHE",
+            "TryAssignRadioOrder", "tryAssignRadioOrder", "assignRadioOrder",
+            "requestSmoke", "smokeRequest", "requestArtillery", "RequestAmmoDrop",
+        }
+        local sol = {}
+        pcall(function() er2.getAllSoldiers(sol) end)
+        local one = nil
+        for _, x in pairs(sol) do one = x break end
+        local sq = one and safeGet(function() return one.getSquad() end) or nil
+        for _, n in ipairs(cand) do
+            local onEr2 = safeGet(function() return er2[n] end) ~= nil
+            local onSol = one and safeGet(function() return one[n] end) ~= nil or false
+            local onSq  = sq  and safeGet(function() return sq[n]  end) ~= nil or false
+            if onEr2 or onSol or onSq then
+                log(string.format("[BENCH] SMOKE-CAND %s -> er2=%s soldier=%s squad=%s",
+                    n, tostring(onEr2), tostring(onSol), tostring(onSq)))
+            end
+        end
+        log("[BENCH] smoke/artillery request candidates probed: " .. #cand)
+        -- also: can we EQUIP a smoke grenade? item identifier spellings from the metadata.
+        if one then
+            for _, item in ipairs({"smokeGrenade", "SmokeGrenade", "smokeGranade"}) do
+                local has = safeGet(function() return one.containsItem(item) end)
+                log("[BENCH] containsItem(" .. item .. ") -> " .. tostring(has))
+            end
+        end
     end
     log("[BENCH] ===== PROBE COMPLETE =====")
 end
@@ -948,8 +984,29 @@ end
 --========================== MAIN LOOP (attraction + bail-out + radioman) ====
 
 local tick = 0
+local phasePaused = false
 while true do
-    if safeGet(function() return er2.getCurrentPhaseId() end) ~= MY_PHASE then break end
+    -- WAIT-AND-RESUME, not break. This used to `break` the moment the phase changed, which is
+    -- what a battle ending looks like. The game does NOT re-load the phase script for a second
+    -- battle in the same process, so the loop stayed dead for every later battle while the event
+    -- callbacks kept firing - the kill feed and tally still worked, so it LOOKED healthy while
+    -- objective attraction, bail-out drain and fire-mission consumption were all silently gone.
+    -- Measured: only 6 script loads across a 495k-line log, loop output stopping at line 462,427
+    -- while battles continued past 495,000.
+    local ph = safeGet(function() return er2.getCurrentPhaseId() end)
+    if ph ~= MY_PHASE then
+        if not phasePaused then
+            phasePaused = true
+            logonly("phase " .. tostring(ph) .. " is not ours (" .. tostring(MY_PHASE)
+                .. ") - idling until it returns")
+        end
+        sleep(1)
+    else
+        if phasePaused then
+            phasePaused = false
+            objList = {}          -- objects from the previous phase are stale; re-query them
+            logonly("our phase is active again - resuming (objectives re-queried)")
+        end
 
     -- (a) objective attraction — throttled, with comprehensive per-objective logging.
     -- TWO PASSES, deliberately. `allHeld` must be known for EVERY objective before any
@@ -1002,5 +1059,6 @@ while true do
 
     if battleOver then break end
     tick = tick + 1
+    end   -- phase-active branch
     sleep(1)
 end

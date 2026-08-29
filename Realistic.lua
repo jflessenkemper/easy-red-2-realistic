@@ -84,7 +84,9 @@ local ROAD_STEP      = 25     -- m, look-ahead waypoint distance
 -- Advance behind armour.
 local USE_ARMOUR_COVER = true
 local ARMOUR_SCAN    = 45     -- m
-local ARMOUR_HUG     = 10     -- m behind the hull, enemy-opposite side (was 7 = too tight)
+local ARMOUR_HUG     = 6      -- m behind the hull, enemy-opposite side. Tight on purpose: at 10 m
+                              -- the hull stops being cover for the men behind it. See ARMOUR_SPREAD.
+local ARMOUR_SPREAD  = 2.5    -- m between men in the line abreast behind the hull
 -- Anti-tank. An AT man is the battalion's ONLY answer to armour, so he must not be spent as a
 -- rifleman: without this branch `isATSoldier` only tagged the role and the man fell through into
 -- the hoisted ASSAULT and charged infantry. This branch issues NO moveTo, so it behaves the same
@@ -622,9 +624,20 @@ local function advanceBehindArmour(pos, ec, now)
     if not bestPos then return false end
     local dest = bestPos
     if ec then
+        -- Unit vector from the ENEMY to the tank: "behind the hull" is further along it.
         local dx, dz = bestPos.x - ec.x, bestPos.z - ec.z
         local mag = math.sqrt(dx * dx + dz * dz); if mag < 0.001 then dx, dz, mag = 1, 0, 1 end
-        dest = vec3(bestPos.x + (dx / mag) * ARMOUR_HUG, bestPos.y, bestPos.z + (dz / mag) * ARMOUR_HUG)
+        local ux, uz = dx / mag, dz / mag
+        -- LINE ABREAST behind the hull, not a queue. Every man used to be sent to the SAME point
+        -- ARMOUR_HUG behind the tank, so a squad stacked into a single file and only the leading
+        -- man actually had the hull between himself and the enemy. Spacing them along the axis
+        -- PERPENDICULAR to the enemy gives the Fury-style line: the whole section walks in the
+        -- tank's shadow, each man with steel between him and the incoming fire.
+        local px, pz = -uz, ux                     -- perpendicular to the enemy axis
+        local idx, n = rosterIndex()
+        local lateral = (idx - (n + 1) / 2) * ARMOUR_SPREAD
+        dest = vec3(bestPos.x + ux * ARMOUR_HUG + px * lateral, bestPos.y,
+                    bestPos.z + uz * ARMOUR_HUG + pz * lateral)
     end
     orderMove(dest, now)
     return true, bestD
@@ -686,6 +699,25 @@ end
 -- the proxy is now just the fallback for a soldier whose squad never resolves. The fallback must
 -- stay floor(uid/2) % 2: ER2 unique-ids have an EVEN STRIDE of 262, so `uid % 2` is degenerate
 -- and puts every man on the same team.
+-- My index within my own squad roster, and the roster size. Used to space men out laterally so
+-- they form a LINE rather than all converging on the same point behind a tank. Falls back to a
+-- uid-derived index when the squad will not resolve (floor(uid/2), never uid % N - ER2 uids have
+-- an even stride of 262).
+local function rosterIndex()
+    if mySquad then
+        local members = {}
+        if safe(function() mySquad.getAllMembers(members) end) then
+            local i, n, mine = 0, 0, nil
+            for _, m in pairs(members) do
+                i = i + 1; n = i
+                if m and safeGet(function() return m.getUniqueId() end) == uid then mine = i end
+            end
+            if mine then return mine, n end
+        end
+    end
+    return (math.floor(uid / 2) % 8) + 1, 8
+end
+
 local function boundTeam()
     local idx
     if mySquad then
