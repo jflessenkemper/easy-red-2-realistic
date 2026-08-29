@@ -20,7 +20,7 @@
 --     - vocal reactions from the built-in VoiceClip enum                (voice)
 --============================================================================
 
-local DEBUG = true
+local DEBUG = false
 -- VERBOSE = comprehensive per-tick, per-soldier decision logging (a firehose: every soldier
 -- logs its full state + chosen action EVERY tick). Use it to VERIFY behaviour, then set it
 -- false — logging is expensive on this build (~1.1 KB + a stack walk per line). When false,

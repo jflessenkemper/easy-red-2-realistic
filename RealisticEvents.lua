@@ -13,7 +13,7 @@
 --   Verified against build v2.0.9 (see .llm/api/verified-api.md).
 --============================================================================
 
-local DEBUG = true
+local DEBUG = false
 
 --========================== CONFIG ==========================================
 local FIRE_SUPPORT_TARGETS = {}   -- fill with P-key vec3s to enable a radioman barrage
