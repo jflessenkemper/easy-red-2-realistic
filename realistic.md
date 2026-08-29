@@ -138,7 +138,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | Smoke **on demand** | partial: smoke-grenade items exist and `addNewItem`/`containsItem` can equip them, but nothing binds a *throw*. Base AI decides when to lay its own assault smoke |
 
 ### Retracted — these were listed here and are now confirmed **possible**
-The 2026-08-29 in-game probe (`.llm/api/verified-api.md` L310–321, L342–350, L371–379) overturned
+The 2026-08-29 in-game probe (`docs/verified-api.md` L310–321, L342–350, L371–379) overturned
 four entries that used to sit in the table above. None of them is an engine limit:
 
 | Was "impossible" | Reality |
@@ -396,7 +396,7 @@ Italy sits brittler chiefly because the Breda 30 was a poor, unreliable squad au
 
 ## 5.1 Only verified API
 
-Every call must appear as EXISTS in `.llm/api/verified-api.md` (established by in-game probes —
+Every call must appear as EXISTS in `docs/verified-api.md` (established by in-game probes —
 most recently 2026-08-29 — plus the official docs at easyred2.com/wiki). That file **outranks
 this one** wherever they disagree. Anything unproven stays `pcall`-guarded, logs **once**, and the
 feature degrades to a documented fallback rather than failing loudly.
@@ -515,7 +515,7 @@ The 2026-08-29 in-game probe resolved a real Squad for **315 of 371 soldiers** (
 from **inside a brain**, and `Squad.getAllMembers` / `getSquadSize` / `isPlayerInSquad` are all
 confirmed callable. The original 8/8-nil reading came from probing at the instant of spawn, before
 the squad had formed — a **timing artefact**, not a context limit. Source:
-`.llm/api/verified-api.md` L310–321 (phase-script probe) and L371–379 (brain-context
+`docs/verified-api.md` L310–321 (phase-script probe) and L371–379 (brain-context
 confirmation). Everything that was built *around* the false limit is therefore unnecessary:
 proximity-faked cohesion, the clock-faked bounding design, the "nearest man" drag election, and
 the `WatchSquad.lua` marker brain (deleted 2026-08-29).
@@ -625,7 +625,7 @@ check: ~9 traces/s means playing, ~2/s means editor preview. Full detail in
 
 ## 2026-08-29 — API probe, native-API migration, P0 fixes
 
-**Probe (`.llm/api/verified-api.md` L304–389).** One-shot in-game probe from the phase script
+**Probe (`docs/verified-api.md` L304–389).** One-shot in-game probe from the phase script
 against a live soldier, its squad and a vehicle; members tested by indexing, read-only getters
 also called for type and sample value; mutators never called. Plus a per-soldier `ONLINE` probe
 across 371 soldiers in a live battle.

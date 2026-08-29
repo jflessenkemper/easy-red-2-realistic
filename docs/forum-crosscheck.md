@@ -35,7 +35,7 @@ Fetched OK:
 - No forum/Reddit/Discord page surfaced the verbatim string
   `"Type 'UserData' is not allowed as global variable"` for ER2 (see Gotchas).
 
-Local ground-truth grepped: `/var/home/jflessenkemper/er2-realistic/*.lua`
+Local ground-truth grepped: `the mod's own *.lua sources`
 (Realistic.lua, RealisticEvents.lua, WatchSquad.lua, bench_probe.lua, bench_watch.lua).
 
 ---
