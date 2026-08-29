@@ -37,7 +37,8 @@ local FEED_RADIUS     = 120   -- m
 local FIRE_DANGER_R    = 90   -- m, refuse the mission if ANY friendly of the requesting side is this close
 local FIRE_MIN_GAP     = 150  -- s, minimum gap between two accepted fire missions (phase-wide anti-spam)
 local FIRE_MAX         = 3    -- accepted fire missions per phase
-local PROBE_GLOBALS    = true -- one-shot diagnostic: is `global` shared brain <-> phase?
+local PROBE_GLOBALS    = false -- ANSWERED 2026-08-29: yes, shared (brain wrote PROBE_B2P=4242,
+                               -- phase read it back). Flip true only to re-check.
 local PROBE_EVERY      = 30   -- cycles between gprobe lines (never per tick)
 local fireTick         = 0
 local ROLE_REFRESH     = 5    -- loop cycles between role-cache refresh passes

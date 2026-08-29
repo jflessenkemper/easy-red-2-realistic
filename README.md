@@ -25,7 +25,7 @@ implemented · **⛔** impossible on this build
 | 1 | Approach march | Advances toward the objective across whatever ground the pathfinder picks | ✅ Biases the route to the flattest corridor — roads are flattened terrain, so troops use roads instead of cutting over open fields |
 | 2 | Taking cover | Engine picks cover on its own | ✅ Unchanged — the engine is the better authority. The mod only decides *when* to ask |
 | 3 | Pinned reaction | Soldier keeps fighting while suppressed | ✅ Reads the engine's own `isSuppressed()` and puts him on the deck with a panic call |
-| 4 | Bounding overwatch | Everyone advances at once | 🔧 Half the real squad roster moves while the other half watches and fires, swapping every 8 s — with no messaging between them |
+| 4 | Bounding overwatch | Everyone advances at once | ✅ Half the real squad roster moves while the other half watches and fires, swapping every 8 s — with no messaging between them |
 | 5 | Advance behind armour | Infantry and tanks advance independently | ✅ Riflemen keep an *armoured* hull between themselves and the enemy (name-filtered, so trucks and guns don't count as cover) |
 | 5b | Taking an objective | Keeps issuing move orders to a point the soldier is already standing on | ✅ Consolidates — digs in on the captured ground and faces the counter-attack |
 | 6 | Defenders | Hold their positions | ✅ Unchanged, deliberately — **and the mod stops issuing them move orders at all**, because measurement proved they ignore them |
@@ -38,7 +38,7 @@ implemented · **⛔** impossible on this build
 | 8 | National doctrine | One behaviour profile for every army | ✅ 10 nations, each with its own morale floor, aggression, assault range, MG-centricity and cover discipline |
 | 9 | MG-centric squads | No concept of a squad weapon | ✅ In armies built round the LMG, riflemen cohere on the Support gunner **while moving up** — the squad supports the gun, not the reverse |
 | 10 | Close assault | Advances and shoots | ✅ Aggressive doctrines close and finish it at knife range; timid ones never do |
-| 11 | Anti-tank teams | AT man behaves broadly like a rifleman | 🔧 Acquires enemy *vehicles*, stalks outside effective range, holds and shoots inside it — and is **barred from the close assault** so the battalion's only AT capability isn't spent charging infantry |
+| 11 | Anti-tank teams | AT man behaves broadly like a rifleman | ✅ Acquires enemy *vehicles*, stalks outside effective range, holds and shoots inside it — and is **barred from the close assault** so the battalion's only AT capability isn't spent charging infantry |
 | 12 | Support weapons | LMG/mortar manoeuvre with everyone else | ✅ The gun **is** the base of fire; it holds its firing position and never rushes |
 | 13 | Cover discipline | Uniform | ✅ Per-nation probability that a bound routes through cover — the lever separating German fire-and-movement from a rush |
 
@@ -49,19 +49,19 @@ implemented · **⛔** impossible on this build
 | 14 | Morale / rout | Soldiers fight to the death | ✅ Breaks when locally outnumbered **and** bloodied, and is evaluated *above* the pinned reaction — a surrounded man runs rather than hugging the deck |
 | 15 | Squad leaders | Fight like everyone else | ✅ Direct from cover; never walk point |
 | 16 | Medics | Generic combatant behaviour | ✅ Hold cover by default, sortie to casualties when the sortie is survivable — including between contacts, not only under fire |
-| 17 | Wounded | Casualties lie where they fall | 🔧 The nearest healthy squadmate carries them into cover. Exactly one man is elected, from the real roster, with no coordination messages |
+| 17 | Wounded | Casualties lie where they fall | ✅ The nearest healthy squadmate carries them into cover. Exactly one man is elected, from the real roster, with no coordination messages |
 | 18 | Crew bail-out | Crew of a dead vehicle may linger | ✅ Ejected from burning/disabled/destroyed vehicles, alerted, and then — because a tank crew is **not** a rifle section — they break contact rather than joining the firing line |
 
 ### Command, support & feedback
 
 | # | Feature | Base game | With Realistic |
 |---|---|---|---|
-| 19 | Fire support | Scripted triggers only | 🔧 A radioman whose advance has **stalled** calls a fire mission. Refused danger-close, on cooldown, or over the mission cap. The period-correct substitute for CAS, which this build cannot script |
+| 19 | Fire support | Scripted triggers only | ✅ A radioman whose advance has **stalled** calls a fire mission. Refused danger-close, on cooldown, or over the mission cap. The period-correct substitute for CAS, which this build cannot script |
 | 20 | Objective flow | Units can mill around a held objective | ✅ Attraction manager pulls units onto an objective, then releases it once held so they flow to the next |
 | 21 | Setup | Brain must be set per Squad Spawner | ✅ Attaches itself to every soldier, including reinforcements a spawner field would miss |
 | 22 | Kill feed | Team-wide feed | ✅ **Your squad only**, as `<name> (<role>) killed by <weapon>` — the weapon, never the killer. Nothing else is drawn on screen |
 | 23 | Battalion tally | — | ✅ Both sides' losses and live counts, to the log |
-| 23b | Squadmate deaths | No squad-level reaction | 🔧 **One** surviving squadmate calls it out — elected on the master client so a squad never yells over itself. Only for roles the engine has a clip for (radioman, MG gunner, leader); silent otherwise, because substituting a wrong line is worse than silence |
+| 23b | Squadmate deaths | No squad-level reaction | ✅ **One** surviving squadmate calls it out — elected on the master client so a squad never yells over itself. Only for roles the engine has a clip for (radioman, MG gunner, leader); silent otherwise, because substituting a wrong line is worse than silence |
 | 24 | Voice | Engine chatter | ✅ 8 situational kinds wired to real branches — first contact, taking fire, being hit, panicking, retreating, charging, covering, tank spotted |
 
 ### Infrastructure
