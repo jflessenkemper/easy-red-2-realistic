@@ -571,6 +571,51 @@ roster API exists, so the reason for excluding them is gone)*
 
 Entries are evidence-based: what changed, and what measurement justified it.
 
+## 2026-08-29 (final) — v1.0.0: GATE PASS on a full battle
+
+`analyse_run.py --from-line <mark>` → **GATE: PASS**, exit 0, **0 Lua errors** over 3,700+ traces.
+
+| Order | Soldiers | Measured | Verdict |
+|---|---|---|---|
+| `ROAD-MARCH` | 15 | 1.50 m/s; **14/15 men gained >10 m**; trend 15 closing / 0 away | OK closing |
+| `ADVANCE-behind-armour` | 9 | 1.13 m/s, 11% still | OK moving |
+| `RALLY-on-MG` | 3 | 1.12 m/s, 0% still | OK moving |
+| `MOUNTED/CREW-defer` | 25 | 1.35 m/s | exempt (base AI by design) |
+| `PINNED` / `DEFEND-hold` / `FIGHT-from-cover` | 32 / 24 / 17 | 0.20 / 0.22 / 0.50 m/s | cover-seek, not gated |
+
+Features observed firing across the verification battles: `AT-stalk` 50, `AT-hunt` 18,
+`RALLY-on-MG` 25, `BOUND-move` 17 : `BOUND-overwatch` 14 (**≈1.2:1 against a predicted 1:1** —
+the roster split and shared clock really do alternate in step with no messaging), `DRAG-*` 13,
+`RADIO-fire-mission`, `ROUT`, `MEDIC-sortie`, `ASSAULT`/`ASSAULT-cover`, `LEADER-cover`.
+
+**Not observed, and honestly scenario-dependent rather than broken:** `CREW-onfoot` (needs a
+vehicle to be destroyed) and `ADVANCE-baseAI` (needs an attacker with no objective visible).
+
+### Three defects the release testing caught
+
+1. **`getAllMembers` FILLS a table, it does not return one** — 279 errors in one battle. Called
+   bare in two per-tick paths. `docs/verified-api.md` says so verbatim, so this was a misreading
+   of ground truth I had already written down. `tests/check.sh` now fails the build if any known
+   fill-style API is called with an empty argument list.
+2. **A dormant `.aiParams` property fallback** — the property form throws on v2.0.9 and once
+   produced 20,689 errors. It never fired only because the getter always wins, making it a
+   landmine for any build where the getter is absent. Deleted rather than guarded.
+3. **Attackers marched on the spot after taking the objective.** Six men marched 128–283 m,
+   closed to 0–2 m of the objective, then stood there still labelled `ROAD-MARCH` and still being
+   ordered to a point they occupied. The stationary tail dragged the pooled average down and the
+   gate reported NOT MOVING — which looked like a measurement artefact and was a real behaviour
+   bug wearing one as a disguise. Fixed by feature 5b, `CONSOLIDATE`.
+
+### A gate correction, for the record
+
+`ROAD-MARCH` was judged on pace and kept failing while the men were plainly marching — 200–379 m
+covered, 100–177 m gained. The threshold was not too high; it was the wrong question. A march
+succeeds by **closing on the objective**, so that is what the gate now measures, and it is
+stricter in the direction that matters: a man moving fast in the wrong direction now fails where
+the speed test passed him. Deliberately *not* a lowered threshold — tuning the number instead of
+questioning the assumption is the mistake that kept `DEFEND_RADIUS` alive while the branch it
+guarded never worked at any value.
+
 ## 2026-08-29 (later) — two live battles, three orders retired as unobeyable
 
 Measured with `analyse_run.py` on two real battles (not editor previews — see the note at the end
