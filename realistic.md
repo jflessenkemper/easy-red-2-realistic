@@ -21,6 +21,53 @@ reinforcements a spawner field would miss.
 
 ---
 
+# 0. INSTALL
+
+Two files, one folder each, no editor configuration. It works on **any mission, any map, any
+two belligerents** — nation, side and role are all detected at runtime from the soldier himself.
+
+**1. Find your mission folder.** Easy Red 2 stores custom missions under your Unity persistent
+data path:
+
+| OS | Path |
+|---|---|
+| Windows | `%USERPROFILE%\AppData\LocalLow\Corvostudio\Easy Red 2\mission_editor\<MISSION>\` |
+| Linux | `~/.config/unity3d/Corvostudio/Easy Red 2/mission_editor/<MISSION>/` |
+| macOS | `~/Library/Application Support/Corvostudio/Easy Red 2/mission_editor/<MISSION>/` |
+
+`<MISSION>` is the folder for your mission — if you have several, sort by modified date after
+saving, or open them to find the one matching your mission's name.
+
+**2. Copy the two scripts** into that mission folder, renaming the phase script:
+
+```
+Realistic.lua        ->  <MISSION>/scripts/AI/Realistic.lua
+RealisticEvents.lua  ->  <MISSION>/scripts/mission/phase_0.lua
+```
+
+Create `scripts/AI/` and `scripts/mission/` if they do not exist. If your mission **already has**
+a `phase_0.lua`, do not overwrite it — merge instead, or the mission's own phase logic is lost.
+
+**3. Play.** Open the mission in the Mission Editor and hit Play. That is the whole setup.
+
+**You do NOT need to set the Squad Spawner `Brain` field.** The phase script attaches the brain
+to every soldier itself, on spawn and via an initial sweep — which also covers reinforcements
+that a spawner field would miss. `WatchSquad.lua` no longer exists; nothing needs marking.
+
+**Verifying it loaded.** Your `Player.log` (same folder as the mission editor path above, one
+level up) should show `[EVENTS] brain attached to N soldier(s)` and then `[REALISTIC]` lines.
+No `[REALISTIC]` lines at all means the brain did not attach — check that the phase script
+really is named `phase_0.lua`.
+
+**Turning the noise down.** `DEBUG = true` at the top of both files writes a sampled decision
+trace. Set it to `false` for normal play. Do **not** set `VERBOSE = true` unless you are
+debugging — it logs every soldier every tick and produced multi-million-line logs.
+
+**Optional files.** `bench_probe.lua` and `bench_watch.lua` are development instruments for
+probing the engine API; they are not needed to play and can be ignored.
+
+---
+
 # 1. FEATURES
 
 Status: ✅ implemented and reachable · 🔧 partially implemented, or implemented but not yet
@@ -35,8 +82,8 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | 2 | **Take cover under fire** — hands the cover choice to the engine, which knows about walls, buildings and vehicles | ✅ | threatened, no higher branch | `findCover` | `FIGHT-from-cover` |
 | 3 | **Pinned reaction** — go to ground and scream when the engine itself says he is suppressed | ✅ | native `isSuppressed()` (**primary**) · or ≥`PINNED_ENEMIES` within `PINNED_RADIUS` (secondary) | `isSuppressed`, `findCover`, `say`, `allowFindCoverWhenSuppressed` | `PINNED` |
 | 4 | **Bounding overwatch** — half the squad moves while the other half watches and fires, swapping every bound | ⬜ | *(planned)* attacker · threatened · morale healthy | would use `Squad.getAllMembers` to split the real roster | `BOUND-move`, `BOUND-overwatch` |
-| 5 | **Advance behind armour** — keep a friendly *armoured* hull between yourself and the enemy | ✅ | friendly vehicle within `ARMOUR_SCAN` that passes the `ARMOUR_ALLOW`/`ARMOUR_DENY` name filter, is not destroyed and is not artillery | `getVehiclesInArea`, `Vehicle.getName`, `isDestroyed`, `isArtilleryVehicle`, `moveTo` | `ADVANCE-behind-armour` |
-| 6 | **Defenders hold their line** — never issue futile march orders to troops base AI is holding | ✅ | defender · no contact | `findCover`, `releaseToBaseAI` | `DEFEND-hold` |
+| 5 | **Advance behind armour** — keep a friendly *armoured* hull between yourself and the enemy | ✅ | **attacker only** (see §7 — defenders ignore `moveTo`) · friendly vehicle within `ARMOUR_SCAN` that passes the `ARMOUR_ALLOW`/`ARMOUR_DENY` name filter, is not destroyed and is not artillery | `getVehiclesInArea`, `Vehicle.getName`, `isDestroyed`, `isArtilleryVehicle`, `moveTo` | `ADVANCE-behind-armour` |
+| 6 | **Defenders hold their line** — a defender **never** receives a move order, at any range | ✅ | defender · no contact | `findCover`, `releaseToBaseAI` | `DEFEND-hold` |
 | 7 | **Transport reuse** — remount the truck you rode in instead of abandoning it | 🔧 | see §1.7 | `findVehicle`, `boardVehicle`, `moveTo` | `RETURN-to-transport`, `REBOARD-transport` |
 
 ## 1.2 Combat & doctrine
@@ -44,7 +91,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 | # | Feature | Status | Trigger | Acts via | Log label |
 |---|---|---|---|---|---|
 | 8 | **Per-nation doctrine** — 10 nations, each with its own morale, aggression, assault range, MG-centricity and cover discipline | ✅ | nation parsed from the soldier's own faction string | doctrine table | line prefix `germany/…` |
-| 9 | **MG-centric cohesion** — in armies built around the LMG, riflemen cohere on the Support gunner | ✅ | mgCentric doctrine · gun >`MG_COHESION` away | `moveTo` | `RALLY-on-MG` |
+| 9 | **MG-centric cohesion** — in armies built around the LMG, riflemen cohere on the Support gunner **while moving up**, not under fire | ✅ | **no contact** · attacker · mgCentric doctrine · gun >`MG_COHESION` away | `moveTo` | `RALLY-on-MG` |
 | 10 | **Close assault** — aggressive, steady doctrines close and finish it | ✅ | threatened · enemy centroid within `assaultRange` · `aggression` ≥ `ASSAULT_MIN_AGGR` · forceRatio ≥ `moraleFloor + ASSAULT_MARGIN` · aggression roll · **not** MG/mortar/medic/leader | `moveTo`, `findCover`, `say` | `ASSAULT`, `ASSAULT-cover` |
 | 11 | **AT teams hunt armour** — anti-tank men acquire and stalk enemy *vehicles*, not infantry | ⬜ | *(planned)* `isATSoldier()` · enemy vehicle in range | would use `getVehiclesInArea`, `forceTarget`, `alertFor` | `AT-stalk`, `AT-hunt` |
 | 12 | **Support weapons hold fire positions** — the LMG/mortar *is* the base of fire; it never rushes | ✅ | class Support/mortar · threatened | `findCover`, `say` | `SUPPORT-hold-fire` |
@@ -54,7 +101,7 @@ verified in a live battle · ⬜ catalogued and now *possible*, but **not in the
 
 | # | Feature | Status | Trigger | Acts via | Log label |
 |---|---|---|---|---|---|
-| 14 | **Morale / rout** — break and fall back when locally outnumbered *and* bloodied | ✅ | evaluated **above** PINNED. forceRatio < `moraleFloor × ROUT_COLLAPSE` (collapsing), **or** forceRatio < `moraleFloor` **and** bloodied (own HP ≤ `ROUT_HURT_HP`, or ≥`ROUT_CASUALTIES` friendly casualties sensed, or the squad roster has shrunk below its peak) | `moveTo`, `findCover` (a later tick), `say` | `ROUT`, `ROUT-cover` |
+| 14 | **Morale / rout** — break and fall back when locally outnumbered *and* bloodied | ✅ | evaluated **above** PINNED. forceRatio < `moraleFloor × ROUT_COLLAPSE` (collapsing), **or** forceRatio < `moraleFloor` **and** bloodied (own HP ≤ `ROUT_HURT_HP`, or ≥`ROUT_CASUALTIES` friendly casualties sensed, or the squad roster has shrunk below its peak) | `moveTo` (**attacker only**), `findCover` (a later tick), `say` | `ROUT`, `ROUT-cover` |
 | 15 | **Leader self-preservation** — squad leaders direct from cover and never walk point | ✅ | native `isSquadLeader()` · threatened | `findCover`, `say` | `LEADER-cover` |
 | 16 | **Medic behaviour** — hold cover by default, sortie to a casualty whenever the sortie is survivable | ✅ | native `isMedic()` · casualty within `MEDIC_REACH` · **no** enemy inside `PINNED_RADIUS`. Threat is *not* required — a medic works the field between contacts too | `moveTo`, `findCover`, `allowDoMedic` | `MEDIC-sortie`, `MEDIC-hold-cover` |
 | 17 | **Drag wounded to cover** — the nearest healthy man carries a downed comrade out of the open | ⬜ | *(planned)* casualty nearby · caller is nearest · healthy | would use `getNearestInjured`, `carryBody`, `isCarryingBody` (all probe-confirmed) | `DRAG-approach`, `DRAG-to-cover` |
@@ -178,9 +225,10 @@ a higher branch silently consumed the only conditions under which a lower one co
      c  RALLY-on-MG             MG-centric and separated from the gun
      d  FIGHT-from-cover        fallback
 9  NO CONTACT                                                    -> sub-cascade:
-     a  DEFEND-hold / DEFEND-move-up   defender (move-up only beyond DEFEND_RADIUS)
+     a  DEFEND-hold                    defender - ALWAYS holds; never gets a move order
      b  RETURN-/REBOARD-transport      attacker, suitability rule met (§1.7)
-     c  ROAD-MARCH                     attacker with an objective
+     c  RALLY-on-MG                    attacker, mgCentric, gun > MG_COHESION away
+     d  ROAD-MARCH                     attacker with an objective
      d  ADVANCE-baseAI                 no objective visible
 ```
 
@@ -209,7 +257,7 @@ producer (19). None of them is reachable, and none of their labels can appear in
 
 `MOUNTED/CREW-defer` · `ROUT` · `ROUT-cover` · `ASSAULT` · `ASSAULT-cover` · `PINNED` ·
 `MEDIC-sortie` · `MEDIC-hold-cover` · `LEADER-cover` · `SUPPORT-hold-fire` ·
-`ADVANCE-behind-armour` · `RALLY-on-MG` · `FIGHT-from-cover` · `DEFEND-move-up` · `DEFEND-hold` ·
+`ADVANCE-behind-armour` · `RALLY-on-MG` · `FIGHT-from-cover` · `DEFEND-hold` ·
 `RETURN-to-transport` · `REBOARD-transport` · `ROAD-MARCH` · `ADVANCE-baseAI`
 
 Two are new:
@@ -249,7 +297,6 @@ Every constant below exists in the source. Nothing is listed here that the code 
 | `SQUAD_RETRY` | 20 ticks | period of the lazy `getSquad()` re-attempt until it resolves |
 | `VOICE_COOLDOWN` | 6 s | per-kind voice cooldown (one "kind" may speak this often) |
 | `ARMOUR_ALLOW` / `ARMOUR_DENY` | name lists | the armour-vs-softskin filter for feature 5, matched against `Vehicle.getName()` (Vehicle has no `getClassName`). **ALLOW is tested first**, so `"Armoured car"` and `"Universal Carrier"` survive the `"car"` deny token. A name in **neither** list is not armour, and is logged once per battle |
-| `DEFEND_RADIUS` | 300 m | a defender only repositions beyond this |
 | `MOVE_DEADBAND` | 6 m | destination change needed to re-issue `moveTo` |
 | `MOVE_REISSUE` | 4 s | time-based re-issue allowance; also throttles `findCover` |
 | `ROAD_FOLLOW` | true | enable flatness-biased approach march |
@@ -513,6 +560,61 @@ roster API exists, so the reason for excluding them is gone)*
 # 8. CHANGELOG
 
 Entries are evidence-based: what changed, and what measurement justified it.
+
+## 2026-08-29 (later) — two live battles, three orders retired as unobeyable
+
+Measured with `analyse_run.py` on two real battles (not editor previews — see the note at the end
+of this entry). All figures are pooled per `(soldier, label)` and reported as the median across
+contributing soldiers.
+
+**Confirmed working** (battle 1, in-contact infantry fight): `ROAD-MARCH` 1.72 m/s over 38
+soldiers and 9194 pooled seconds with the objective trend reading *closing 32 / away 6*;
+`ADVANCE-behind-armour` 1.08; `ASSAULT` 1.07 and `ASSAULT-cover` 1.68; `MEDIC-sortie` 1.15;
+`REBOARD-transport` 0.28 holding. **0 Lua errors across both battles.** Squad binding 100%.
+Every branch that the P0 pass unblocked was observed firing: `ROUT` 9, `ASSAULT`+`ASSAULT-cover`
+18, `MEDIC-sortie` 5, `LEADER-cover` 9 — all three had been structurally unreachable before.
+
+**`RALLY-on-MG` moved out of the firefight into the approach march.** Measured 0.34 m/s across
+21 soldiers with 57% stationary, and dead in *every* nation (germany 0.26, britain 0.16, france
+0.01) — so not the defender problem. It sat in the `threatened` branch, ordering men under fire
+to walk to the machine gun; the engine will not honour that, and correctly so. A rifle squad
+closes up on its Support gunner *while moving up*, which is what it now models.
+
+**Three orders retired because defenders will not obey `moveTo`.** Splitting every failing label
+by side gave one clean answer rather than three separate bugs:
+
+| Label | Attacker | Defender | Action |
+|---|---|---|---|
+| `ADVANCE-behind-armour` | germany 0.65 m/s, 0% still | france 0.00, britain 0.05, 100% still | now **attacker-only** |
+| `ROUT` (the fallback move) | — | france 0.08, britain 0.06, 100% still | fallback move now **attacker-only**; a defender who breaks goes to ground where he stands (`ROUT-cover`) |
+| `DEFEND-move-up` | n/a | france 0.09 m/s, **100% still over 2755 pooled seconds** | **branch and `DEFEND_RADIUS` both deleted** |
+
+`DEFEND-move-up` is the important one. It existed as an escape hatch letting a badly-out-of-
+position defender close on the objective, and it never worked at any radius — the constant was
+tuned rather than the assumption questioned. No value of a radius makes an ignored order work,
+so both the branch and the constant are gone rather than retuned. Holding is also the
+historically correct behaviour for a defending battalion, so nothing of value was lost.
+
+**Verification-tool corrections** (these were *my* bugs, not the mod's, and both produced false
+failures that would have sent me debugging working code):
+
+1. *Segment measurement systematically under-measured speed.* Soldiers are sampled about once
+   every 7 s while their decision label flips constantly, so most contiguous same-label runs were
+   1–2 samples and the survivors were dominated by noise. It scored `ROAD-MARCH` at 0.30 m/s over
+   4 segments while the same run's objective trend said "closing 4 / away 0" — motionless men
+   closing on an objective, which is what exposed it. Now pooled per `(soldier, label)`, taking
+   sample sizes from 1–7 segments to 15–43 soldiers.
+2. *Cover-seeking orders cannot be judged by a speed threshold.* `findCover` is a **void command
+   that relocates the soldier**, so movement under `PINNED` / `FIGHT-from-cover` / `LEADER-cover`
+   / `MEDIC-hold-cover` / `DEFEND-hold` is correct. Classifying them as hold-orders failed all
+   five at once — that simultaneity was the tell. They are now a `COVER` class: reported, never
+   gated.
+
+**Method note.** An entire analysis pass was run against a battle that was not happening:
+`er2_play_mission` reported "clicked Play" while the game sat in the Mission Editor. Phase
+scripts execute in the editor, so `[REALISTIC]` log lines are **not** proof of play. Liveness
+check: ~9 traces/s means playing, ~2/s means editor preview. Full detail in
+`er2-plugin/docs/ui-map.md`.
 
 ## 2026-08-29 — API probe, native-API migration, P0 fixes
 

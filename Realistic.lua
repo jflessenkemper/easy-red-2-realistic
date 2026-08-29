@@ -65,10 +65,11 @@ local SQUAD_RETRY    = 20     -- ticks between lazy getSquad() re-attempts until
 -- MEASURED over two live battles: attackers move normally (122 m median displacement) but
 -- defenders barely move (7 m) no matter what we order — base AI keeps them on their defensive
 -- positions and wins, because allowFollowOrders is true. That is also the historically correct
--- behaviour for a defence, so we stop fighting it: a defender only repositions if it is
--- absurdly far out of position (beyond this radius), otherwise it holds and takes cover.
--- Set generously — a small value just produced 158 futile "move-up" orders per battle.
-local DEFEND_RADIUS  = 300    -- m
+-- behaviour for a defence, so we stop fighting it: a defender ALWAYS holds and takes cover.
+-- There was a DEFEND_RADIUS escape hatch here letting a badly-out-of-position defender close on
+-- the objective. It was measured again on 2026-08-29 and it never worked at any radius: 0.09 m/s
+-- with 100% of the men stationary over 2755 pooled seconds. Both the constant and the branch are
+-- deleted rather than tuned — no value of the radius makes an ignored order work.
 -- Movement hysteresis: re-issuing moveTo to a slightly-different point every tick
 -- fights the engine pathfinder and never lets a soldier settle. Only re-order when
 -- the destination has moved > MOVE_DEADBAND, or MOVE_REISSUE seconds have passed.
@@ -551,6 +552,13 @@ end
 -- advance on the covered side of the nearest FRIENDLY ARMOURED vehicle
 local function advanceBehindArmour(pos, ec, now)
     if not USE_ARMOUR_COVER then return false end
+    -- ATTACKERS ONLY. This ends in a moveTo, and defenders do not obey move orders — the base AI
+    -- correctly wants them holding ground and it wins. MEASURED 2026-08-29, split by side:
+    -- germany 0.65 m/s with 0% stationary, france 0.00 m/s and britain 0.05 m/s with 100%
+    -- stationary. Issuing it to a defender produces a decision the engine ignores, which is
+    -- worse than useless: it reads as a working feature in the log. Defenders fall through to
+    -- FIGHT-from-cover, which is both obeyed and the historically correct behaviour.
+    if not amInvader then return false end
     local vlist = {}
     if not safe(function() er2.getVehiclesInArea(pos, ARMOUR_SCAN, vlist) end) then return false end
     local bestPos, bestD = nil, 1e9
@@ -581,6 +589,12 @@ end
 -- ROUT branch can arm the follow-up findCover for a LATER tick — a findCover here would be
 -- countermanded by this very moveTo, which is why the "ends in cover" comment used to be a lie.
 local function fallbackFrom(pos, ec, now)
+    -- ATTACKERS ONLY, for the same reason as advanceBehindArmour: this ends in a moveTo and
+    -- defenders will not obey it. MEASURED 2026-08-29: ROUT ran at 0.06-0.08 m/s with 100% of
+    -- men stationary on the defending side. A defender who breaks therefore goes to ground where
+    -- he stands (the caller's `else` yields ROUT-cover) rather than being handed a rearward
+    -- rally point he will never walk to.
+    if not amInvader then return false end
     local dest
     if ec then
         local dx, dz = pos.x - ec.x, pos.z - ec.z
@@ -793,15 +807,18 @@ while true do
             -- which is both the correct order and free of the conflict.
             local obj = objectivePos(pos)
             if not amInvader then
+                -- DEFENDERS NEVER MARCH. There used to be a DEFEND-move-up branch here that
+                -- ordered a defender further than DEFEND_RADIUS from the objective to close on
+                -- it. It never worked: MEASURED 2026-08-29 at 0.09 m/s with 100% of the men
+                -- stationary over 2755 pooled seconds, French defenders only. Base AI holds
+                -- ground and beats our move order every time, so the label was pure fiction in
+                -- the log. Holding is also the historically correct behaviour for a defending
+                -- battalion, so there is nothing to reclaim here — the branch is gone, not
+                -- disabled. See realistic.md for the retired-feature note.
                 local d = obj and distance(pos, obj) or 0
-                if obj and d > DEFEND_RADIUS then
-                    orderMove(roadStepToward(pos, obj), now)   -- garrison: close on the position
-                    decision, detail = "DEFEND-move-up", "obj d="..string.format("%.0f", d)
-                else
-                    releaseToBaseAI()                  -- let base AI pick defensive positions
-                    takeCover(pos, now)
-                    decision, detail = "DEFEND-hold", (obj and ("obj d="..string.format("%.0f", d)) or "")
-                end
+                releaseToBaseAI()                  -- let base AI pick defensive positions
+                takeCover(pos, now)
+                decision, detail = "DEFEND-hold", (obj and ("obj d="..string.format("%.0f", d)) or "")
             else
                 local far = obj and distance(pos, obj) > REBOARD_MIN_DIST
                 local reused = far and reuseTransport(pos, now) or nil
