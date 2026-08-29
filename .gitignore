@@ -1,0 +1,4 @@
+# Play-test artefacts — regenerated every run, never source of truth
+*.log
+shot.png
+__pycache__/
