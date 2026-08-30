@@ -123,6 +123,26 @@ else
   echo "  SKIP  (needs luajit bytecode listing)"
 fi
 
+echo "== 4e. Offline brain: the decision cascade actually runs =="
+# Executes Realistic.lua against a stubbed ER2 runtime and asserts which decision comes out for
+# six scenarios. This is the only check that RUNS the brain rather than reading it, so it catches
+# what static analysis and syntax checks cannot: a call that raises at runtime.
+# ER2 does not surface a brain-coroutine death as a Lua error - the soldier just stops thinking
+# and the log stays clean - so before this, such a bug cost a 15-minute battle and still showed
+# only silence. Verified by reintroducing the rosterIndex forward reference: this reports
+# "attempt to call global 'rosterIndex' (a nil value)" with the line number, in under a second.
+if [ -n "$LUA" ] && [ "${LUA##*/}" = "luajit" ]; then
+  if "$LUA" tests/offline_brain.lua >/tmp/er2_offline.$$ 2>&1; then
+    ok "offline brain: all scenarios reach their expected decision"
+  else
+    bad "offline brain FAILED:"
+    sed 's/^/        /' /tmp/er2_offline.$$ | tail -8
+  fi
+  rm -f /tmp/er2_offline.$$
+else
+  echo "  SKIP  (needs luajit)"
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
