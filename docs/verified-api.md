@@ -466,3 +466,31 @@ That was attempted first and reverted; the bytecode global list is what exposed 
 function also appears as a `GGET` in the bytecode. The bytecode is the oracle — text analysis
 cannot see this, and check 4c does not either, because 4c only asks whether the name is defined
 *somewhere*, not whether it is defined *before use*.
+
+## 2026-08-30 — the phase loop died for FOUR separate reasons, not one
+
+Three fixes were aimed at this and all three were incomplete, because each time one cause was
+found and declared *the* cause. The full list, in the order they had to be peeled back:
+
+1. `if getCurrentPhaseId() ~= MY_PHASE then break end` — a battle ending changes the phase, so
+   the loop broke. Fixed by idling instead of breaking.
+2. `if battleOver then break end` — a **second** exit, set by the `battle_ended` callback.
+   Capturing an objective ends the phase, so this killed the loop mid-session. Fixed by removing
+   the break.
+3. **A deadlock.** The idle guard was `ph ~= MY_PHASE or battleOver`, and the only place that
+   reset `battleOver` was the *active* branch — which that guard prevents from running. Once
+   `battle_ended` fired, the loop idled forever even after its phase returned. The flag that
+   trapped the loop could only be cleared by the code it blocked. Fixed by clearing `battleOver`
+   inside the idle branch when the phase comes back, since the phase returning *is* the signal
+   that a new battle has begun.
+4. **A 40-second dead window after every resume.** Resuming cleared `objList` but left it empty
+   until the next `tick % OBJ_REFRESH == 0`, up to 40 s later, so attraction stayed dead and the
+   loop still looked broken. Fixed by calling `refreshObjectives()` immediately on resume.
+
+**Causes 3 and 4 were found OFFLINE**, in milliseconds, by `tests/offline_phase.lua` — which
+stubs the ER2 runtime and drives the loop across a simulated battle boundary. Live, each attempt
+cost a ~15-minute battle *and* required an objective capture to exercise the path once, and ER2
+does not surface a coroutine death as a Lua error, so the log could never say what happened.
+
+**The lesson worth keeping:** when a symptom survives a fix, the fix may have been correct and
+merely incomplete. Enumerate every exit before declaring the cause.

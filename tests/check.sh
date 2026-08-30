@@ -139,6 +139,16 @@ if [ -n "$LUA" ] && [ "${LUA##*/}" = "luajit" ]; then
     sed 's/^/        /' /tmp/er2_offline.$$ | tail -8
   fi
   rm -f /tmp/er2_offline.$$
+  # The PHASE loop, driven across a battle boundary. Live testing needed a ~15 min battle AND an
+  # objective capture to exercise this once; here it runs in milliseconds. It found two further
+  # causes of the loop death that three previous fixes had all missed.
+  if "$LUA" tests/offline_phase.lua >/tmp/er2_phase.$$ 2>&1; then
+    ok "offline phase: loop survives a battle boundary and resumes"
+  else
+    bad "offline phase FAILED:"
+    sed 's/^/        /' /tmp/er2_phase.$$ | tail -8
+  fi
+  rm -f /tmp/er2_phase.$$
 else
   echo "  SKIP  (needs luajit)"
 fi

@@ -1006,12 +1006,26 @@ while true do
             logonly("idling: phase=" .. tostring(ph) .. " ours=" .. tostring(MY_PHASE)
                 .. " battleOver=" .. tostring(battleOver))
         end
+        -- CLEAR battleOver HERE, not in the active branch. Third distinct cause of the loop
+        -- death, found offline: once battle_ended set battleOver, the guard
+        -- `ph ~= MY_PHASE or battleOver` stayed true even after our phase came back, so the
+        -- active branch was never reached - and the active branch was the only place that reset
+        -- the flag. A deadlock: the flag that traps the loop could only be cleared by the code it
+        -- prevents from running. The phase returning IS the signal that a new battle has begun.
+        if ph == MY_PHASE and battleOver then
+            battleOver = false
+        end
         sleep(1)
     else
         if phasePaused then
             phasePaused = false
             battleOver = false    -- a new battle: the previous one's end no longer applies
-            objList = {}          -- objects from the previous phase are stale; re-query them
+            -- Re-query the objectives IMMEDIATELY. Clearing objList alone left it empty until the
+            -- next `tick % OBJ_REFRESH == 0`, which is up to 40 s away - so attraction stayed
+            -- dead for most of a minute after every resume and the loop still looked broken.
+            -- Found offline: the harness resumed correctly and then produced no attraction lines.
+            objList = {}
+            refreshObjectives()
             logonly("RESUMED: our phase is active again (objectives re-queried)")
         end
 
