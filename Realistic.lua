@@ -31,7 +31,26 @@ local DEBUG = false
 local VERBOSE = false
 
 --========================== TUNABLES ========================================
-local TICK           = 1.5    -- brain loop period (s)
+-- ============================ PERFORMANCE ==================================
+-- The dominant cost of this mod is sense(): ONE getSoldiersInArea sweep per brain per tick, then
+-- a handful of GUARDED interop calls (pcall + engine hop) for every soldier the sweep returns.
+-- That scales as (brains / TICK) x (soldiers within SENSE_RADIUS), and the second term grows with
+-- the SQUARE of the radius. At ~350 brains, TICK 1.5 and SENSE_RADIUS 90 in a crowded battle that
+-- is on the order of a hundred thousand guarded calls a second, which is enough to be felt.
+--
+-- Two dials, and they are NOT equivalent:
+--   TICK          - pure latency/throughput trade. Raising it makes soldiers react more slowly but
+--                   changes no decision. SAFE to raise for framerate. 2.0 -> 3.0 costs a third of
+--                   the work again and is barely visible in play.
+--   SENSE_RADIUS  - NOT a free knob. It feeds ne/nf/ncas, which feed the force ratio and the ROUT
+--                   test (ncas >= ROUT_CASUALTIES). Shrinking it makes men see fewer friends,
+--                   fewer enemies and fewer casualties, so they rout LESS and break contact less
+--                   readily. Lower it only if TICK is not enough, and expect morale to shift.
+-- Ordered cheapest-first, the things already done: brains are staggered across the tick window so
+-- they do not all scan on one frame, and getClassName is skipped for anyone who cannot change the
+-- answer. Both are free - they alter no decision.
+-- ===========================================================================
+local TICK           = 2.0    -- brain loop period (s). Raise for framerate; see PERFORMANCE above.
 local SENSE_RADIUS   = 90     -- m, area scan for friends/enemies
 local THREAT_ENEMIES = 1      -- >=N enemies sensed => under threat
 -- Pinned: the PRIMARY trigger is now the engine's OWN suppression state (isSuppressed(),
@@ -423,9 +442,17 @@ local function sense(pos)
                     nf = nf + 1
                     -- Support/MG is one of the two roles with NO native flag, so the gunner is
                     -- still found by class string (see the bootstrap note).
-                    local cn = tostring(safeGet(function() return s.getClassName() end) or ""):lower()
-                    if sp and cn:find("support") then
-                        local d = distance(pos, sp); if d < mgD then mgPos, mgD = sp, d end
+                    -- COST GATE, no behaviour change: mgPos is read ONLY by mgCentric doctrines,
+                    -- and only the NEAREST gunner is ever used - so a man further away than the
+                    -- current best cannot change the answer. Skipping getClassName for those two
+                    -- cases removes one guarded interop call per friendly per tick, which at ~350
+                    -- brains is tens of thousands of calls a second.
+                    if DOC.mgCentric and sp then
+                        local d = distance(pos, sp)
+                        if d < mgD then
+                            local cn = tostring(safeGet(function() return s.getClassName() end) or ""):lower()
+                            if cn:find("support") then mgPos, mgD = sp, d end
+                        end
                     end
                 end
             elseif f ~= nil and alive ~= false then
@@ -856,6 +883,20 @@ local function reuseTransport(pos, now)
 end
 
 --========================== MAIN LOOP =======================================
+
+-- STAGGER THE BRAINS. Every soldier spawns at roughly the same moment and then sleeps the same
+-- TICK, so without this all ~350 brains stay locked in phase for the whole battle and do their
+-- area scans on the SAME frame — one big stall every TICK seconds rather than an even load. That
+-- reads as stutter, not as low framerate, and it is the part players actually feel.
+--
+-- Spread them evenly across the tick window using the uid split that is already proven to
+-- distribute (floor(uid/2); never uid % N — ER2 uids have an even stride of 262, so the low bit
+-- is degenerate). Costs one sub-tick sleep once, at brain start, and changes no decision.
+do
+    local slots  = 16
+    local mySlot = math.floor(math.abs(uid) / 2) % slots
+    if mySlot > 0 then sleep(TICK * (mySlot / slots)) end
+end
 local errStreak  = 0
 local lastHealth = 100      -- previous tick's health, to detect the "I've been hit" moment
 local sawContact = false    -- first-contact latch for VOICE_ENUM.enemySpot
