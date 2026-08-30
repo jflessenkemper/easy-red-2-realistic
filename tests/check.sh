@@ -185,7 +185,7 @@ for flag in VERBOSE DEBUG; do
     fi
   done
 done
-for flag in PROBE_APIS PROBE_GLOBALS; do
+for flag in PROBE_APIS PROBE_GLOBALS TRACE_LOOP; do
   if grep -qE "^local $flag\s*=" "$PHASE"; then
     if grep -qE "^local $flag\s*=\s*false" "$PHASE"; then ok "$flag=false"
     else bad "$flag must ship false (diagnostic left enabled)"; fi

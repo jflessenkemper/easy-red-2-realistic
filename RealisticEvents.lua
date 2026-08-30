@@ -14,6 +14,13 @@
 --============================================================================
 
 local DEBUG = false
+-- TRACE_LOOP: per-tick top/pre-sleep markers, to locate WHERE the loop stops. The loop reliably
+-- dies at objective capture with no error and no idle line, and the last thing it ever logs is the
+-- final statement of the attraction block — which leaves the unprotected `tick = tick + 1` and
+-- `sleep(1)` as the only untested ground. A "top" with no matching "pre-sleep" means the body
+-- died; a "pre-sleep" with no following "top" means sleep() never resumed the coroutine.
+-- Diagnostic only. check.sh check 6 refuses to ship this true.
+local TRACE_LOOP = false
 
 --========================== CONFIG ==========================================
 local FIRE_SUPPORT_TARGETS = {}   -- fill with P-key vec3s to enable a radioman barrage
@@ -584,6 +591,12 @@ end
 --========================== KILL FEED (deaths only) =========================
 local invDead, defDead = 0, 0
 local battleOver = false      -- set by battle_ended; stops the attraction loop
+-- FORWARD DECLARATION. The soldier_died closure below calls pumpIfLoopDead, and Lua resolves that
+-- name at COMPILE time: without this line it compiles to a global read, which is nil at runtime,
+-- so every death would raise inside the callback. That is exactly how the rosterIndex bug killed
+-- ADVANCE-behind-armour (367 fires -> 0) with no error line anywhere. Assigned after loopBody.
+local pumpIfLoopDead
+
 pcall(function() er2.setCallback("soldier_died", function(victim)
   pcall(function()
     if not victim then return end
@@ -597,6 +610,10 @@ pcall(function() er2.setCallback("soldier_died", function(victim)
         announce(nameOf(victim).." ("..roleOf(victim)..") killed by "..weaponForDeath(victim))
     end
   end)
+  -- WATCHDOG. Deliberately OUTSIDE the pcall above so a failure in the feed cannot stop it, and
+  -- last so it never delays the on-screen message. Runs the periodic work only when the loop has
+  -- gone stale; while the loop is alive loopAliveT stays fresh and this costs one comparison.
+  pcall(pumpIfLoopDead)
 end) end)
 
 pcall(function() er2.setCallback("battle_ended", function(winner, forced)
@@ -985,6 +1002,98 @@ end
 
 local tick = 0
 local phasePaused = false
+
+-- WATCHDOG STATE. The loop's `sleep(1)` is the one statement nothing can guard, and it is where
+-- the loop actually dies: traced live on Donchery, the last line ever logged is
+-- "trace tick=47 pre-sleep" with no matching post-sleep, and the tick never advances again.
+-- ER2 implements sleep() as a Unity coroutine (PauseForSeconds -> pauseWithCallback ->
+-- Coroutine_Resume); if whatever hosts it stops resuming, the Lua coroutine is simply never
+-- continued. No error, no idle line, and nothing inside the script can notice - it is not running.
+--
+-- So the periodic work must not depend on the loop being alive. soldier_died is registered on the
+-- engine, not on the loop's coroutine, and demonstrably keeps firing for the whole battle (tally
+-- and callout lines continue tens of thousands of log lines past the loop's last output). It also
+-- already does an area scan for the kill feed, so bounded work there is proven safe on this build.
+-- The callback therefore pumps the same body when the loop has gone stale.
+local loopAliveT = -1        -- er2.time() of the last completed loop iteration
+local lastPumpT  = -1        -- er2.time() of the last watchdog-driven pump
+local pumps      = 0
+local LOOP_STALE = 6         -- s without a loop iteration before the watchdog takes over
+local PUMP_GAP   = 4         -- s between pumps, matching the loop's own attraction cadence
+local loopBody               -- forward declaration; assigned just below
+
+loopBody = function()
+
+    -- (a) objective attraction — throttled, with comprehensive per-objective logging.
+    -- TWO PASSES, deliberately. `allHeld` must be known for EVERY objective before any
+    -- attraction is applied. Computing it inside the apply loop meant objective 1 always saw
+    -- allHeld=true (nothing had cleared it yet), so its invader-attraction was NEVER released
+    -- and the "hold it, then flow to the next objective" behaviour could not happen.
+    -- one-shot API probe, once soldiers actually exist (they do not at phase load)
+    if PROBE_APIS and not probeDone and tick >= 8 then pcall(probeApis) end
+    if (tick % OBJ_REFRESH) == 0 then refreshObjectives() end
+    if (tick % ATTRACT_EVERY) == 0 and #objList > 0 then
+        -- pass 1: ownership only
+        local allHeld, changed = true, {}
+        local invCount, defCount = {}, {}
+        for i, o in ipairs(objList) do
+            local inv, def = countInside(o)
+            invCount[i], defCount[i] = inv, def
+            local was = captured[i]
+            if captured[i] then
+                if def > inv then captured[i] = false end          -- pushed off: contested again
+            elseif inv > def and inv > 0 then
+                captured[i] = true                                  -- attackers hold it
+            end
+            changed[i] = (was ~= captured[i])
+            if not captured[i] then allHeld = false end
+        end
+        -- pass 2: apply attraction now that allHeld is final
+        for i, o in ipairs(objList) do
+            -- invaders stop being drawn to what they already hold, so they push on; if they hold
+            -- EVERYTHING they are re-attracted so they consolidate instead of wandering off.
+            local invAttract = (not captured[i]) or allHeld
+            setAttract(o, invAttract, true)
+            logonly(string.format("obj%d inv=%d def=%d held=%s invAttract=%s%s",
+                i, invCount[i], defCount[i], tostring(captured[i]), tostring(invAttract),
+                changed[i] and (captured[i] and "  <- CAPTURED by attackers" or "  <- RETAKEN by defenders") or ""))
+        end
+        -- battalion strength (confirmed API) so we can watch attrition
+        local ai = safeGet(function() return er2.countAliveInvaders() end)
+        local ad = safeGet(function() return er2.countAliveDefenders() end)
+        logonly("alive invaders="..tostring(ai).."  defenders="..tostring(ad))
+    end
+
+    -- (b) crew bail-out — drain the queue the vehicle_* callbacks filled. All of the work is
+    -- here, never in the callback: callbacks record numbers and return.
+    pcall(drainBail)
+
+    -- (c) radioman fire mission — one step of the state machine. No coroutine: the loop already
+    -- sleeps 1 s, which is the only clock the barrage needs.
+    if (tick % ROLE_REFRESH) == 0 then pcall(refreshRoles) end
+    pcall(fireMissionStep)
+
+    -- NO break on battleOver: the idle branch above handles it, so the loop survives to serve
+    -- the next battle in this process.
+    tick = tick + 1
+    loopAliveT = now()
+end
+
+-- Assigned here, after loopBody exists. Forward-declared far above, next to the soldier_died
+-- callback that calls it.
+pumpIfLoopDead = function()
+    local t = now()
+    if loopAliveT < 0 then return end                 -- loop has not run a single iteration yet
+    if (t - loopAliveT) < LOOP_STALE then return end  -- loop is alive; do nothing
+    if (t - lastPumpT) < PUMP_GAP then return end     -- already pumped recently
+    lastPumpT = t
+    pumps = pumps + 1
+    if pumps == 1 then
+        log("[EVENTS] WATCHDOG: the phase loop stopped (sleep never resumed) - "
+            .. "driving attraction/bail-out/fire-missions from soldier_died instead")
+    end
+    pcall(loopBody)
+end
 while true do
     -- WAIT-AND-RESUME, not break. This used to `break` the moment the phase changed, which is
     -- what a battle ending looks like. The game does NOT re-load the phase script for a second
@@ -1035,64 +1144,12 @@ while true do
         -- these ~85 lines were protected. An unhandled error here kills the coroutine silently:
         -- ER2 does not surface it as a Lua error, which is why every log has shown zero.
         -- Logged with log() NOT logonly(), because DEBUG ships false and this must be visible.
-        local bodyOk, bodyErr = pcall(function()
-
-        -- (a) objective attraction — throttled, with comprehensive per-objective logging.
-        -- TWO PASSES, deliberately. `allHeld` must be known for EVERY objective before any
-        -- attraction is applied. Computing it inside the apply loop meant objective 1 always saw
-        -- allHeld=true (nothing had cleared it yet), so its invader-attraction was NEVER released
-        -- and the "hold it, then flow to the next objective" behaviour could not happen.
-        -- one-shot API probe, once soldiers actually exist (they do not at phase load)
-        if PROBE_APIS and not probeDone and tick >= 8 then pcall(probeApis) end
-        if (tick % OBJ_REFRESH) == 0 then refreshObjectives() end
-        if (tick % ATTRACT_EVERY) == 0 and #objList > 0 then
-            -- pass 1: ownership only
-            local allHeld, changed = true, {}
-            local invCount, defCount = {}, {}
-            for i, o in ipairs(objList) do
-                local inv, def = countInside(o)
-                invCount[i], defCount[i] = inv, def
-                local was = captured[i]
-                if captured[i] then
-                    if def > inv then captured[i] = false end          -- pushed off: contested again
-                elseif inv > def and inv > 0 then
-                    captured[i] = true                                  -- attackers hold it
-                end
-                changed[i] = (was ~= captured[i])
-                if not captured[i] then allHeld = false end
-            end
-            -- pass 2: apply attraction now that allHeld is final
-            for i, o in ipairs(objList) do
-                -- invaders stop being drawn to what they already hold, so they push on; if they hold
-                -- EVERYTHING they are re-attracted so they consolidate instead of wandering off.
-                local invAttract = (not captured[i]) or allHeld
-                setAttract(o, invAttract, true)
-                logonly(string.format("obj%d inv=%d def=%d held=%s invAttract=%s%s",
-                    i, invCount[i], defCount[i], tostring(captured[i]), tostring(invAttract),
-                    changed[i] and (captured[i] and "  <- CAPTURED by attackers" or "  <- RETAKEN by defenders") or ""))
-            end
-            -- battalion strength (confirmed API) so we can watch attrition
-            local ai = safeGet(function() return er2.countAliveInvaders() end)
-            local ad = safeGet(function() return er2.countAliveDefenders() end)
-            logonly("alive invaders="..tostring(ai).."  defenders="..tostring(ad))
-        end
-
-        -- (b) crew bail-out — drain the queue the vehicle_* callbacks filled. All of the work is
-        -- here, never in the callback: callbacks record numbers and return.
-        pcall(drainBail)
-
-        -- (c) radioman fire mission — one step of the state machine. No coroutine: the loop already
-        -- sleeps 1 s, which is the only clock the barrage needs.
-        if (tick % ROLE_REFRESH) == 0 then pcall(refreshRoles) end
-        pcall(fireMissionStep)
-
-        -- NO break on battleOver: the idle branch above handles it, so the loop survives to serve
-        -- the next battle in this process.
-        tick = tick + 1
-        end)
+        local bodyOk, bodyErr = pcall(loopBody)
         if not bodyOk then
             log("[EVENTS] LOOP BODY ERROR (this is what kills the loop): " .. tostring(bodyErr))
         end
     end   -- phase-active branch
+    if TRACE_LOOP then log("[EVENTS] trace tick=" .. tick .. " pre-sleep") end
     sleep(1)
+    if TRACE_LOOP then log("[EVENTS] trace tick=" .. tick .. " post-sleep") end
 end

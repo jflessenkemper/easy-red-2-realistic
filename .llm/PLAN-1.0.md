@@ -272,3 +272,41 @@ untested would risk a worse failure than the one it fixes.
 README features 19 and 20 are 🔧 with the real reason; `realistic.md` matches; the plugin's
 `docs/ui-map.md` carries the full evidence table. Nothing claims the four wait-and-resume fixes are
 verified in-game — they are correct as logic but the loop they protect is not alive to use them.
+
+---
+
+## §E — 2026-08-30 (latest): §D's cause was WRONG; the real one is found and FIXED
+
+§D concluded "the loop dies at objective capture". That was a correlate, not the cause. Corrected
+by tracing rather than reasoning.
+
+**Traced.** Per-tick `pre-sleep`/`post-sleep` markers: the last line ever logged is
+`trace tick=47 pre-sleep` with **no matching post-sleep**, and the tick never advances again. The
+body completes; **`sleep(1)` never returns.** ER2 implements sleep as a Unity coroutine
+(`PauseForSeconds` → `pauseWithCallback` → `Coroutine_Resume`) and the Lua coroutine is abandoned
+mid-sleep.
+
+**Why the phase-change hypothesis looked dead and was actually right.** Deploying the script to
+every phase made the engine say it out loud:
+`Lua error at 'phase_1.lua': Object reference not set … BattleManager:TryExecutingPhaseScript() /
+OnPhaseChange(Int32) / NextPhase()`. The phase DOES advance shortly after a capture. §D's "the phase
+never advanced" came from seeing one `initial brain sweep` — which only shows the NEW phase's script
+failed to load, not that no phase change happened. **A missing marker is not evidence of a missing
+event.** That is the same absence-of-log-is-not-absence-of-behaviour trap as §C, in a new costume.
+
+**All-phases deploy REVERTED.** It revives nothing and *introduces* that NRE — earlier runs had zero
+exceptions. `er2_deploy` is back to `phase_0.lua` only, `phases` opt-in.
+
+**THE FIX (shipped).** `soldier_died` is registered on the engine, not the loop's coroutine, and
+keeps firing all battle; it already did an area scan for the kill feed, so bounded work there is
+proven safe. The loop body is now a named `loopBody()`; when the loop has been silent for
+`LOOP_STALE` (6 s) the callback runs it, throttled to `PUMP_GAP` (4 s). While the loop lives the
+watchdog costs one comparison.
+
+**Verified live on Donchery:** loop froze at `trace tick=51 pre-sleep`, the watchdog logged its
+takeover, attraction output kept growing 13 → 16 while the tick stayed frozen, **zero Lua or engine
+errors**. Feature 20 is ✅. Feature 19's consumer now runs again, but no accept has been observed
+yet, so it stays 🔧 until one is.
+
+**Guard added:** `TRACE_LOOP` is in check.sh's shipping-defaults gate (now 27 checks), so the
+diagnostic can never ship enabled.
