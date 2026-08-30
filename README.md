@@ -26,7 +26,7 @@ implemented · **⛔** impossible on this build
 | 2 | Taking cover | Engine picks cover on its own | ✅ Unchanged — the engine is the better authority. The mod only decides *when* to ask |
 | 3 | Pinned reaction | Soldier keeps fighting while suppressed | ✅ Reads the engine's own `isSuppressed()` and puts him on the deck with a panic call |
 | 4 | Bounding overwatch | Everyone advances at once | ✅ Half the real squad roster moves while the other half watches and fires, swapping every 8 s — with no messaging between them |
-| 5 | Advance behind armour | Infantry and tanks advance independently | ✅ Riflemen keep an *armoured* hull between themselves and the enemy (name-filtered, so trucks and guns don't count as cover) |
+| 5 | Advance behind armour | Infantry and tanks advance independently | ✅ Riflemen keep an *armoured* hull between themselves and the enemy (name-filtered, so trucks and guns don't count as cover), spread line-abreast behind it. **Observed live at 367 fires, then silently regressed to 0 by a forward-reference bug; that bug is fixed and now blocked by a release check, but the recovery to non-zero has not yet been re-confirmed in a battle.** |
 | 5b | Taking an objective | Keeps issuing move orders to a point the soldier is already standing on | ✅ Consolidates — digs in on the captured ground and faces the counter-attack |
 | 6 | Defenders | Hold their positions | ✅ Unchanged, deliberately — **and the mod stops issuing them move orders at all**, because measurement proved they ignore them |
 | 7 | Transport reuse | Trucks are abandoned once dismounted | ✅ Remounts the truck he rode in, but only when 5 suitability conditions hold, so it never fires mid-assault |
@@ -50,14 +50,14 @@ implemented · **⛔** impossible on this build
 | 15 | Squad leaders | Fight like everyone else | ✅ Direct from cover; never walk point |
 | 16 | Medics | Generic combatant behaviour | ✅ Hold cover by default, sortie to casualties when the sortie is survivable — including between contacts, not only under fire |
 | 17 | Wounded | Casualties lie where they fall | ✅ The nearest healthy squadmate carries them into cover. Exactly one man is elected, from the real roster, with no coordination messages |
-| 18 | Crew bail-out | Crew of a dead vehicle may linger | ✅ Ejected from burning/disabled/destroyed vehicles, alerted, and then — because a tank crew is **not** a rifle section — they break contact rather than joining the firing line |
+| 18 | Crew bail-out | Crew of a dead vehicle may linger | 🔧 Ejected from burning/disabled/destroyed vehicles, alerted, and then — because a tank crew is **not** a rifle section — they break contact rather than joining the firing line. **Verified offline only: it needs a destroyed *tank* (truck occupants are passengers, not crew) and that has never happened in any session, so `CREW-onfoot` has never been observed live.** |
 
 ### Command, support & feedback
 
 | # | Feature | Base game | With Realistic |
 |---|---|---|---|
 | 19 | Fire support | Scripted triggers only | 🔧 A radioman whose advance has **stalled** publishes a fire-mission request; the phase script consumes it, refuses danger-close / on cooldown / over cap, then walks a WARN→FIRING state machine. **The brain side is observed firing; the phase side has never logged an accept, a refusal or a shell in any session, so the feature is NOT verified end-to-end.** See §1 of realistic.md |
-| 20 | Objective flow | Units can mill around a held objective | ✅ Attraction manager pulls units onto an objective, then releases it once held so they flow to the next |
+| 20 | Objective flow | Units can mill around a held objective | ✅ Attraction manager pulls units onto an objective, then releases it once held so they flow to the next. **Confirmed live within a battle. Surviving a battle *boundary* (second battle in one game process) is verified offline only — if it turns out the engine tears down phase-script coroutines at phase end, restart the game between battles.** |
 | 21 | Setup | Brain must be set per Squad Spawner | ✅ Attaches itself to every soldier, including reinforcements a spawner field would miss |
 | 22 | Kill feed | Team-wide feed | ✅ **Your squad only**, as `<name> (<role>) killed by <weapon>` — the weapon, never the killer. Nothing else is drawn on screen |
 | 23 | Battalion tally | — | ✅ Both sides' losses and live counts, to the log |
