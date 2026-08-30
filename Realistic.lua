@@ -412,9 +412,45 @@ dbg(string.format("ONLINE #%s %s/%s class='%s' faction=%s %s aiParams=%s squad=%
 --========================== SENSING =========================================
 -- returns: nEnemies, nEnemiesClose, nFriends, enemyCentroid, nearestMGpos, nearestCasualtyPos,
 --          nCasualties
+-- HOISTED GUARD CLOSURES for the sense() hot loop.
+-- safeGet takes a function, so `safeGet(function() return s.getPosition() end)` builds a NEW
+-- closure capturing `s` on every call. sense() does that ~5 times per soldier returned by the
+-- sweep, so a single brain tick in a crowded fight allocated hundreds of closures, and ~350 brains
+-- allocated tens of thousands a second. The work is trivial but the GC churn is not, and it
+-- surfaces as stutter rather than as a lower average framerate.
+-- These are built ONCE and read scratch upvalues instead, so the hot path allocates nothing.
+-- Behaviour is identical - same calls, same order, same guards.
+--
+-- LOAD-BEARING INVARIANT: these scratch upvalues are only safe because nothing between setting
+-- one and consuming it ever YIELDS. Brains are coroutines that yield only at sleep(), and neither
+-- sense() nor any guarded call below contains one, so a brain's inner loop runs to completion
+-- without another brain interleaving. If you ever add a sleep() inside sense() or between a
+-- `_s = s` and its safeGet, two brains WILL clobber each other's scratch slot and the symptom
+-- will be soldiers reading another man's position - intermittent, and very hard to trace back.
+local _s, _f
+-- Same treatment for the self-accessors the main loop hits every tick. These capture only `me`,
+-- which never changes, so there is no reason to rebuild them 350 times a second.
+local _v
+local function _meVeh()   return me.getCurrentVehicle() end
+local function _meCarry() return me.isCarryingBody()    end
+local function _vUid()    return _v.getUniqueId()       end
+local function _sUid()   return _s.getUniqueId()     end
+local function _sAlive() return _s.isAlive()         end
+local function _sFac()   return _s.getFaction()      end
+local function _sPos()   return _s.getPosition()     end
+local function _sDown()  return _s.isIncapacitated() end
+local function _sClass() return _s.getClassName()    end
+local function _sSame()  return er2.isSameFaction(_f, myFaction) end
+-- Area sweeps too: one closure per call, once per brain per tick, plus two more for the AT and
+-- armour scans. Scratch upvalues instead.
+local _scanPos, _scanR, _scanT
+local function _scanSoldiers() er2.getSoldiersInArea(_scanPos, _scanR, _scanT) end
+local function _scanVehicles() er2.getVehiclesInArea(_scanPos, _scanR, _scanT) end
+
 local function sense(pos)
     local list = {}
-    safe(function() er2.getSoldiersInArea(pos, SENSE_RADIUS, list) end)
+    _scanPos, _scanR, _scanT = pos, SENSE_RADIUS, list
+    safe(_scanSoldiers)
     local ne, nec, nf, ncas = 0, 0, 0, 0
     local ex, ez, en = 0, 0, 0
     local mgPos, mgD = nil, 1e9
@@ -424,15 +460,17 @@ local function sense(pos)
         -- SKIP SELF. getSoldiersInArea returns the caller too, so every soldier counted itself
         -- as a friend: nf was inflated by one, which biased the force ratio toward "not shaken"
         -- and helped make ROUT unreachable. Compare on the stable getUniqueId().
-        local suid = s and safeGet(function() return s.getUniqueId() end) or nil
+        _s = s
+        local suid = s and safeGet(_sUid) or nil
         if s and suid ~= uid then
-            local alive = safeGet(function() return s.isAlive() end)
-            local f = safeGet(function() return s.getFaction() end)
-            local same = f ~= nil and safeGet(function() return er2.isSameFaction(f, myFaction) end) == true
-            local sp = safeGet(function() return s.getPosition() end)
+            local alive = safeGet(_sAlive)
+            local f = safeGet(_sFac)
+            _f = f
+            local same = f ~= nil and safeGet(_sSame) == true
+            local sp = safeGet(_sPos)
             if same then
                 -- an incapacitated friendly is a casualty (not counted as a fighting friend)
-                local down = safeGet(function() return s.isIncapacitated() end) == true
+                local down = safeGet(_sDown) == true
                 if down then
                     ncas = ncas + 1
                     if sp then local d = distance(pos, sp)
@@ -450,7 +488,7 @@ local function sense(pos)
                     if DOC.mgCentric and sp then
                         local d = distance(pos, sp)
                         if d < mgD then
-                            local cn = tostring(safeGet(function() return s.getClassName() end) or ""):lower()
+                            local cn = tostring(safeGet(_sClass) or ""):lower()
                             if cn:find("support") then mgPos, mgD = sp, d end
                         end
                     end
@@ -652,7 +690,8 @@ local function advanceBehindArmour(pos, ec, now)
     -- FIGHT-from-cover, which is both obeyed and the historically correct behaviour.
     if not amInvader then return false end
     local vlist = {}
-    if not safe(function() er2.getVehiclesInArea(pos, ARMOUR_SCAN, vlist) end) then return false end
+    _scanPos, _scanR, _scanT = pos, ARMOUR_SCAN, vlist
+    if not safe(_scanVehicles) then return false end
     local bestPos, bestD = nil, 1e9
     for _, v in pairs(vlist) do
         if v then
@@ -701,7 +740,8 @@ end
 local atTargetId, atForceFailed = nil, false
 local function huntArmour(pos, now)
     local vlist = {}
-    if not safe(function() er2.getVehiclesInArea(pos, AT_RANGE, vlist) end) then return nil end
+    _scanPos, _scanR, _scanT = pos, AT_RANGE, vlist
+    if not safe(_scanVehicles) then return nil end
     local best, bestD = nil, 1e9
     for _, v in pairs(vlist) do
         if v then
@@ -864,7 +904,7 @@ local function reuseTransport(pos, now)
     -- A man carrying a wounded comrade does not go looking for a truck. This gate was documented
     -- as a suitability rule long before it could exist (feature 17 was unimplemented, so there
     -- was no such thing as "carrying"); now that the drag branch is real, the rule is real too.
-    if safeGet(function() return me.isCarryingBody() end) == true then return nil end
+    if safeGet(_meCarry) == true then return nil end
     local veh = safeGet(function() return er2.findVehicle(myTransportId) end)
     if not veh then myTransportId = nil; return nil end          -- transport destroyed/gone -> forget it
     local vp = safeGet(function() return veh.getPosition() end)
@@ -925,7 +965,11 @@ while true do
         local suppressed = safeGet(function() return me.isSuppressed() end) == true
         local pinned     = suppressed or (nec >= PINNED_ENEMIES)
         local edist      = ec and distance(pos, ec) or 1e9
-        local inVehicle  = safeGet(function() return me.getCurrentVehicle() end) ~= nil
+        -- Fetch the vehicle ONCE per tick. It used to be queried three separate times inside
+        -- MOUNTED/CREW-defer, which is the most-fired branch in any battle (1408 hits in the
+        -- reference run), so those were the most-repeated wasted calls in the whole mod.
+        local myVeh      = safeGet(_meVeh)
+        local inVehicle  = myVeh ~= nil
         -- hit path: any drop in health cries out (VOICE_ENUM.hit = iVeBeenHit) and marks the man
         -- as bloodied for morale. getHealth() is 0..100 on this build.
         local hp   = safeGet(function() return me.getHealth() end)
@@ -1006,7 +1050,7 @@ while true do
            and (not isMedic) and (not isLeader) and (not isMG) and (not isMortar)
            and dragTries < CARRY_MAX_TRIES and not dragBlack[casUid]
            and (amInvader or casD <= CARRY_ADJACENT) then
-            if safeGet(function() return me.isCarryingBody() end) == true then
+            if safeGet(_meCarry) == true then
                 dragNow = true                       -- already carrying: finish the job
             elseif iAmNearestTo(pos, casPos) then
                 dragTarget, dragNow = casUid, true
@@ -1042,15 +1086,13 @@ while true do
             -- remember our transport (passengers only, not permanent vehicle crew) so we can
             -- return to it later instead of abandoning it.
             if inVehicle and not isCrew then
-                myTransportId = safeGet(function() return me.getCurrentVehicle().getUniqueId() end) or myTransportId
+                _v = myVeh
+                myTransportId = safeGet(_vUid) or myTransportId
             end
             -- Was this an armoured vehicle? Same name filter feature 5 uses, so a lorry never
             -- counts. Recorded every tick we are aboard, so the answer survives the vehicle
             -- object being destroyed out from under us.
-            if inVehicle then
-                local v = safeGet(function() return me.getCurrentVehicle() end)
-                if v and isArmour(v) then rodeArmour, lastAboardT = true, now end
-            end
+            if myVeh and isArmour(myVeh) then rodeArmour, lastAboardT = true, now end
             decision = "MOUNTED/CREW-defer"
             detail = inVehicle and "in vehicle" or "crew class"
 
@@ -1109,7 +1151,7 @@ while true do
             decision, detail = "MEDIC-hold-cover", (casPos and "casualty out of reach/unsafe" or "no casualty")
 
         elseif dragNow then
-            if safeGet(function() return me.isCarryingBody() end) == true then
+            if safeGet(_meCarry) == true then
                 if (now - dragStartT) > DRAG_MAX_TIME then
                     -- HARD CEILING. There is no dropBody on this build, so stop() is the only
                     -- way to put a body down. Without this a single failed carry would pin a
@@ -1281,10 +1323,17 @@ while true do
         -- branch is an unconditional else) — guarded anyway, because a nil throttle KEY would
         -- turn this into an unthrottled per-tick log line. There is no "IDLE" decision.
         if decision then
+            -- Build the trace ONLY if something could consume it. Arguments are evaluated
+            -- before the call, so this 12-argument string.format used to run for every soldier
+            -- every tick and then be thrown away by dbg()'s DEBUG check - ~175 wasted formats a
+            -- second at 350 brains, each allocating a string. VERBOSE bypasses the sampler, so it
+            -- has to be part of the test.
+            if DEBUG and (VERBOSE or TRACED) then
             dbg(string.format("t=%.1f %s/%s @(%.0f,%.0f) ne=%d nec=%d nf=%d ed=%.0f fr=%.2f -> %s%s",
                 now, myNation, roleTag, pos.x, pos.z, ne, nec, nf,
                 (edist >= 1e8 and -1 or edist), forceRatio, decision,
                 (detail ~= "" and ("  | "..detail) or "")), decision, now)
+            end
         end
     end
 
