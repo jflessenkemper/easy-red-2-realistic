@@ -221,3 +221,54 @@ today and must stay that way until a real battle says otherwise.
   `DBG_SAMPLE = 6`. Counting log lines undercounts brains by design. This is the standing
   "a decision in the log is not proof of behaviour" rule running in reverse — *absence* of log
   lines is not absence of behaviour either.
+
+
+---
+
+## §D — 2026-08-30 (Donchery, Steam mode restored): §A IS ANSWERED
+
+The user authorised closing Steam and restoring the LaunchOptions, so Donchery finally ran. Two
+full battles with `DEBUG = true`, the second also with `PROBE_GLOBALS = true`.
+
+### Settled
+1. **`ADVANCE-behind-armour` RECOVERED** — 3 fires in run 1, 6 in run 2, with `tank d=8` / `tank
+   d=11`. The `rosterIndex` forward-reference fix is proven live. §B.3 CLOSED, README upgraded.
+2. **`global` IS shared brain→phase** — the phase script read the brain's `PROBE_B2P=4242`.
+   The 2026-08-29 answer was right. **Trap:** the FIRST `gprobe` line reads `nil` because it runs
+   before any brain has started; sampling once and concluding "not shared" was nearly written up
+   as fact here. Wait for a second sample.
+3. **§A ANSWERED, and all three prior hypotheses were WRONG.** The loop does not break, does not
+   error, and does not die at a phase change. **It dies at OBJECTIVE CAPTURE.**
+   - `LOOP BODY ERROR` (the diagnostic pcall) appears **zero** times.
+   - The phase never advanced: exactly one `initial brain sweep`, `obj1` still the only objective.
+     Deploying the script as every `phase_<n>.lua` did not change the outcome.
+   - Control: VirtualScene never captures anything and its loop ran 106+ cycles, still alive at the
+     end. Donchery captured, and both runs died at ~11 cycles.
+   - Run 1: last loop line 22266, log grew to 70609. Run 2: last loop line 15742, log grew to 85183.
+   - `soldier_died` callbacks keep firing all battle, which is exactly why it has always *looked*
+     healthy.
+4. **Feature 19 is explained.** The consumer runs on that loop, so it is gone before any radioman
+   has stalled long enough to call a mission in. Not a fire-mission bug at all — a symptom.
+   `acceptMission` logs on every path, so its total silence was always proof it was never called.
+
+### Remaining suspect (NOT isolated — do not write it up as cause)
+The loop's only unprotected statement is `sleep(1)`, which ER2 implements as a Unity coroutine
+(`PauseForSeconds` → `pauseWithCallback` → `Coroutine_Resume`, visible in the stack trace attached
+to every `log()` line). If whatever hosts it stops resuming, the Lua loop never continues: no error,
+no `idling:` (the loop is gone before its own phase check runs), callbacks unaffected. Capture-time
+timing points at the `setAttractor` call that fires when an objective's attraction state CHANGES —
+the one path a capture newly exercises — but **no exception of any kind appears in the log**, so
+this is a hypothesis, not a finding.
+
+### The fix worth trying next
+Drive the periodic work from an engine callback that demonstrably survives (`soldier_died` fires
+all battle) with a wall-clock throttle, keeping the loop as primary and the callback as a watchdog.
+**Deliberately not done here:** callbacks run inside engine dispatch, and this project already has
+a hard ban on heavy work there (`soldier_suppressed` NREs inside dispatch that `pcall` cannot
+catch). Doing area scans in a death callback needs its own verification pass — shipping it
+untested would risk a worse failure than the one it fixes.
+
+### Docs now say all of this
+README features 19 and 20 are 🔧 with the real reason; `realistic.md` matches; the plugin's
+`docs/ui-map.md` carries the full evidence table. Nothing claims the four wait-and-resume fixes are
+verified in-game — they are correct as logic but the loop they protect is not alive to use them.
