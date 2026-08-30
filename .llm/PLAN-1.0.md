@@ -174,3 +174,50 @@ as the documented workaround.
 
 All four are blocked on the Steam LaunchOptions being restored, since Stonne needs the Ardennes
 DLC and direct-launch mode gets no entitlement.
+
+---
+
+## §C — 2026-08-30 (later): the blocker is now CONFIRMED, not assumed
+
+Direct-launch mode was re-tested end to end rather than taken on trust. Results:
+
+1. **The harness works with no Steam LaunchOptions at all.** `er2_launch {"via_steam": false}`
+   reached the main menu and drove the full menu chain. That part of the earlier claim holds.
+2. **SteamAPI initialises in direct mode** — `[Steam] SteamAPI initialized. User: … | AppID:
+   1324780` — so "Steam is not running" was never the issue.
+3. **DLC entitlement is still absent, and it is now VISIBLE rather than inferred.** Selecting a
+   DLC map expands a sub-row reading `Needs DLCs: Ardennes` (Stonne) or `Needs DLCs: Hungary`
+   (the Realistic Test map) where the clickable mission name should be. The row is inert.
+   Only two DLC depots are installed at all (`2617770`, `4563790`) and direct mode resolves
+   neither.
+
+So the original conclusion — Steam `%command%` is the only path to entitlement — is **confirmed**,
+with an on-screen signal to detect it by. `er2_launch`'s direct-mode result now says so up front
+instead of leaving it to be rediscovered.
+
+**Both fallback missions were tried and neither can substitute** (detail in the plugin's
+`docs/ui-map.md`): the Realistic Test map is itself DLC-gated, and VirtualScene/"Testing" is a
+6 v 6 all-AT mutual-`PINNED` stalemate **with respawns**, so it never ends and therefore never
+produces the phase change §A turns on. It did usefully re-confirm the mod runs clean on a map it
+has never seen: `PINNED`, `FIGHT-from-cover`, `react:hit`, `react:scared`, the tally, the kill
+feed arming and the attraction manager all fired, with **zero Lua errors**, on both belligerents
+(`britain/AT`, `germany/AT`).
+
+**Therefore §A, §B.2, §B.3 and §B.4 are blocked on ONE user decision**, not on any further work:
+restoring the Steam LaunchOptions requires closing the user's Steam client (Steam holds a write
+lock on `localconfig.vdf` and overwrites it on exit) and writing to their Steam config. That is a
+system-settings change and is the user's call — `fix_steam_launch_options.py --apply` does it,
+dry-running and backing up by default, and correctly refuses while Steam is open.
+
+**Do not** mark any of the four as verified without that run, and do not let the offline harness's
+green tick stand in for it (§A). The shipped docs' wording — "verified offline only" — is accurate
+today and must stay that way until a real battle says otherwise.
+
+### Two measurement traps re-learned today (both nearly caused false bug reports)
+- `initial brain sweep: 0 soldier(s)` is CORRECT: the phase script loads before the battle spawns
+  anyone; `soldier_spawned` picks them all up afterwards.
+- `brain attached to 3 soldier(s)` as the last such line does **not** mean three brains: that log
+  is sampled (`attached <= 3 or attached % 25 == 0`) and decision traces are sampled again at
+  `DBG_SAMPLE = 6`. Counting log lines undercounts brains by design. This is the standing
+  "a decision in the log is not proof of behaviour" rule running in reverse — *absence* of log
+  lines is not absence of behaviour either.
