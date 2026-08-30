@@ -427,6 +427,20 @@ dbg(string.format("ONLINE #%s %s/%s class='%s' faction=%s %s aiParams=%s squad=%
 -- without another brain interleaving. If you ever add a sleep() inside sense() or between a
 -- `_s = s` and its safeGet, two brains WILL clobber each other's scratch slot and the symptom
 -- will be soldiers reading another man's position - intermittent, and very hard to trace back.
+local scanN, scanSum = 0, 0   -- DEBUG cost meter, see sense()
+-- TWO CACHES for the sense() hot loop. Measured live: the sweep returns ~70 soldiers, each
+-- costing five guarded interop calls, at ~175 brain-ticks a second across 350 brains - about
+-- 61,000 calls/s, and the per-soldier calls are the whole of it. Both caches are exact, not
+-- approximations: they remove calls without changing a single answer.
+--   facById   - a soldier's FACTION never changes, so it is worth one call per soldier ever
+--               rather than one per sweep. Keyed by uid, value is the faction (a plain string on
+--               this build: "Germany_axis" / "France_allies" / "England_allies").
+--   sameByFac - isSameFaction(f, myFaction) is a pure function of two factions and myFaction is
+--               constant for this brain, so there are only as many distinct answers as there are
+--               factions in the battle. Three, here.
+-- Guarded so they only engage when the faction really is a string; if a future build returns a
+-- handle the code falls straight back to asking the engine every time.
+local facById, sameByFac = {}, {}
 local _s, _f
 -- Same treatment for the self-accessors the main loop hits every tick. These capture only `me`,
 -- which never changes, so there is no reason to rebuild them 350 times a second.
@@ -451,6 +465,19 @@ local function sense(pos)
     local list = {}
     _scanPos, _scanR, _scanT = pos, SENSE_RADIUS, list
     safe(_scanSoldiers)
+    -- COST METER (DEBUG only). The mod's dominant cost is this sweep's RESULT SIZE, not the sweep
+    -- itself: every soldier returned costs several guarded interop calls. Averaging it gives a
+    -- hard before/after number for optimisation work instead of an opinion.
+    if DEBUG then
+        local n = 0
+        for _ in pairs(list) do n = n + 1 end
+        scanN, scanSum = scanN + 1, scanSum + n
+        if scanN >= 60 then
+            log(string.format("[REALISTIC] cost: avg %.1f soldiers/sweep over %d sweeps (radius %d, tick %.1fs)",
+                scanSum / scanN, scanN, SENSE_RADIUS, TICK))
+            scanN, scanSum = 0, 0
+        end
+    end
     local ne, nec, nf, ncas = 0, 0, 0, 0
     local ex, ez, en = 0, 0, 0
     local mgPos, mgD = nil, 1e9
@@ -464,9 +491,23 @@ local function sense(pos)
         local suid = s and safeGet(_sUid) or nil
         if s and suid ~= uid then
             local alive = safeGet(_sAlive)
-            local f = safeGet(_sFac)
-            _f = f
-            local same = f ~= nil and safeGet(_sSame) == true
+            local f = suid and facById[suid]
+            if f == nil then
+                f = safeGet(_sFac)
+                if suid and type(f) == "string" then facById[suid] = f end
+            end
+            local same
+            if type(f) == "string" then
+                same = sameByFac[f]
+                if same == nil then
+                    _f = f
+                    same = safeGet(_sSame) == true
+                    sameByFac[f] = same
+                end
+            else
+                _f = f
+                same = f ~= nil and safeGet(_sSame) == true
+            end
             local sp = safeGet(_sPos)
             if same then
                 -- an incapacitated friendly is a casualty (not counted as a fighting friend)

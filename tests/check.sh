@@ -84,10 +84,17 @@ echo "== 4b. Fill-style APIs are called WITH a table argument =="
 # These engine calls FILL a caller-supplied table and return nothing useful. Calling them with no
 # argument throws "Expected a table as Nth parameter" on EVERY invocation - getAllMembers() was
 # called bare in two per-tick paths and produced 279 errors in a single battle.
+# NOTE: counts with `grep -c`, never `grep -q`. `grep -q` exits on the FIRST match, which sends
+# SIGPIPE to the `sed` feeding it; with `set -o pipefail` the pipeline then reports 141 and the
+# `if` reads a real MATCH as "no match". This check silently passed on a file containing a bare
+# getAllMembers() in 6 runs out of 6 while occasionally firing - a safety check that mostly did
+# not check. `grep -c` consumes all input, so there is no race.
 fill_bad=""
 for fn in getAllMembers getSoldiersInArea getVehiclesInArea; do
-  if strip "$BRAIN" | grep -qE "$fn\s*\(\s*\)"; then fill_bad="$fill_bad $fn"; fi
-  if strip "$PHASE" | grep -qE "$fn\s*\(\s*\)"; then fill_bad="$fill_bad $fn(phase)"; fi
+  nb=$(strip "$BRAIN" | grep -cE "$fn[[:space:]]*\([[:space:]]*\)" || true)
+  np=$(strip "$PHASE" | grep -cE "$fn[[:space:]]*\([[:space:]]*\)" || true)
+  [ "${nb:-0}" -gt 0 ] && fill_bad="$fill_bad $fn"
+  [ "${np:-0}" -gt 0 ] && fill_bad="$fill_bad $fn(phase)"
 done
 [ -z "$fill_bad" ] && ok "no fill-style API called with an empty argument list" \
                    || bad "called with NO table argument:$fill_bad"
@@ -185,7 +192,7 @@ for flag in VERBOSE DEBUG; do
     fi
   done
 done
-for flag in PROBE_APIS PROBE_GLOBALS TRACE_LOOP; do
+for flag in PROBE_APIS PROBE_GLOBALS TRACE_LOOP WATCH; do
   if grep -qE "^local $flag\s*=" "$PHASE"; then
     if grep -qE "^local $flag\s*=\s*false" "$PHASE"; then ok "$flag=false"
     else bad "$flag must ship false (diagnostic left enabled)"; fi

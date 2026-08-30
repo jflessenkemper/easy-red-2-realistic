@@ -435,13 +435,12 @@ local function probeApis()
         end
         local mem = {}
         local okm = pcall(function() sq.getAllMembers(mem) end)
-        if not okm or #mem == 0 then
-            local okm2, ret = pcall(function() return sq.getAllMembers() end)
-            log("[BENCH]   getAllMembers fill=" .. tostring(okm) .. " #" .. #mem
-                .. " ret=" .. (okm2 and type(ret) or "err"))
-        else
-            log("[BENCH]   getAllMembers filled " .. #mem .. " member(s)")
-        end
+        -- The no-argument form used to be probed here too. It is gone: the question is ANSWERED
+        -- (these are fill-style, and calling them bare throws "Expected a table as Nth parameter"
+        -- on every invocation - 279 errors in one battle), and that answer is now enforced by
+        -- check 4b. Keeping a deliberate bare call around meant the file could never satisfy its
+        -- own release check, and it was a live hazard if PROBE_APIS were ever switched on.
+        log("[BENCH]   getAllMembers fill=" .. tostring(okm) .. " filled " .. #mem .. " member(s)")
     else
         log("[BENCH]   Squad is nil for this soldier — roster APIs unusable here")
     end
@@ -1022,7 +1021,71 @@ local LOOP_STALE = 6         -- s without a loop iteration before the watchdog t
 local PUMP_GAP   = 4         -- s between pumps, matching the loop's own attraction cadence
 local loopBody               -- forward declaration; assigned just below
 
+-- ============================ HEALTH WATCH =================================
+-- Answers one question a decision log cannot: are the soldiers actually MOVING, or is the mod
+-- issuing orders into the void? A label in the log is not proof of behaviour - that rule has
+-- already cost this project two wrong conclusions - so this measures DISPLACEMENT instead.
+--
+-- One sweep every WATCH_EVERY seconds over every soldier: compare each man's position with where
+-- he was last sweep, and classify. Numbers only, keyed by uid - never a Soldier handle, which
+-- would pin every corpse in the battle. Cost is one getAllSoldiers plus a getPosition per man per
+-- sweep, which at 8 s is negligible next to the per-soldier brains.
+--
+-- Reads as: watch: alive=248 moving=181 still=67 stuck=12 (>40s) inv=..  def=..
+--   moving = displaced > WATCH_MOVED since the last sweep
+--   still  = did not; entirely normal for defenders holding, men in cover, and the suppressed
+--   stuck  = has not moved in WATCH_STUCK seconds AND is an ATTACKER, who should be advancing.
+--            A non-zero stuck count that keeps climbing is the signal that something is wrong.
+local WATCH = false-- diagnostic; check.sh refuses to ship this true
+local WATCH_EVERY = 8          -- s between sweeps
+local WATCH_MOVED = 2.0        -- m of displacement that counts as "moving"
+local WATCH_STUCK = 40         -- s stationary before an attacker is called stuck
+local wLastX, wLastZ, wStillSince = {}, {}, {}
+local wNext = 0
+
+local function healthWatch()
+    local t = now()
+    if t < wNext then return end
+    wNext = t + WATCH_EVERY
+    local sol = {}
+    if not pcall(function() er2.getAllSoldiers(sol) end) then return end
+    local alive, moving, still, stuck = 0, 0, 0, 0
+    local iAlive, dAlive = 0, 0
+    for _, s in pairs(sol) do
+        if s and safeGet(function() return s.isAlive() end) ~= false then
+            local u = safeGet(function() return s.getUniqueId() end)
+            local p = safeGet(function() return s.getPosition() end)
+            if u and p then
+                alive = alive + 1
+                local side = sideOf(safeGet(function() return s.getFaction() end))
+                if side == "invader" then iAlive = iAlive + 1
+                elseif side == "defender" then dAlive = dAlive + 1 end
+                local px, pz = wLastX[u], wLastZ[u]
+                if px then
+                    local dx, dz = p.x - px, p.z - pz
+                    if math.sqrt(dx * dx + dz * dz) >= WATCH_MOVED then
+                        moving = moving + 1
+                        wStillSince[u] = nil
+                    else
+                        still = still + 1
+                        wStillSince[u] = wStillSince[u] or t
+                        -- Only ATTACKERS count as stuck. Defenders holding a line are supposed to
+                        -- be motionless; calling that a fault would bury the real signal.
+                        if side == "invader" and (t - wStillSince[u]) >= WATCH_STUCK then
+                            stuck = stuck + 1
+                        end
+                    end
+                end
+                wLastX[u], wLastZ[u] = p.x, p.z
+            end
+        end
+    end
+    log(string.format("[EVENTS] watch: alive=%d moving=%d still=%d stuck=%d(>%ds) inv=%d def=%d",
+        alive, moving, still, stuck, WATCH_STUCK, iAlive, dAlive))
+end
+
 loopBody = function()
+    if WATCH then pcall(healthWatch) end
 
     -- (a) objective attraction — throttled, with comprehensive per-objective logging.
     -- TWO PASSES, deliberately. `allHeld` must be known for EVERY objective before any
