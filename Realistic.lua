@@ -87,6 +87,7 @@ local ARMOUR_SCAN    = 45     -- m
 local ARMOUR_HUG     = 6      -- m behind the hull, enemy-opposite side. Tight on purpose: at 10 m
                               -- the hull stops being cover for the men behind it. See ARMOUR_SPREAD.
 local ARMOUR_SPREAD  = 2.5    -- m between men in the line abreast behind the hull
+local COLUMN_STAGGER = 2.5    -- m either side of the road centre-line on the approach march
 -- Anti-tank. An AT man is the battalion's ONLY answer to armour, so he must not be spent as a
 -- rifleman: without this branch `isATSoldier` only tagged the role and the man fell through into
 -- the hoisted ASSAULT and charged infantry. This branch issues NO moveTo, so it behaves the same
@@ -725,6 +726,33 @@ function rosterIndex()   -- assigns the forward-declared local above
     return (math.floor(uid / 2) % 8) + 1, 8
 end
 
+-- STAGGERED FILE for the approach march. Without this every man in the squad is handed the SAME
+-- road step and they walk down the centre-line in a clump, which is both unmilitary and the thing
+-- that makes a scripted advance read as a blob. Real infantry march in two files, one either side
+-- of the road, so a single burst or shell cannot take the section.
+--
+-- LATERAL ONLY, deliberately. The obvious way to add depth is to pull trailing men BACK along the
+-- march axis, but roadStepToward returns a point only ROAD_STEP metres ahead, so subtracting a
+-- trail distance can land the destination BEHIND the soldier and order him to walk backwards -
+-- which would look like the stationary-ROAD-MARCH bug that has already been fixed twice here.
+-- Depth emerges on its own from men starting at different places and moving at different speeds.
+--
+-- This is also the answer to "true formations are engine-internal": engine formation ORDERS are
+-- unavailable, but formation BEHAVIOUR only needs each man to be given his own destination, which
+-- is exactly what feature 5 already does behind armour (see ARMOUR_SPREAD).
+local function staggerAcross(dest, pos)
+    if not (dest and pos) then return dest end
+    local dx, dz = dest.x - pos.x, dest.z - pos.z
+    local m = math.sqrt(dx * dx + dz * dz)
+    if m < 1 then return dest end                 -- already on top of it; nothing to offset
+    local ux, uz = dx / m, dz / m
+    local px, pz = -uz, ux                        -- perpendicular to the axis of march
+    local idx = rosterIndex()
+    local side = (idx % 2 == 0) and 1 or -1       -- alternate men to opposite verges
+    return vec3(dest.x + px * side * COLUMN_STAGGER, dest.y,
+                dest.z + pz * side * COLUMN_STAGGER)
+end
+
 local function boundTeam()
     local idx
     if mySquad then
@@ -1177,7 +1205,7 @@ while true do
                     orderMove(mgPos, now)
                     decision, detail = "RALLY-on-MG", "d="..string.format("%.0f", distance(pos, mgPos))
                 elseif ROAD_FOLLOW and obj then
-                    orderMove(roadStepToward(pos, obj), now)
+                    orderMove(staggerAcross(roadStepToward(pos, obj), pos), now)
                     decision, detail = "ROAD-MARCH", "obj d="..string.format("%.0f", distance(pos, obj))
                 else
                     releaseToBaseAI()
