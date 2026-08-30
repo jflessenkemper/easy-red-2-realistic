@@ -270,9 +270,10 @@ Rules that keep this honest:
 - **Every branch is terminal** — no fallthrough, so exactly one label is emitted per tick, and
   there is no `IDLE` decision.
 
-Branches that used to be in this cascade and are **not in the code**: `CREW-onfoot` (crew bail-out
-moved phase-side, feature 18), `DRAG` (17), `AT` (11), `BOUND-*` (4) and the brain-side `RADIO`
-producer (19). None of them is reachable, and none of their labels can appear in a log.
+All of `CREW-onfoot` (18), `DRAG-*` (17), `AT-*` (11), `BOUND-*` (4) and the brain-side `RADIO`
+producer (19) **are in the code and are reachable.** This paragraph previously said the opposite —
+written when they were unimplemented and never corrected once they landed. Each is now driven by
+`tests/offline_brain.lua`, so the claim is checked on every run rather than asserted.
 
 ### Decision labels
 
@@ -479,6 +480,31 @@ distributes (148/165 over 313 real uids) *before* trusting the result.
 
 Set `VERBOSE = true` for verification runs only; return it to `false` afterwards.
 
+## 6.1b Offline harnesses — run these FIRST, they cost milliseconds
+
+```bash
+luajit tests/offline_brain.lua    # 13 scenarios: the decision cascade, with no game
+luajit tests/offline_phase.lua    #  3 scenarios: the phase loop across a battle boundary
+```
+
+They stub the whole ER2 runtime and execute the real scripts. This matters because **ER2 does not
+surface a coroutine death as a Lua error** — a brain that raises simply stops thinking and the log
+stays clean, so a live battle can show a feature silently absent and tell you nothing about why.
+
+Between them they have caught, offline, in milliseconds:
+
+- `rosterIndex()` called above its definition — compiled to a nil global, killed the brain, and had
+  silently suppressed `ADVANCE-behind-armour` entirely (367 fires → 0) with no error anywhere;
+- the phase-loop **deadlock**, where the idle guard blocked the only code that reset `battleOver`;
+- the **40 s dead window** after a resume, because `objList` was cleared but not re-queried;
+- and they now assert the `RQ_*` protocol invariant — `RQ_X`/`RQ_Z`/`RQ_S` written **before**
+  `RQ_T` — which nothing else checks and whose violation would race a half-written request
+  invisibly.
+
+Two of their failures were the *tests* being wrong, not the code, and both are recorded in the
+harness comments: a lone soldier correctly ROUTs (scenarios need realistic squad strength), and a
+friendly standing on a casualty is correctly elected to drag him instead of the test subject.
+
 ## 6.2 Per-feature signals
 
 | # | Feature | Signal | Expected |
@@ -517,7 +543,13 @@ Set `VERBOSE = true` for verification runs only; return it to `false` afterwards
 - no regression in the already-verified branches (`ROAD-MARCH`, `PINNED`, `LEADER-cover`,
   `MOUNTED/CREW-defer`, `FIGHT-from-cover`) — the branches hoisted above them (ROUT, ASSAULT) are
   the specific regression risk to check
-- no label from an unimplemented feature (`BOUND-*`, `AT-*`, `DRAG-*`, `CREW-onfoot`) appears
+- **both offline harnesses green** (`luajit tests/offline_brain.lua`, `luajit tests/offline_phase.lua`)
+  before any battle is started — they cost milliseconds and have now found more real defects than
+  the play-tests have
+- ~~no label from an unimplemented feature (`BOUND-*`, `AT-*`, `DRAG-*`, `CREW-onfoot`) appears~~
+  **RETRACTED — this criterion was inverted and would fail a correct build.** Those features are
+  all implemented; seeing their labels is success, not failure. It survived because the gate was
+  written when they were unimplemented and never revisited when they landed.
 
 ---
 
@@ -608,7 +640,11 @@ Features observed firing across the verification battles: `AT-stalk` 50, `AT-hun
 the roster split and shared clock really do alternate in step with no messaging), `DRAG-*` 13,
 `RADIO-fire-mission`, `ROUT`, `MEDIC-sortie`, `ASSAULT`/`ASSAULT-cover`, `LEADER-cover`.
 
-**Not observed, and honestly scenario-dependent rather than broken:** `CREW-onfoot` (needs a
+**`CREW-onfoot` logic is now PROVEN offline** (`tests/offline_brain.lua`) — the branch is correct;
+what it has never had is the scenario. Truck occupants are *passengers*, so `isCrew` is correctly
+false for them, and both bail-outs observed so far were trucks. It needs a destroyed **tank**.
+
+**Not observed in a battle, and scenario-dependent rather than broken:** `CREW-onfoot` (needs a
 vehicle to be destroyed) and `ADVANCE-baseAI` (needs an attacker with no objective visible).
 
 ### Three defects the release testing caught
