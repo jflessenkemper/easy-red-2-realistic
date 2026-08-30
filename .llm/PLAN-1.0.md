@@ -1,5 +1,16 @@
 # PLAN-1.0 — contract for finishing the mod and the plugin
 
+> **STATUS 2026-08-30 (late):** mod **v1.1.0 released**, plugin **v1.1.0 released**. Gates: mod
+> 26/26, plugin 8/8, offline brain 13/13, offline phase 3/3. Since the last rewrite: the
+> `rosterIndex` forward reference was found and fixed (it had silently killed
+> ADVANCE-behind-armour, 367 -> 0); the phase loop's **third and fourth** causes were found
+> OFFLINE (a deadlock, and a 40 s dead window on resume); offline harnesses were built for both
+> scripts and now gate every release; an **inverted acceptance-gate criterion** was found that
+> would have failed a correct build.
+>
+> **THE ONE THING OFFLINE CANNOT SETTLE** — see §A below. Everything else is either done or
+> needs a battle purely for confirmation.
+
 **Rewritten 2026-08-30 from evidence re-derived out of `Player.log` + `Player-prev.log`, not from
 the docs.** The docs have drifted behind the code twice; they are claims to verify, not truth.
 Re-read this at the start of every iteration and keep it current — it must survive compaction.
@@ -127,3 +138,39 @@ The NEVER list in the loop prompt is binding. The two that have bitten hardest:
 - **Enumerate causes before declaring a fix** — the loop had two exits, the callout had two root
   causes, and the "ton of errors" the user reported was three unrelated things at once (mod log
   spam, Windows-only Workshop mods, engine teardown NREs). None of them was the mod.
+
+
+---
+
+## §A — the open question offline testing CANNOT answer
+
+`tests/offline_phase.lua` proves the phase loop's **logic** survives a battle boundary: it idles,
+clears `battleOver` when the phase returns, re-queries objectives, and resumes producing
+attraction lines. All four fixes are correct *as logic*.
+
+**But the harness drives the loop itself.** It therefore assumes the thing that was never
+established: that ER2 keeps the phase-script coroutine ALIVE across a phase change. That was
+hypothesis (b) from the original diagnosis and it is still untested.
+
+If the engine tears the coroutine down at phase end, all four fixes are moot — the loop cannot
+resume because it no longer exists — and the honest answer becomes ⛔ with the game-restart rule
+as the documented workaround.
+
+- **Done =** a real battle shows `idling:` → `RESUMED:` → fresh `invAttract` lines after an
+  objective capture. That, and only that, distinguishes (a) from (b).
+- **Cannot be faked offline.** Do not let the harness's green tick stand in for it.
+- **Cost of being wrong:** the release notes currently say the phase-loop fixes are "verified
+  offline only", which is accurate. If (b) turns out to be true, feature 20 (objective attraction)
+  and feature 18's drain are second-battle-dead and the docs must say so.
+
+## §B — remaining, all needing the game
+1. §A above — the phase-loop confirmation.
+2. Fire mission end-to-end (19). The consumer provably reacts to injected `RQ_*` globals OFFLINE,
+   and the producer's write ORDER is now asserted (`RQ_X → RQ_Z → RQ_S → RQ_T`). Neither is
+   in-game proof. Re-mark ✅ only on a phase-side `accepted`/`REFUSED`/`rounds away` line.
+3. `ADVANCE-behind-armour` must RECOVER to non-zero now `rosterIndex` is fixed — the falsifiable
+   proof of that fix (was 367, then 0).
+4. `CREW-onfoot` needs a destroyed TANK. Logic proven offline; scenario never met.
+
+All four are blocked on the Steam LaunchOptions being restored, since Stonne needs the Ardennes
+DLC and direct-launch mode gets no entitlement.
