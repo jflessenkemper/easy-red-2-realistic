@@ -99,6 +99,23 @@ bounding by half-sections or wandering. So the evidence below is **measured**, n
 these are decision counts from one continuous battle on the map above, taken straight from
 `Player.log` with **0 Lua errors**.
 
+### What the soldiers are actually doing
+
+The engine exposes **no formation orders**. Every formation below is produced the same way, and it
+is the whole trick: index a man within his real squad roster, give him his *own* destination offset
+from the axis of advance, and a formation emerges with zero coordination between soldiers — no
+shared state, no messages, nothing to desynchronise.
+
+![Staggered file on the approach march](docs/images/formation-staggered-file.svg)
+
+![Bounding overwatch and advancing behind armour](docs/images/tactics-bounding-and-armour.svg)
+
+And this is the order those decisions are considered in. The ordering *is* the design — a
+surrounded man breaks before he goes to ground, and an anti-tank team is never spent charging
+infantry:
+
+![Priority cascade](docs/images/decision-cascade.svg)
+
 | Behaviour | Log label | Fired |
 |---|---|---:|
 | Riding / crewing — deferred to base AI | `MOUNTED/CREW-defer` | 1408 |
@@ -126,6 +143,22 @@ Verified separately, in their own battles:
 - **Approach march** — `ROAD-MARCH` 14 of 15 men closing on the objective, trend 15 closing /
   0 away.
 - **Objective captured** — `obj1 inv=15 def=0 held=true ... CAPTURED by attackers`.
+
+Proven on Donchery, 2026-08-30 — the three that had never been observed before:
+
+- **Fire support, end to end** — six phase-side responses, from **both** sides:
+  `RADIO-fire-mission REFUSED danger close: friendly of side 1 within 90m of -27,483 (radio)`.
+  The radioman publishes, the phase script consumes and refuses. No barrage has landed yet: in a
+  close infantry fight the 90 m danger-close test is nearly always true, which is the fail-safe
+  working rather than a fault.
+- **Crew bailing out and breaking contact** —
+  `bail-out: 2 crew left vehicle Panzer II Ausf. B (disabled, via kickEveryoneOut)`, then
+  `CREW-onfoot` ×6 — three men leaving one tank within 0.3 s at `@(41,460)`, `@(40,462)`,
+  `@(39,463)` under `ne=36` contact, going to ground instead of joining the firing line.
+- **Advancing behind armour, recovered** — 67 fires with `tank d=8` and `tank d=11`, the hull
+  between the section and the enemy at the configured stand-off.
+
+In that same battle: `BOUND-overwatch` 37 · `ROUT-cover` 70 · `MEDIC-sortie` 42 · **0 Lua errors**.
 
 Reproduce any of it yourself:
 
