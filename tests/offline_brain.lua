@@ -92,8 +92,14 @@ local function install(scn)
     _G.sayMissionClip = function() end
     _G.VoiceClip = setmetatable({}, { __index = function() return 0 end })
     local ticks = 0
+    S.writes = {}
+    -- The mission clock must ADVANCE, or time-based logic never triggers: the radioman's stall
+    -- test needs STALL_WINDOW seconds to elapse, and cooldowns need the clock to move at all.
+    S.clock = S.clock or 100
     _G.sleep = function()
         ticks = ticks + 1
+        S.clock = S.clock + (S.tickSeconds or 1.5)   -- TICK is 1.5 s in the brain
+        if S.onTick then S.onTick(ticks) end
         if ticks >= (S.ticks or 6) then error(STOP, 0) end
     end
     _G.global = {
@@ -101,6 +107,7 @@ local function install(scn)
             assert(type(v) == "number" or type(v) == "string" or type(v) == "boolean",
                    "UserData in a global! key=" .. tostring(k))
             S.globals[k] = v
+            S.writes[#S.writes + 1] = k        -- ORDER matters for the RQ_* protocol
         end,
         get = function(k) return S.globals[k] end,
     }
@@ -230,20 +237,132 @@ local TESTS = {
                    nearby = concat({ me, foe1, foe2 }, friendlies(12)),
                    vehicles = { tank }, ticks = 8 }
       end },
+
+    { name = "AT soldier with an enemy vehicle -> AT-stalk / AT-hunt",
+      expect = "AT%-",
+      build = function()
+          local me = soldierAt(0, 0, { uid = 1000, at = true })
+          local foe = soldierAt(80, 0, { uid = 2000, faction = "France_allies" })
+          local tank = { getUniqueId = function() return 9 end,
+                         getPosition = function() return v3(90, 0, 0) end,
+                         getFaction  = function() return "France_allies" end,
+                         getName     = function() return "Renault R35" end,
+                         isDestroyed = function() return false end,
+                         isArtilleryVehicle = function() return false end }
+          return { me = me, objective = v3(0, 0, 400),
+                   nearby = concat({ me, foe }, friendlies(10)), vehicles = { tank }, ticks = 6 }
+      end },
+
+    { name = "outnumbered and bloodied -> ROUT",
+      expect = "ROUT",
+      build = function()
+          -- health at/below ROUT_HURT_HP (65) counts as bloodied; a lone man against a crowd is
+          -- well under moraleFloor, which is exactly what should break him.
+          local me = soldierAt(0, 0, { uid = 1000, health = 40 })
+          local foes = {}
+          for i = 1, 12 do foes[i] = soldierAt(20 + i, 0, { uid = 3000 + i * 2, faction = "France_allies" }) end
+          return { me = me, objective = v3(0, 0, 400), nearby = concat({ me }, foes), ticks = 4 }
+      end },
+
+    { name = "medic with a casualty in reach and no close enemy -> MEDIC-sortie",
+      expect = "MEDIC%-sortie",
+      build = function()
+          local me  = soldierAt(0, 0, { uid = 1000, medic = true })
+          local cas = soldierAt(20, 0, { uid = 4000, down = true })
+          return { me = me, objective = v3(0, 0, 400),
+                   nearby = concat({ me, cas }, friendlies(8)), ticks = 4 }
+      end },
+
+    { name = "rifleman next to a casualty, no enemy near -> DRAG",
+      expect = "DRAG%-",
+      build = function()
+          -- He must be the CLOSEST healthy man to the casualty or the election correctly picks
+          -- someone else. friendlies() lays mates out at x = 2, 4, 6..., which put one of them
+          -- literally on top of a casualty at x = 2 - so this scenario failed until the mates
+          -- were moved well clear. The harness was right and the test was wrong.
+          local mates = {}
+          for i = 1, 6 do mates[i] = soldierAt(60 + i * 2, 0, { uid = 5000 + i * 2 }) end
+          local cas = soldierAt(0, 3, { uid = 4000, down = true })
+          local me  = mkSoldier({ uid = 1000, pos = v3(0, 0, 0) })
+          me.getSquad = function() return mkSquad(concat({ me }, mates)) end
+          return { me = me, objective = v3(0, 0, 400),
+                   nearby = concat({ me, cas }, mates), ticks = 5 }
+      end },
+
+    { name = "MG-centric rifleman far from the gun, no contact -> RALLY-on-MG",
+      expect = "RALLY%-on%-MG",
+      build = function()
+          local me = soldierAt(0, 0, { uid = 1000 })
+          -- the Support gunner is found by class string; MG_COHESION is 25 m so put him well out
+          local gun = soldierAt(60, 0, { uid = 4100, class = "support gunner" })
+          return { me = me, objective = v3(0, 0, 400),
+                   nearby = concat({ me, gun }, friendlies(6)), ticks = 4 }
+      end },
+
+    { name = "dismounted crewman -> CREW-onfoot",
+      expect = "CREW%-onfoot",
+      build = function()
+          -- isCrew comes from the class string; no current vehicle => he is ON FOOT, which is the
+          -- whole point of the branch. Truck PASSENGERS are not crew, which is why live testing
+          -- never produced this: both bail-outs were trucks.
+          local me = soldierAt(0, 0, { uid = 1000, class = "tank crew", vehicle = nil })
+          return { me = me, objective = v3(0, 0, 400), nearby = { me }, ticks = 4 }
+      end },
+
+    -- PROTOCOL INVARIANT. The consumer treats RQ_T >= 0 as "a complete request is ready", so the
+    -- producer MUST write X/Z/side before the timestamp. Nothing else checks this ordering, and
+    -- getting it wrong would race a half-written request in a way no log line would reveal.
+    { name = "radioman fire mission writes RQ_X/RQ_Z/RQ_S BEFORE RQ_T",
+      expect = "RADIO%-fire%-mission",
+      build = function()
+          local me = soldierAt(0, 0, { uid = 1000, radio = true })
+          local foes = {}
+          for i = 1, 4 do foes[i] = soldierAt(60 + i, 0, { uid = 3000 + i * 2, faction = "France_allies" }) end
+          -- stalled: he never moves, and the clock must pass STALL_WINDOW (30 s)
+          return { me = me, objective = v3(0, 0, 400),
+                   nearby = concat({ me }, concat(foes, friendlies(12))),
+                   ticks = 30, tickSeconds = 2 }
+      end,
+      check = function(scn)
+          local order = {}
+          for _, k in ipairs(scn.writes or {}) do
+              if k:match("^RQ_") then order[#order + 1] = k end
+          end
+          if #order == 0 then return false, "producer never wrote any RQ_* global" end
+          local tPos
+          for i, k in ipairs(order) do if k == "RQ_T" then tPos = i break end end
+          if not tPos then return false, "wrote " .. table.concat(order, ",") .. " but never RQ_T" end
+          if tPos ~= #order and order[#order] ~= "RQ_T" then
+              return false, "RQ_T was not written LAST: " .. table.concat(order, ",")
+          end
+          for _, need in ipairs({ "RQ_X", "RQ_Z", "RQ_S" }) do
+              local at
+              for i, k in ipairs(order) do if k == need then at = i break end end
+              if not at then return false, need .. " never written" end
+              if at > tPos then return false, need .. " written AFTER RQ_T: " .. table.concat(order, ",") end
+          end
+          return true, "order " .. table.concat(order, " -> ")
+      end },
 }
 
 --========================= driver ===========================================
 local pass, fail = 0, 0
 for _, t in ipairs(TESTS) do
-    local got, err = run(t.build())
+    local scn = t.build()
+    local got, err = run(scn)
     if err then
         print(string.format("  \27[31mFAIL\27[0m  %s\n         ERROR: %s", t.name, err))
         fail = fail + 1
     else
         local hit = false
         for _, lab in ipairs(got) do if lab:match(t.expect) then hit = true break end end
+        local note = ""
+        if hit and t.check then
+            local ok2, why = t.check(scn)
+            if not ok2 then hit = false; t.expect = why else note = "  (" .. why .. ")" end
+        end
         if hit then
-            print(string.format("  \27[32mPASS\27[0m  %s", t.name))
+            print(string.format("  \27[32mPASS\27[0m  %s%s", t.name, note))
             pass = pass + 1
         else
             print(string.format("  \27[31mFAIL\27[0m  %s\n         expected %s, got: %s",
