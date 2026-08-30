@@ -120,7 +120,23 @@ else
 fi
 
 echo "== 6. Shipping defaults =="
-grep -qE '^local VERBOSE\s*=\s*false' "$BRAIN" && ok "VERBOSE=false" || bad "VERBOSE must ship false"
+# Every diagnostic flag must ship OFF. This has slipped twice: DEBUG=true flooded the in-game
+# overlay so badly it was reported as "a ton of errors" (the log had ZERO), and PROBE_APIS=true
+# re-ran the one-shot bench probe every battle. check.sh used to guard only VERBOSE.
+for flag in VERBOSE DEBUG; do
+  for f in "$BRAIN" "$PHASE"; do
+    if grep -qE "^local $flag\s*=" "$f"; then
+      if grep -qE "^local $flag\s*=\s*false" "$f"; then ok "$(basename $f): $flag=false"
+      else bad "$(basename $f): $flag must ship false"; fi
+    fi
+  done
+done
+for flag in PROBE_APIS PROBE_GLOBALS; do
+  if grep -qE "^local $flag\s*=" "$PHASE"; then
+    if grep -qE "^local $flag\s*=\s*false" "$PHASE"; then ok "$flag=false"
+    else bad "$flag must ship false (diagnostic left enabled)"; fi
+  fi
+done
 
 echo "== 7. Docs are usable by a stranger =="
 if grep -qE 'jflessenkemper|/tmp/claude|ME_Stonne' realistic.md; then

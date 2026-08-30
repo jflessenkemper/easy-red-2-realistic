@@ -56,7 +56,7 @@ implemented · **⛔** impossible on this build
 
 | # | Feature | Base game | With Realistic |
 |---|---|---|---|
-| 19 | Fire support | Scripted triggers only | ✅ A radioman whose advance has **stalled** calls a fire mission. Refused danger-close, on cooldown, or over the mission cap. The period-correct substitute for CAS, which this build cannot script |
+| 19 | Fire support | Scripted triggers only | 🔧 A radioman whose advance has **stalled** publishes a fire-mission request; the phase script consumes it, refuses danger-close / on cooldown / over cap, then walks a WARN→FIRING state machine. **The brain side is observed firing; the phase side has never logged an accept, a refusal or a shell in any session, so the feature is NOT verified end-to-end.** See §1 of realistic.md |
 | 20 | Objective flow | Units can mill around a held objective | ✅ Attraction manager pulls units onto an objective, then releases it once held so they flow to the next |
 | 21 | Setup | Brain must be set per Squad Spawner | ✅ Attaches itself to every soldier, including reinforcements a spawner field would miss |
 | 22 | Kill feed | Team-wide feed | ✅ **Your squad only**, as `<name> (<role>) killed by <weapon>` — the weapon, never the killer. Nothing else is drawn on screen |
@@ -82,6 +82,7 @@ implemented · **⛔** impossible on this build
 | Real road pathing | `RoadSystem` / `Pathfinder` are engine-internal and unbound to Lua (feature 1 is a terrain-flatness proxy) |
 | True line/column formation | engine-internal. Squad *tactical* orders are a different thing and those do exist |
 | Smoke on demand | smoke items can be equipped, but nothing binds a *throw*. Base AI still lays its own assault smoke |
+| `ADVANCE-baseAI` (a fallback, not a feature) | fires only when an attacker can see **no objective at all**. Every ER2 mission phase requires at least one objective, so on a well-formed mission this is unreachable by design — it exists so a soldier on a malformed phase defers to base AI rather than standing still |
 
 ---
 

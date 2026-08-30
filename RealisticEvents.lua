@@ -352,7 +352,7 @@ end
 -- the battle. Set false once verified-api.md is updated.
 -- The 2026-08-29 run is folded into verified-api.md, so the probe is OFF. The function and its
 -- call site are deliberately KEPT: the next unknown binding gets probed by flipping this back on.
-local PROBE_APIS = true
+local PROBE_APIS = false
 local probeDone = false
 
 local function memberKind(obj, name)
