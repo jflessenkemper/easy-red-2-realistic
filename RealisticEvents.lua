@@ -76,6 +76,19 @@ local INV = safeGet(function() return er2.getInvadersFaction() end)
 local DEF = safeGet(function() return er2.getDefendersFaction() end)
 local MY_PHASE = safeGet(function() return er2.getCurrentPhaseId() end) or 0
 
+-- GEOMETRY PROBE (one shot, DEBUG only). distance() is an ENGINE global, so all ~19 call sites in
+-- the brain are interop hops and replacing them with inline Lua maths is the single biggest
+-- remaining optimisation. That is only safe if we know whether it measures in 2D or 3D: guessing
+-- wrong silently changes who counts as "within PINNED_RADIUS" on sloped ground, which is exactly
+-- the kind of quiet behaviour change this project has been bitten by before.
+-- The two points below are 3 apart in x/z and 4 apart in y, so 3D gives 5 and 2D gives 3. There
+-- is no ambiguity in the answer.
+if DEBUG then
+    local d = safeGet(function() return distance(vec3(0, 0, 0), vec3(0, 4, 3)) end)
+    log("[EVENTS] geometry: distance((0,0,0),(0,4,3)) = " .. tostring(d)
+        .. "   -> 5 means 3D (x,y,z); 3 means 2D (x,z only)")
+end
+
 local function nameOf(s)
     return safeGet(function() return s.getName() end)
         or ("#"..tostring(safeGet(function() return s.getUniqueId() end) or "?"))
@@ -1071,7 +1084,14 @@ local function healthWatch()
                         wStillSince[u] = wStillSince[u] or t
                         -- Only ATTACKERS count as stuck. Defenders holding a line are supposed to
                         -- be motionless; calling that a fault would bury the real signal.
-                        if side == "invader" and (t - wStillSince[u]) >= WATCH_STUCK then
+                        -- Exclude the SUPPRESSED. A man with rounds cracking over his head is
+                        -- supposed to be flat, and counting him as stuck buries the real signal.
+                        -- Measured: at the end of a won battle stuck sat at 7 of 70 attackers,
+                        -- and the decision mix showed SUPPORT-hold-fire - LMG gunners holding a
+                        -- base of fire BY DESIGN. One extra call per still soldier per 8 s sweep
+                        -- is a fair price for a number that means something.
+                        if side == "invader" and (t - wStillSince[u]) >= WATCH_STUCK
+                           and safeGet(function() return s.isSuppressed() end) ~= true then
                             stuck = stuck + 1
                         end
                     end

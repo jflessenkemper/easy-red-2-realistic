@@ -428,6 +428,7 @@ dbg(string.format("ONLINE #%s %s/%s class='%s' faction=%s %s aiParams=%s squad=%
 -- `_s = s` and its safeGet, two brains WILL clobber each other's scratch slot and the symptom
 -- will be soldiers reading another man's position - intermittent, and very hard to trace back.
 local scanN, scanSum = 0, 0   -- DEBUG cost meter, see sense()
+local handleProbed, lastHandle, probeRuns = false, nil, 0  -- DEBUG handle-identity probe
 -- TWO CACHES for the sense() hot loop. Measured live: the sweep returns ~70 soldiers, each
 -- costing five guarded interop calls, at ~175 brain-ticks a second across 350 brains - about
 -- 61,000 calls/s, and the per-soldier calls are the whole of it. Both caches are exact, not
@@ -465,6 +466,30 @@ local function sense(pos)
     local list = {}
     _scanPos, _scanR, _scanT = pos, SENSE_RADIUS, list
     safe(_scanSoldiers)
+    -- HANDLE-IDENTITY PROBE (one shot, DEBUG only). Two of the guaranteed per-soldier interop
+    -- calls exist only because we need a uid: one to skip ourselves, one as the faction-cache key.
+    -- Both disappear if MoonSharp hands back a STABLE proxy for the same soldier, because then
+    -- `s == me` is a free Lua comparison and the handle itself can key the cache.
+    -- Answers two things at once: does exactly one entry equal `me`, and does a handle seen last
+    -- sweep compare equal this sweep. Anything other than 1 and true means handles are rebuilt per
+    -- call and the uid is genuinely required - in which case we are at the floor.
+    if DEBUG and not handleProbed then
+        handleProbed = true
+        local selfHits, reseen = 0, "n/a"
+        for _, s in pairs(list) do
+            if s == me then selfHits = selfHits + 1 end
+        end
+        if lastHandle ~= nil then
+            reseen = "no"
+            for _, s in pairs(list) do if s == lastHandle then reseen = "yes" end end
+        end
+        for _, s in pairs(list) do lastHandle = s; break end
+        log(string.format("[REALISTIC] handles: s==me matched %d of %d; handle re-seen next sweep=%s",
+            selfHits, scanSum >= 0 and (function() local n=0 for _ in pairs(list) do n=n+1 end return n end)() or 0, reseen))
+        handleProbed = false   -- re-run next sweep so the re-seen test has a previous handle
+        probeRuns = probeRuns + 1
+        if probeRuns >= 3 then handleProbed = true end
+    end
     -- COST METER (DEBUG only). The mod's dominant cost is this sweep's RESULT SIZE, not the sweep
     -- itself: every soldier returned costs several guarded interop calls. Averaging it gives a
     -- hard before/after number for optimisation work instead of an opinion.
