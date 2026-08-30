@@ -87,6 +87,7 @@ local ARMOUR_SCAN    = 45     -- m
 local ARMOUR_HUG     = 6      -- m behind the hull, enemy-opposite side. Tight on purpose: at 10 m
                               -- the hull stops being cover for the men behind it. See ARMOUR_SPREAD.
 local ARMOUR_SPREAD  = 2.5    -- m between men in the line abreast behind the hull
+local CREW_SHOCK     = 45     -- s after losing an armoured ride that a survivor breaks contact
 local COLUMN_STAGGER = 2.5    -- m either side of the road centre-line on the approach march
 -- Anti-tank. An AT man is the battalion's ONLY answer to armour, so he must not be spent as a
 -- rifleman: without this branch `isATSoldier` only tagged the role and the man fell through into
@@ -528,6 +529,15 @@ end
 -- reuse-transport state: the vehicle this soldier last rode in as a passenger, and a
 -- throttle for board attempts. Persist across ticks (per-soldier upvalues).
 local myTransportId, lastBoardT = nil, -1000
+-- CREW-ON-FOOT STATE. isCrew is a getClassName() test, and on v2.0.9 it can NEVER be true:
+-- a full Donchery battle with sampling disabled emitted exactly eight distinct classes —
+-- rifleman, squad leader, radioman, medic, engineer, support gunner, marksman, at unit — and not
+-- one of "crew"/"tank"/"driver"/"pilot" that isCrew looks for. "Tank Crew (Panzer II Ausf. B)" is
+-- the SQUAD name, not the soldier's class. So the CREW-onfoot branch was structurally
+-- unreachable: two Panzer IIs were knocked out, their crews ejected, and it fired zero times.
+-- Identify the man by what he was RIDING instead, which is observable: remember that our vehicle
+-- was armour, and for a short window after we lose it, behave as a survivor rather than a rifleman.
+local rodeArmour, lastAboardT = false, -1000   -- lastAboardT = last tick we were INSIDE it
 -- hysteretic move order: avoids thrashing the pathfinder every tick
 local lastDest, lastMoveT = nil, -1000
 -- rout state: when the fallback moveTo was issued, the mission time at which the routing man
@@ -967,7 +977,7 @@ while true do
         -- Every branch is terminal, and no branch may be gated by a condition a higher branch
         -- has already consumed (that is what made ASSAULT, ROUT and MEDIC-sortie unreachable).
         local decision, detail = nil, ""
-        if isCrew and not inVehicle then
+        if (isCrew or (rodeArmour and (now - lastAboardT) < CREW_SHOCK)) and not inVehicle then
             -- DISMOUNTED CREWMAN: his vehicle is gone (destroyed, disabled, or he was kicked out
             -- by the bail-out handler in the phase script). He used to stay in the branch below
             -- and defer to base AI forever, which is wrong twice over: he is no longer crewing
@@ -992,6 +1002,13 @@ while true do
             -- return to it later instead of abandoning it.
             if inVehicle and not isCrew then
                 myTransportId = safeGet(function() return me.getCurrentVehicle().getUniqueId() end) or myTransportId
+            end
+            -- Was this an armoured vehicle? Same name filter feature 5 uses, so a lorry never
+            -- counts. Recorded every tick we are aboard, so the answer survives the vehicle
+            -- object being destroyed out from under us.
+            if inVehicle then
+                local v = safeGet(function() return me.getCurrentVehicle() end)
+                if v and isArmour(v) then rodeArmour, lastAboardT = true, now end
             end
             decision = "MOUNTED/CREW-defer"
             detail = inVehicle and "in vehicle" or "crew class"

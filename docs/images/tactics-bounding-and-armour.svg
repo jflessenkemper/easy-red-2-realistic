@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" height="420" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+  <style>
+    .t   { fill:#8b949e; font-size:13px; }
+    .h   { fill:#c9d1d9; font-size:15px; font-weight:600; }
+    .sub { fill:#c9d1d9; font-size:13px; font-weight:600; }
+    .lbl { fill:#8b949e; font-size:11px; }
+    .ground { fill:#22272e; }
+    .tank{ fill:#4d5b3c; stroke:#6b7d54; stroke-width:1.5; }
+    .moveM{ fill:#d29922; }
+    .watchM{ fill:#58a6ff; }
+    .enemy{ fill:#c93c37; }
+    .arr { stroke:#d29922; stroke-width:1.6; fill:none; }
+    .fire{ stroke:#58a6ff; stroke-width:1.2; stroke-dasharray:4 3; fill:none; }
+    .axis{ stroke:#6e7681; stroke-width:1; stroke-dasharray:3 4; }
+    @media (prefers-color-scheme: light) {
+      .t,.lbl { fill:#57606a; } .h,.sub { fill:#1f2328; }
+      .ground { fill:#f0f2f4; } .axis { stroke:#8c959f; }
+    }
+  </style>
+
+  <text class="h" x="20" y="26">Squad tactics the base AI does not model</text>
+
+  <!-- ============ BOUNDING OVERWATCH ============ -->
+  <text class="sub" x="20" y="60">Bounding overwatch (feature 4) — half move, half watch, swapping every 8 s</text>
+  <rect class="ground" x="20" y="72" width="340" height="140" rx="4"/>
+
+  <!-- enemy -->
+  <g class="enemy"><circle cx="330" cy="100" r="6"/><circle cx="330" cy="122" r="6"/></g>
+  <text class="lbl" x="300" y="90" fill="#c93c37">enemy</text>
+
+  <!-- team A moving -->
+  <g class="moveM">
+    <circle cx="70" cy="120" r="6"/><circle cx="70" cy="146" r="6"/><circle cx="70" cy="172" r="6"/>
+  </g>
+  <path class="arr" d="M84 120 h56" marker-end="url(#am)"/>
+  <path class="arr" d="M84 146 h56" marker-end="url(#am)"/>
+  <path class="arr" d="M84 172 h56" marker-end="url(#am)"/>
+  <text class="lbl" x="54" y="200" fill="#d29922">team A — bounding</text>
+
+  <!-- team B watching -->
+  <g class="watchM">
+    <circle cx="190" cy="108" r="6"/><circle cx="190" cy="134" r="6"/><circle cx="190" cy="160" r="6"/>
+  </g>
+  <path class="fire" d="M202 108 L318 100"/>
+  <path class="fire" d="M202 134 L318 118"/>
+  <path class="fire" d="M202 160 L318 124"/>
+  <text class="lbl" x="166" y="188" fill="#58a6ff">team B — firing</text>
+
+  <text class="lbl" x="20" y="230">Teams split on the REAL squad roster. A shared wall-clock swaps them — no messaging between soldiers.</text>
+
+  <!-- ============ ADVANCE BEHIND ARMOUR ============ -->
+  <text class="sub" x="410" y="60">Advance behind armour (feature 5) — line abreast, hull between you and the enemy</text>
+  <rect class="ground" x="410" y="72" width="330" height="140" rx="4"/>
+
+  <g class="enemy"><circle cx="712" cy="128" r="6"/><circle cx="712" cy="152" r="6"/></g>
+  <text class="lbl" x="686" y="118" fill="#c93c37">enemy</text>
+
+  <!-- tank -->
+  <rect class="tank" x="590" y="126" width="54" height="28" rx="4"/>
+  <rect class="tank" x="636" y="136" width="26" height="7" rx="2"/>
+  <text class="lbl" x="592" y="120">Sd.Kfz. 251</text>
+
+  <!-- infantry line abreast behind hull -->
+  <g class="moveM">
+    <circle cx="548" cy="106" r="6"/><circle cx="548" cy="128" r="6"/>
+    <circle cx="548" cy="150" r="6"/><circle cx="548" cy="172" r="6"/>
+  </g>
+  <path class="arr" d="M560 106 h20"/><path class="arr" d="M560 128 h20"/>
+  <path class="arr" d="M560 150 h20"/><path class="arr" d="M560 172 h20"/>
+
+  <!-- spread bracket -->
+  <line class="axis" x1="532" y1="106" x2="532" y2="172"/>
+  <text class="lbl" x="440" y="140">2.5 m between men</text>
+  <text class="lbl" x="440" y="158">6 m behind the hull</text>
+
+  <text class="lbl" x="410" y="230">Name-filtered: trucks and towed guns are NOT armour, so nobody hides behind a soft-skin lorry.</text>
+
+  <!-- ============ SOURCE ============ -->
+  <line class="axis" x1="20" y1="256" x2="740" y2="256"/>
+  <text class="t" x="20" y="280">Both are produced the same way, and it is the whole trick:</text>
+  <text class="lbl" x="20" y="304">the engine exposes no formation orders, but each soldier can be given his own destination. Index a man</text>
+  <text class="lbl" x="20" y="322">within his real squad roster, offset him laterally from the axis of advance, and a formation emerges with</text>
+  <text class="lbl" x="20" y="340">zero coordination between soldiers — no shared state, no messages, nothing to desynchronise.</text>
+
+  <text class="lbl" x="20" y="372" font-style="italic">Measured live on "Crossing at Donchery", 13 May 1940:</text>
+  <text class="lbl" x="20" y="392">ADVANCE-behind-armour 67 fires · BOUND-overwatch 37 · ROUT-cover 70 · MEDIC-sortie 42 · 0 Lua errors</text>
+
+  <defs>
+    <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#d29922"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" width="880" height="640" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+  <style>
+    .h    { fill:#c9d1d9; font-size:16px; font-weight:600; }
+    .t    { fill:#8b949e; font-size:12.5px; }
+    .lbl  { fill:#8b949e; font-size:11px; }
+    .step { fill:#c9d1d9; font-size:12.5px; font-weight:600; }
+    .box  { fill:#22272e; stroke:#30363d; stroke-width:1; }
+    .boxD { fill:#2d2620; stroke:#5c4726; stroke-width:1; }   /* survival */
+    .boxF { fill:#1f2a33; stroke:#284b63; stroke-width:1; }   /* fighting */
+    .boxM { fill:#1e2a22; stroke:#2b4a35; stroke-width:1; }   /* movement */
+    .spine{ stroke:#484f58; stroke-width:2; }
+    .tick { fill:#3fb950; font-size:11px; }
+    @media (prefers-color-scheme: light) {
+      .h,.step { fill:#1f2328; } .t,.lbl { fill:#57606a; }
+      .box  { fill:#f6f8fa; stroke:#d0d7de; }
+      .boxD { fill:#fff8e6; stroke:#d4a72c; }
+      .boxF { fill:#eef4fb; stroke:#a3c4e8; }
+      .boxM { fill:#eef7f0; stroke:#a8d5b5; }
+      .spine{ stroke:#8c959f; } .tick { fill:#1a7f37; }
+    }
+  </style>
+
+  <text class="h" x="20" y="28">Priority cascade — what pre-empts what</text>
+  <text class="t" x="20" y="50">Evaluated top to bottom; the FIRST branch that matches wins. Order is the design: a surrounded man</text>
+  <text class="t" x="20" y="68">breaks before he goes to ground, and an AT team never charges infantry.</text>
+
+  <line class="spine" x1="34" y1="92" x2="34" y2="566"/>
+
+  <!-- 1 -->
+  <rect class="box" x="52" y="86" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="104">1 · CREW-onfoot</text>
+  <text class="lbl" x="480" y="104">crewman whose vehicle is gone — breaks contact, not a rifleman</text>
+
+  <rect class="box" x="52" y="120" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="138">2 · MOUNTED / CREW-defer</text>
+  <text class="lbl" x="480" y="138">in a vehicle, or a pilot/gun crew — defer wholly to base AI</text>
+
+  <!-- survival -->
+  <rect class="boxD" x="52" y="158" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="176">3 · ROUT / ROUT-cover</text>
+  <text class="lbl" x="480" y="176">outnumbered AND bloodied — evaluated ABOVE pinned, on purpose</text>
+
+  <rect class="boxF" x="52" y="192" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="210">4 · AT-stalk / AT-hunt</text>
+  <text class="lbl" x="480" y="210">AT team acquires an enemy vehicle — barred from the assault below</text>
+
+  <rect class="boxF" x="52" y="226" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="244">5 · ASSAULT / ASSAULT-cover</text>
+  <text class="lbl" x="480" y="244">aggressive doctrine, close range — above PINNED or it can never fire</text>
+
+  <rect class="boxD" x="52" y="260" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="278">6 · PINNED</text>
+  <text class="lbl" x="480" y="278">engine's own isSuppressed() — go to ground and shout</text>
+
+  <rect class="boxD" x="52" y="294" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="312">7 · MEDIC-sortie / MEDIC-hold-cover</text>
+  <text class="lbl" x="480" y="312">sorties only when the sortie is survivable</text>
+
+  <rect class="boxD" x="52" y="328" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="346">8 · DRAG-approach → pickup → to-cover</text>
+  <text class="lbl" x="480" y="346">exactly one man elected from the roster; no messages</text>
+
+  <rect class="boxF" x="52" y="362" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="380">9 · RADIO-fire-mission</text>
+  <text class="lbl" x="480" y="380">stalled radioman calls a barrage; phase script may refuse it</text>
+
+  <rect class="boxD" x="52" y="396" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="414">10 · LEADER-cover</text>
+  <text class="lbl" x="480" y="414">leaders direct from cover and never walk point</text>
+
+  <rect class="boxF" x="52" y="430" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="448">11 · SUPPORT-hold-fire</text>
+  <text class="lbl" x="480" y="448">the LMG IS the base of fire — it holds, it does not rush</text>
+
+  <!-- movement -->
+  <rect class="boxM" x="52" y="464" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="482">12 · ADVANCE-behind-armour</text>
+  <text class="lbl" x="480" y="482">line abreast behind a friendly hull</text>
+
+  <rect class="boxM" x="52" y="498" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="516">13 · BOUND-move / BOUND-overwatch</text>
+  <text class="lbl" x="480" y="516">half the roster moves, half watches — swaps every 8 s</text>
+
+  <rect class="boxF" x="52" y="532" width="410" height="26" rx="4"/>
+  <text class="step" x="62" y="550">14 · FIGHT-from-cover</text>
+  <text class="lbl" x="480" y="550">threatened, nothing better — let the engine pick the cover</text>
+
+  <!-- no contact -->
+  <text class="t" x="20" y="590" font-weight="600">No contact:</text>
+  <text class="lbl" x="98" y="590">DEFEND-hold (defenders never get move orders — measured, they ignore them) ·</text>
+  <text class="lbl" x="98" y="608">CONSOLIDATE on captured ground · RALLY-on-MG · ROAD-MARCH in staggered file</text>
+
+  <text class="lbl" x="20" y="632" font-style="italic">Order matters: ASSAULT and ROUT both sat BELOW pinned once and were structurally unreachable — measured at 9 fires in 10,731.</text>
+</svg>

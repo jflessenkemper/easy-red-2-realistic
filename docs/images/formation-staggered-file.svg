@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="760" height="300" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+  <style>
+    .t   { fill:#8b949e; font-size:13px; }
+    .h   { fill:#c9d1d9; font-size:15px; font-weight:600; }
+    .lbl { fill:#8b949e; font-size:11px; }
+    .road{ fill:#3a3226; }
+    .edge{ stroke:#5b5140; stroke-width:1.5; stroke-dasharray:6 5; }
+    .axis{ stroke:#6e7681; stroke-width:1; stroke-dasharray:3 4; }
+    .man { fill:#7d8590; }
+    .manA{ fill:#d29922; }
+    .manB{ fill:#58a6ff; }
+    .arr { stroke:#8b949e; stroke-width:1.4; fill:none; }
+    @media (prefers-color-scheme: light) {
+      .t,.lbl { fill:#57606a; } .h { fill:#1f2328; }
+      .road { fill:#e4dcc9; } .edge { stroke:#b9ad90; } .axis { stroke:#8c959f; }
+      .man { fill:#6e7781; } .arr { stroke:#57606a; }
+    }
+  </style>
+
+  <text class="h" x="20" y="26">Approach march — staggered file (feature 4b)</text>
+  <text class="t" x="20" y="48">Each man gets his OWN destination, offset to alternating verges from his squad-roster index.</text>
+
+  <!-- BEFORE -->
+  <text class="h" x="20" y="90" font-size="13">Base game — one clump on the centre-line</text>
+  <rect class="road" x="20" y="100" width="330" height="54" rx="3"/>
+  <line class="edge" x1="20" y1="100" x2="350" y2="100"/>
+  <line class="edge" x1="20" y1="154" x2="350" y2="154"/>
+  <line class="axis" x1="20" y1="127" x2="350" y2="127"/>
+  <g class="man">
+    <circle cx="120" cy="127" r="6"/><circle cx="136" cy="123" r="6"/><circle cx="134" cy="132" r="6"/>
+    <circle cx="150" cy="127" r="6"/><circle cx="152" cy="120" r="6"/><circle cx="166" cy="129" r="6"/>
+    <circle cx="164" cy="121" r="6"/><circle cx="180" cy="126" r="6"/>
+  </g>
+  <path class="arr" d="M250 127 h60" marker-end="url(#a)"/>
+  <text class="lbl" x="20" y="172">one burst or shell takes the whole section</text>
+
+  <!-- AFTER -->
+  <text class="h" x="410" y="90" font-size="13">Realistic — two files, one per verge</text>
+  <rect class="road" x="410" y="100" width="330" height="54" rx="3"/>
+  <line class="edge" x1="410" y1="100" x2="740" y2="100"/>
+  <line class="edge" x1="410" y1="154" x2="740" y2="154"/>
+  <line class="axis" x1="410" y1="127" x2="740" y2="127"/>
+  <g>
+    <circle class="manA" cx="470" cy="113" r="6"/><circle class="manB" cx="496" cy="141" r="6"/>
+    <circle class="manA" cx="522" cy="113" r="6"/><circle class="manB" cx="548" cy="141" r="6"/>
+    <circle class="manA" cx="574" cy="113" r="6"/><circle class="manB" cx="600" cy="141" r="6"/>
+    <circle class="manA" cx="626" cy="113" r="6"/><circle class="manB" cx="652" cy="141" r="6"/>
+  </g>
+  <path class="arr" d="M676 127 h50" marker-end="url(#a)"/>
+  <text class="lbl" x="410" y="172">odd index → left verge · even index → right verge</text>
+
+  <!-- explanation -->
+  <line class="axis" x1="20" y1="205" x2="740" y2="205"/>
+  <text class="t" x="20" y="230">Lateral offset only — deliberately.</text>
+  <text class="lbl" x="20" y="252">Pulling trailing men BACK along the march axis is the obvious way to add depth, but the road step is only</text>
+  <text class="lbl" x="20" y="270">a short distance ahead, so subtracting a trail distance can land the destination BEHIND the soldier and</text>
+  <text class="lbl" x="20" y="288">order him to walk backwards. Depth emerges free from men starting at different places.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+</svg>
