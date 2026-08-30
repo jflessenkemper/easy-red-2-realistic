@@ -597,6 +597,13 @@ local function isArmour(v)
 end
 
 -- advance on the covered side of the nearest FRIENDLY ARMOURED vehicle
+-- FORWARD DECLARATION. rosterIndex() is defined further down but CALLED from
+-- advanceBehindArmour below. Without this line Lua resolves the call as a GLOBAL read
+-- (confirmed in the bytecode: GGET "rosterIndex"), which is nil at runtime, so the call
+-- raises and silently kills that soldier's brain. Measured: ADVANCE-behind-armour fired
+-- 367 times before the line-abreast change introduced the forward reference and 0 after.
+local rosterIndex
+
 local function advanceBehindArmour(pos, ec, now)
     if not USE_ARMOUR_COVER then return false end
     -- ATTACKERS ONLY. This ends in a moveTo, and defenders do not obey move orders — the base AI
@@ -703,7 +710,7 @@ end
 -- they form a LINE rather than all converging on the same point behind a tank. Falls back to a
 -- uid-derived index when the squad will not resolve (floor(uid/2), never uid % N - ER2 uids have
 -- an even stride of 262).
-local function rosterIndex()
+function rosterIndex()   -- assigns the forward-declared local above
     if mySquad then
         local members = {}
         if safe(function() mySquad.getAllMembers(members) end) then

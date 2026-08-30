@@ -99,6 +99,30 @@ echo "== 4c. Every project helper called is defined in the same file =="
 python3 tests/undefined_helpers.py "$BRAIN" "$PHASE"
 [ $? -eq 0 ] && PASS=$((PASS+1)) || FAIL=$((FAIL+1))
 
+echo "== 4d. No local function is ever read as a GLOBAL (forward-reference bug) =="
+# Lua resolves a name at COMPILE time. Calling a `local function` before its definition line
+# compiles to a GLOBAL read, which is nil at runtime: the call raises and silently kills that
+# soldier's brain. It is invisible to a syntax check AND to check 4c, which only asks whether the
+# name is defined SOMEWHERE in the file - not whether it is defined BEFORE use.
+# Caught for real: rosterIndex() was called at line 637 and defined at 706, so
+# ADVANCE-behind-armour went from 367 fires to 0 with no error line anywhere.
+# The bytecode is the oracle: any GGET of a name this file also defines locally is this bug.
+if [ -n "$LUA" ] && [ "${LUA##*/}" = "luajit" ]; then
+  fwd_bad=""
+  for f in "$BRAIN" "$PHASE"; do
+    locals_defined=$(grep -oE '^(local )?function [A-Za-z_]+' "$f" | awk '{print $NF}' | sort -u)
+    globals_read=$("$LUA" -bl "$f" 2>/dev/null | grep -oE 'GGET .*"[A-Za-z_]+"' \
+                   | grep -oE '"[A-Za-z_]+"' | tr -d '"' | sort -u)
+    for n in $locals_defined; do
+      if echo "$globals_read" | grep -qx "$n"; then fwd_bad="$fwd_bad $(basename $f):$n"; fi
+    done
+  done
+  [ -z "$fwd_bad" ] && ok "no local function is read as a global" \
+                    || bad "called BEFORE its definition (forward reference):$fwd_bad"
+else
+  echo "  SKIP  (needs luajit bytecode listing)"
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then

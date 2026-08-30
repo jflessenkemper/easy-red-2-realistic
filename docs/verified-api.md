@@ -431,3 +431,38 @@ alone decides when to use smoke. Scripting *who carries* smoke is not the same a
 
 **Conclusion:** smoke stays ⛔. The honest substitute already in the mod is the scripted
 `er2.explosion` barrage (feature 19), which is HE, not smoke.
+
+## 2026-08-30 — a `local function` called before its definition line is a SILENT killer
+
+**Lua resolves names at COMPILE time.** Calling a `local function` earlier in the file than its
+definition does not "find it later" — it compiles to a **global read**, which is `nil` at
+runtime. The call then raises, and ER2 does not surface a brain-coroutine death as a Lua error,
+so the log stays clean while that soldier's brain is simply gone.
+
+**Caught 2026-08-30, statically, with no play-test.** `rosterIndex()` was called at line 637 by
+`advanceBehindArmour` and defined at line 706. The bytecode showed it plainly:
+
+```
+GGET  14  12  ; "rosterIndex"
+```
+
+Corroborated by the logs: `ADVANCE-behind-armour` fired **367** times before the line-abreast
+change introduced the forward reference, and **0** in every log after it. No error line anywhere.
+
+**Fix idiom — forward-declare, then assign. Do NOT move the block:**
+```lua
+local rosterIndex                 -- forward declaration
+...
+local function advanceBehindArmour(...)   -- calls rosterIndex() below
+...
+function rosterIndex()            -- assigns the forward-declared local (no `local` keyword)
+```
+Moving the definition instead is risky: an off-by-one on the closing `end` silently re-nests
+every later `local function` into an inner scope, which still parses and still runs but makes
+those functions invisible at their call sites — turning one forward-reference bug into two.
+That was attempted first and reverted; the bytecode global list is what exposed it.
+
+**Now guarded** by `tests/check.sh` check 4d, which fails if any name the file defines as a
+function also appears as a `GGET` in the bytecode. The bytecode is the oracle — text analysis
+cannot see this, and check 4c does not either, because 4c only asks whether the name is defined
+*somewhere*, not whether it is defined *before use*.
