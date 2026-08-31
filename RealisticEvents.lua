@@ -1114,13 +1114,35 @@ end
 -- TELEM_BATCH to a line, which turns a frame into about a dozen calls instead.
 --
 -- Format:  [TELEM] <t> S <uid>,<x>,<z>,<flag>;<uid>,<x>,<z>,<flag>;...
---          [TELEM] <t> V <uid>,<x>,<z>,<name>;...
+--          [TELEM] <t> V <uid>,<x>,<y>,<z>,<name>;...
 --   flag   I invader · D defender · i invader suppressed · d defender suppressed · x down/dead
 --   x,z    rounded to whole metres - sub-metre precision is noise at map scale and costs bytes
-local TELEMETRY  = false       -- diagnostic; check.sh refuses to ship this true
+local TELEMETRY  = false-- diagnostic; check.sh refuses to ship this true
 local TELEM_EVERY = 2          -- s between frames
 local TELEM_BATCH = 40         -- entities per log line
 local telemNext = 0
+-- Squad identity for the telemetry, so formation can be measured PER SQUAD rather than across the
+-- whole force. Without it a broad advance and a tight file are indistinguishable: the frontage of
+-- 30 men spread over the map swamps the 2-3 m that separates two files of one section.
+-- Keyed by the squad LEADER's uid, which is stable and needs no new API. Squad membership does not
+-- change, so this resolves once per soldier ever - never per frame.
+local sqidBy = {}
+local function squadKey(s, uid)
+    if uid == nil then return 0 end
+    local k = sqidBy[uid]
+    if k ~= nil then return k end
+    local sq = safeGet(function() return s.getSquad() end)
+    if sq then
+        local ld = safeGet(function() return sq.getLeader() end)
+        local lu = ld and safeGet(function() return ld.getUniqueId() end) or nil
+        -- CACHE ONLY SUCCESS. Caching the failure was a real bug: a soldier probed during the ~3 s
+        -- spawn window has no squad yet, and storing that 0 made it permanent - 158 of 349 men
+        -- (45%) came back unresolved when the known resolve rate is ~85%. Leaving the slot nil
+        -- costs one retry per frame for the stragglers and recovers almost all of them.
+        if lu then sqidBy[uid] = lu; return lu end
+    end
+    return 0
+end
 
 local function telemFlag(s, side)
     if safeGet(function() return s.isIncapacitated() end) == true then return "x" end
@@ -1146,7 +1168,16 @@ local function telemetryFrame()
                 if u and p then
                     local side = sideOf(safeGet(function() return s.getFaction() end))
                     n = n + 1
-                    buf[n] = string.format("%d,%d,%d,%s", u, p.x, p.z, telemFlag(s, side))
+                    -- v: 1 if aboard a vehicle. Direct, not inferred - the old proximity
+                    -- heuristic (within 4 m of a vehicle) already produced one false result,
+                    -- a phantom 1.0 m median spacing that was really a truckload of men
+                    -- sharing one position.
+                    local v = safeGet(function() return s.getCurrentVehicle() end) and 1 or 0
+                    -- d: the brain's own current decision, as a code. Joins intent to outcome;
+                    -- without it "did the men ordered to move actually move?" is unanswerable.
+                    local d = tonumber(safeGet(function() return global.get("D" .. u) end)) or 0
+                    buf[n] = string.format("%d,%d,%d,%d,%s,%d,%d,%d", u, p.x, p.y, p.z,
+                        telemFlag(s, side), squadKey(s, u), v, d)
                     if n >= TELEM_BATCH then
                         log("[TELEM] " .. ts .. " S " .. table.concat(buf, ";")); buf, n = {}, 0
                     end
@@ -1173,7 +1204,7 @@ local function telemetryFrame()
             if u and p then
                 local nm = tostring(safeGet(function() return v.getName() end) or "?"):gsub("[;,]", " ")
                 vn = vn + 1
-                vbuf[vn] = string.format("%d,%d,%d,%s", u, p.x, p.z, nm)
+                vbuf[vn] = string.format("%d,%d,%d,%d,%s", u, p.x, p.y, p.z, nm)
                 if vn >= TELEM_BATCH then
                     log("[TELEM] " .. ts .. " V " .. table.concat(vbuf, ";")); vbuf, vn = {}, 0
                 end

@@ -427,8 +427,34 @@ dbg(string.format("ONLINE #%s %s/%s class='%s' faction=%s %s aiParams=%s squad=%
 -- without another brain interleaving. If you ever add a sleep() inside sense() or between a
 -- `_s = s` and its safeGet, two brains WILL clobber each other's scratch slot and the symptom
 -- will be soldiers reading another man's position - intermittent, and very hard to trace back.
-local scanN, scanSum = 0, 0   -- DEBUG cost meter, see sense()
-local handleProbed, lastHandle, probeRuns = false, nil, 0  -- DEBUG handle-identity probe
+-- DIAGNOSTIC STATE, in ONE table on purpose. Lua caps a function at 200 locals and this chunk is
+-- close to it: adding two more top-level locals produced "main function has more than 200 local
+-- variables" and every brain failed to compile. Grouping the debug-only slots keeps headroom for
+-- real features. Note check 1 (luajit -bl) PASSED while the actual loader rejected the file, so
+-- check 4e - which really loads and runs the brain - is the gate that catches this.
+local DBGV = { scanN = 0, scanSum = 0, probed = false, lastHandle = nil, runs = 0 }
+
+-- DECISION PUBLISHING, for the telemetry. Positions come from the phase script and decisions live
+-- in each brain, so without this the two streams cannot be joined and "did men ordered to move
+-- actually move?" stays unanswerable - which is exactly the question worth asking.
+-- Published as a SHORT CODE, not the label: the label would triple the telemetry line length at
+-- 350 soldiers a frame. Published only when the decision CHANGES, because most ticks repeat the
+-- previous one and a write per brain per tick would undo the interop savings just made.
+-- `global` is shared brain->phase (proven: the phase read a brain's PROBE_B2P).
+local DEC = {
+    last = nil,
+    code = {
+        ["CREW-onfoot"]=1, ["MOUNTED/CREW-defer"]=2, ["ROUT"]=3, ["ROUT-cover"]=4,
+        ["AT-stalk"]=5, ["AT-hunt"]=6, ["AT-hold-cover"]=7, ["ASSAULT"]=8, ["ASSAULT-cover"]=9,
+        ["PINNED"]=10, ["MEDIC-sortie"]=11, ["MEDIC-hold-cover"]=12,
+        ["DRAG-approach"]=13, ["DRAG-pickup"]=14, ["DRAG-to-cover"]=15, ["DRAG-abandon"]=16,
+        ["RADIO-fire-mission"]=17, ["LEADER-cover"]=18, ["SUPPORT-hold-fire"]=19,
+        ["ADVANCE-behind-armour"]=20, ["BOUND-move"]=21, ["BOUND-move-cover"]=22,
+        ["BOUND-overwatch"]=23, ["FIGHT-from-cover"]=24, ["DEFEND-hold"]=25,
+        ["CONSOLIDATE"]=26, ["RALLY-on-MG"]=27, ["ROAD-MARCH"]=28, ["ADVANCE-baseAI"]=29,
+        ["RETURN-to-transport"]=30, ["REBOARD-transport"]=31,
+    },
+}
 -- TWO CACHES for the sense() hot loop. Measured live: the sweep returns ~70 soldiers, each
 -- costing five guarded interop calls, at ~175 brain-ticks a second across 350 brains - about
 -- 61,000 calls/s, and the per-soldier calls are the whole of it. Both caches are exact, not
@@ -473,22 +499,22 @@ local function sense(pos)
     -- Answers two things at once: does exactly one entry equal `me`, and does a handle seen last
     -- sweep compare equal this sweep. Anything other than 1 and true means handles are rebuilt per
     -- call and the uid is genuinely required - in which case we are at the floor.
-    if DEBUG and not handleProbed then
-        handleProbed = true
+    if DEBUG and not DBGV.probed then
+        DBGV.probed = true
         local selfHits, reseen = 0, "n/a"
         for _, s in pairs(list) do
             if s == me then selfHits = selfHits + 1 end
         end
-        if lastHandle ~= nil then
+        if DBGV.lastHandle ~= nil then
             reseen = "no"
-            for _, s in pairs(list) do if s == lastHandle then reseen = "yes" end end
+            for _, s in pairs(list) do if s == DBGV.lastHandle then reseen = "yes" end end
         end
-        for _, s in pairs(list) do lastHandle = s; break end
+        for _, s in pairs(list) do DBGV.lastHandle = s; break end
         log(string.format("[REALISTIC] handles: s==me matched %d of %d; handle re-seen next sweep=%s",
-            selfHits, scanSum >= 0 and (function() local n=0 for _ in pairs(list) do n=n+1 end return n end)() or 0, reseen))
-        handleProbed = false   -- re-run next sweep so the re-seen test has a previous handle
-        probeRuns = probeRuns + 1
-        if probeRuns >= 3 then handleProbed = true end
+            selfHits, DBGV.scanSum >= 0 and (function() local n=0 for _ in pairs(list) do n=n+1 end return n end)() or 0, reseen))
+        DBGV.probed = false   -- re-run next sweep so the re-seen test has a previous handle
+        DBGV.runs = DBGV.runs + 1
+        if DBGV.runs >= 3 then DBGV.probed = true end
     end
     -- COST METER (DEBUG only). The mod's dominant cost is this sweep's RESULT SIZE, not the sweep
     -- itself: every soldier returned costs several guarded interop calls. Averaging it gives a
@@ -496,11 +522,11 @@ local function sense(pos)
     if DEBUG then
         local n = 0
         for _ in pairs(list) do n = n + 1 end
-        scanN, scanSum = scanN + 1, scanSum + n
-        if scanN >= 60 then
+        DBGV.scanN, DBGV.scanSum = DBGV.scanN + 1, DBGV.scanSum + n
+        if DBGV.scanN >= 60 then
             log(string.format("[REALISTIC] cost: avg %.1f soldiers/sweep over %d sweeps (radius %d, tick %.1fs)",
-                scanSum / scanN, scanN, SENSE_RADIUS, TICK))
-            scanN, scanSum = 0, 0
+                DBGV.scanSum / DBGV.scanN, DBGV.scanN, SENSE_RADIUS, TICK))
+            DBGV.scanN, DBGV.scanSum = 0, 0
         end
     end
     local ne, nec, nf, ncas = 0, 0, 0, 0
@@ -895,6 +921,26 @@ local function staggerAcross(dest, pos)
     return vec3(dest.x + px * side * COLUMN_STAGGER, dest.y,
                 dest.z + pz * side * COLUMN_STAGGER)
 end
+
+-- FILE FORMATION: TRIED, MEASURED, REJECTED (2026-08-31).
+-- Squads march as blobs - measured 13.5 m across the axis vs 15.9 m along it, a ratio of 1.19 -
+-- because the +/-2.5 m stagger is far below the ~13 m of natural scatter from base-AI pathing.
+-- The fix looked obvious: follow-the-leader, every man heading for a point COLUMN_GAP short of
+-- the man ahead of him in the roster, which is what a column actually is.
+--
+-- It caused a CASCADE STALL and the numbers were unambiguous. Median speed while ordered to move,
+-- with follow-the-leader vs without:
+--     ROAD-MARCH 0.00 -> 0.30 m/s   ADVANCE-behind-armour 0.00 -> 0.30
+--     RALLY-on-MG 0.00 -> 0.31      BOUND-move-cover 0.00 -> 0.44
+--     DRAG-approach 0.00 -> 0.25    RETURN-to-transport 0.00 -> 0.31
+-- Every one of those read "ordered but static" with it in, and cleared without it. The reason is
+-- structural: a follower's destination depends on the man ahead, so ONE stationary man - pinned,
+-- in cover, or just slow - freezes everyone behind him, and the stall propagates down the file.
+--
+-- Any future attempt must break that dependency: derive depth from the soldier's OWN index and the
+-- road step (clamped so the destination can never land behind him), never from another man's live
+-- position. Until that is built and measured, the lateral stagger stands - it is below the noise
+-- floor, but it demonstrably does no harm.
 
 local function boundTeam()
     local idx
@@ -1388,6 +1434,11 @@ while true do
         -- `decision` is only nil if the cascade somehow fell through (it cannot: the final
         -- branch is an unconditional else) — guarded anyway, because a nil throttle KEY would
         -- turn this into an unthrottled per-tick log line. There is no "IDLE" decision.
+        -- publish for the telemetry join; change-only, so a steady state costs nothing
+        if decision ~= DEC.last then
+            DEC.last = decision
+            safe(function() global.set(DEC.code[decision] or 0, "D" .. uid) end)
+        end
         if decision then
             -- Build the trace ONLY if something could consume it. Arguments are evaluated
             -- before the call, so this 12-argument string.format used to run for every soldier
