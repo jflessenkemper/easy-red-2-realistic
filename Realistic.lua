@@ -916,13 +916,14 @@ local function staggerAcross(dest, pos)
     if m < 1 then return dest end                 -- already on top of it; nothing to offset
     local ux, uz = dx / m, dz / m
     local px, pz = -uz, ux                        -- perpendicular to the axis of march
-    local idx = rosterIndex()
+    local idx, n = rosterIndex()
     local side = (idx % 2 == 0) and 1 or -1       -- alternate men to opposite verges
+
     return vec3(dest.x + px * side * COLUMN_STAGGER, dest.y,
                 dest.z + pz * side * COLUMN_STAGGER)
 end
 
--- FILE FORMATION: TRIED, MEASURED, REJECTED (2026-08-31).
+-- FILE FORMATION: TRIED TWICE, MEASURED, REJECTED BOTH TIMES (2026-08-31 / 09-01).
 -- Squads march as blobs - measured 13.5 m across the axis vs 15.9 m along it, a ratio of 1.19 -
 -- because the +/-2.5 m stagger is far below the ~13 m of natural scatter from base-AI pathing.
 -- The fix looked obvious: follow-the-leader, every man heading for a point COLUMN_GAP short of
@@ -937,10 +938,26 @@ end
 -- structural: a follower's destination depends on the man ahead, so ONE stationary man - pinned,
 -- in cover, or just slow - freezes everyone behind him, and the stall propagates down the file.
 --
--- Any future attempt must break that dependency: derive depth from the soldier's OWN index and the
--- road step (clamped so the destination can never land behind him), never from another man's live
--- position. Until that is built and measured, the lateral stagger stands - it is below the noise
--- floor, but it demonstrably does no harm.
+-- ATTEMPT 2 did exactly what attempt 1's post-mortem prescribed: depth from the man's OWN index,
+-- with no reference to another soldier, by scaling how far ahead he aims (lead man the full road
+-- step, last man 45% of it). No cascade is possible by construction, and it did narrow the squad -
+-- 9.0 m across the axis against 12.1 and 13.5 m for the two baseline runs.
+--
+-- It was still rejected, on two grounds:
+--   1. THE EFFECT IS INSIDE THE NOISE. Two runs of the SAME configuration produced along/across
+--      ratios of 1.19 and 1.39 - a spread of 0.20. Attempt 2 produced 1.45, only 0.06 beyond that.
+--      A single run cannot distinguish the change from variance, and treating it as proof would be
+--      the same mistake as reading one battle's decision counts as behaviour.
+--   2. IT NECESSARILY SLOWS THE ADVANCE. Trailing men aim shorter by design, so the section covers
+--      ground more slowly, and the run that carried it ended inv=6 def=70 - a German collapse
+--      where the baseline runs won. One battle does not prove causation, but the mechanism is real
+--      and the direction is wrong: the mod exists for realistic BEHAVIOUR, and trading a slower
+--      attack for a prettier formation statistic is a bad bargain.
+--
+-- STANDING CONCLUSION: squads march as blobs and the lateral stagger is below the noise floor,
+-- but it does no harm and costs nothing. Any third attempt needs REPEATED runs per configuration
+-- to establish the variance band first - the metric's own spread is 0.20, so nothing smaller than
+-- that can be claimed from single battles.
 
 local function boundTeam()
     local idx
