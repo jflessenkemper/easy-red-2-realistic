@@ -1104,8 +1104,88 @@ local function healthWatch()
         alive, moving, still, stuck, WATCH_STUCK, iAlive, dAlive))
 end
 
+-- ============================ TELEMETRY ====================================
+-- Dumps the position and state of EVERY soldier and EVERY vehicle on a fixed cadence, so the whole
+-- battle can be replayed and watched afterwards rather than inferred from decision counts.
+-- Rendered by er2-plugin/tools/battle_map.py into an interactive map.
+--
+-- PACKED, deliberately. log() costs roughly 1.1 KB plus a stack walk, so one call per soldier would
+-- be ~350 calls a frame and would itself change the thing being measured. Entities are batched
+-- TELEM_BATCH to a line, which turns a frame into about a dozen calls instead.
+--
+-- Format:  [TELEM] <t> S <uid>,<x>,<z>,<flag>;<uid>,<x>,<z>,<flag>;...
+--          [TELEM] <t> V <uid>,<x>,<z>,<name>;...
+--   flag   I invader · D defender · i invader suppressed · d defender suppressed · x down/dead
+--   x,z    rounded to whole metres - sub-metre precision is noise at map scale and costs bytes
+local TELEMETRY  = false       -- diagnostic; check.sh refuses to ship this true
+local TELEM_EVERY = 2          -- s between frames
+local TELEM_BATCH = 40         -- entities per log line
+local telemNext = 0
+
+local function telemFlag(s, side)
+    if safeGet(function() return s.isIncapacitated() end) == true then return "x" end
+    local sup = safeGet(function() return s.isSuppressed() end) == true
+    if side == "invader"  then return sup and "i" or "I" end
+    if side == "defender" then return sup and "d" or "D" end
+    return "?"
+end
+
+local function telemetryFrame()
+    local t = now()
+    if t < telemNext then return end
+    telemNext = t + TELEM_EVERY
+    local ts = string.format("%.1f", t)
+
+    local sol = {}
+    if pcall(function() er2.getAllSoldiers(sol) end) then
+        local buf, n = {}, 0
+        for _, s in pairs(sol) do
+            if s and safeGet(function() return s.isAlive() end) ~= false then
+                local u = safeGet(function() return s.getUniqueId() end)
+                local p = safeGet(function() return s.getPosition() end)
+                if u and p then
+                    local side = sideOf(safeGet(function() return s.getFaction() end))
+                    n = n + 1
+                    buf[n] = string.format("%d,%d,%d,%s", u, p.x, p.z, telemFlag(s, side))
+                    if n >= TELEM_BATCH then
+                        log("[TELEM] " .. ts .. " S " .. table.concat(buf, ";")); buf, n = {}, 0
+                    end
+                end
+            end
+        end
+        if n > 0 then log("[TELEM] " .. ts .. " S " .. table.concat(buf, ";")) end
+    end
+
+    -- getAllVehicles is fill-style like getAllSoldiers (confirmed present in the game metadata).
+    -- Falls back to a wide getVehiclesInArea sweep if the fill form is rejected, so a signature
+    -- difference degrades to fewer vehicles rather than to no telemetry at all.
+    local veh = {}
+    local vok = pcall(function() er2.getAllVehicles(veh) end)
+    if not vok then
+        veh = {}
+        pcall(function() er2.getVehiclesInArea(vec3(0, 0, 0), 4000, veh) end)
+    end
+    local vbuf, vn = {}, 0
+    for _, v in pairs(veh) do
+        if v then
+            local u = safeGet(function() return v.getUniqueId() end)
+            local p = safeGet(function() return v.getPosition() end)
+            if u and p then
+                local nm = tostring(safeGet(function() return v.getName() end) or "?"):gsub("[;,]", " ")
+                vn = vn + 1
+                vbuf[vn] = string.format("%d,%d,%d,%s", u, p.x, p.z, nm)
+                if vn >= TELEM_BATCH then
+                    log("[TELEM] " .. ts .. " V " .. table.concat(vbuf, ";")); vbuf, vn = {}, 0
+                end
+            end
+        end
+    end
+    if vn > 0 then log("[TELEM] " .. ts .. " V " .. table.concat(vbuf, ";")) end
+end
+
 loopBody = function()
     if WATCH then pcall(healthWatch) end
+    if TELEMETRY then pcall(telemetryFrame) end
 
     -- (a) objective attraction — throttled, with comprehensive per-objective logging.
     -- TWO PASSES, deliberately. `allHeld` must be known for EVERY objective before any
