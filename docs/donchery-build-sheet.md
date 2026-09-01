@@ -14,7 +14,7 @@ and label the mission a *plausible reconstruction*. Target ~205 German vs ~135 F
 | Currently | Should be | Why |
 |---|---|---|
 | `Sdkfz251 1939` halftracks | **BMW R12 motorcycle-sidecar combinations** | A 1940 Kradschützen-Bataillon had **190 combinations, 51 solos, zero halftracks**. 2. Pz.Div.'s single halftrack company was in Schützen-Regiment 2, not here |
-| MP40s on squad leaders | **Kar98k** | Two machine pistols in the entire battalion in 1940 |
+| MP40s on squad leaders | **DISPUTED — leave as is for now** | The two research passes disagree: one found two machine pistols in the whole battalion, the other found KStN 131c giving the squad leader the only MP38/40 in his squad (5 per platoon). The KStN figure is better sourced. See the conflict note below; do not "fix" this until it is settled |
 | AI respawns during the battle | **Everyone spawns at the start, no respawns** | `respawn_delay` on each unit spawner |
 | Panzer 35(t) / 38(t), if present | **Remove** | 2. Pz.Div. had none: 45 Pz I, 115 Pz II, 58 Pz III, 32 Pz IV, 16 command |
 | Zündapp KS750, if present | **BMW R12** | KS750 series production began spring 1941 — anachronistic |
