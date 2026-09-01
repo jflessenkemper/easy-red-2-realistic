@@ -29,14 +29,34 @@ and label the mission a *plausible reconstruction*. Target ~205 German vs ~135 F
 
 | Count | Squad | Men | Weapons |
 |---:|---|---:|---|
-| 12 | Kradschützen / Schützen Gruppe | 9 | 1× MG34, 7× Kar98k, 2× pistol |
+| 12 | Kradschützen / Schützen Gruppe | **10** | 1× MG34, 1× MP38/40 (leader), 6× Kar98k, pistols |
 | 3 | MG34 HMG team (Lafette tripod) | 5 | MG34 |
 | 2 | 8 cm mortar team (s.Gr.W. 34) | 5 | 8 cm mortar |
 | 1 | 3.7 cm Pak 35/36 crew | 6 | Pak 35/36 + 1 LMG |
 | 1 | 7.5 cm leIG 18 crew | 6 | leIG 18 |
 | 1 | Pionier squad | 13 | 1 LMG + demolition charges |
 
-The 9-man Gruppe is **KStN 1111** (Oct 1937). Full battalion establishment was **959 all ranks**.
+**CORRECTED — the squad was TEN men by May 1940, not nine.** The governing table is **KStN 131c,
+dated 10 October 1939** — seven months before Fall Gelb — which cut the squad to ten men and added
+a **fourth** rifle squad to each platoon (platoon of 48). The February 1941 table often cited as
+the first authorisation was only *"a more formal redraft"*; the October 1939 one was labelled
+temporary, which is probably why secondary sources miss it. Corroborated by four independent
+sources, decisively by MIS Special Series No. 9, whose opening line gives the platoon as
+*"the platoon leader, platoon headquarters (one leader and three men), four squads, and the
+light-mortar squad"* — arithmetic 48, exactly KStN 131c.
+
+**CONFLICT, recorded not resolved: the MP38/40.** The first research pass concluded there were two
+machine pistols in the entire battalion and that squad leaders carried Kar98k. The second found
+KStN 131c gives the squad leader **the only MP38/40 in the squad**, with five per platoon including
+the commander's. These cannot both be right. The KStN-based figure is better sourced, so the table
+above follows it — but treat the point as open. Related: the KStN gives the MG crew 2 pistols + 1
+rifle where the training handbook gives all three pistols; do not state either without the caveat.
+
+Also abolished by the same reorganisation: the **l.MG-Trupp / Schützentrupp split**. The handbook is
+explicit — *"The division into two groups — a light machine-gun group and a rifle group, with
+different combat missions — no longer applies."* So do not model the squad as two teams.
+
+Full battalion establishment was **959 all ranks**.
 
 ### Transport — all soft-skin
 

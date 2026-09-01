@@ -1176,8 +1176,9 @@ local function telemetryFrame()
                     -- d: the brain's own current decision, as a code. Joins intent to outcome;
                     -- without it "did the men ordered to move actually move?" is unanswerable.
                     local d = tonumber(safeGet(function() return global.get("D" .. u) end)) or 0
-                    buf[n] = string.format("%d,%d,%d,%d,%s,%d,%d,%d", u, p.x, p.y, p.z,
-                        telemFlag(s, side), squadKey(s, u), v, d)
+                    local ri = tonumber(safeGet(function() return global.get("R" .. u) end)) or 0
+                    buf[n] = string.format("%d,%d,%d,%d,%s,%d,%d,%d,%d", u, p.x, p.y, p.z,
+                        telemFlag(s, side), squadKey(s, u), v, d, ri)
                     if n >= TELEM_BATCH then
                         log("[TELEM] " .. ts .. " S " .. table.concat(buf, ";")); buf, n = {}, 0
                     end

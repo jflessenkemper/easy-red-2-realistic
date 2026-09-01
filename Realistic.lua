@@ -213,6 +213,17 @@ local function nationFromFaction(f)
     return nil   -- unknown/modded nation -> DOCTRINE_DEFAULT
 end
 local MG_COHESION = 25   -- m, how close an MG-centric rifleman stays to its Support gunner
+-- SCHUETZENKETTE (skirmish line) geometry. Sourced, see .llm/squad-formations.md.
+-- The squad forms ABOUT the l.MG: front half of the riflemen to the gunner's RIGHT, rear half to
+-- his LEFT, at 4-5 m interval. 5 Schritt at the regulation 0.80 m pace is 4.0 m, so 4 m is the
+-- band's low end and the one the independently-stated 30-40 yard squad frontage agrees with.
+-- Frontage is CAPPED, and not for a ballistic reason - doctrine caps it because past roughly
+-- 30-40 yards the squad leader can no longer control his squad by voice ("within calling
+-- distance of each other"). Both pressures are real and documented: "bunching around the machine
+-- gun must be avoided under all circumstances", and "cohesion within the squad must be maintained
+-- at all costs". No beaten-zone derivation exists in any manual searched - do not invent one.
+local KETTE_INTERVAL = 4    -- m between men in the line
+local KETTE_FRONT    = 36   -- m, total frontage cap (~40 yards, the voice-control limit)
 
 --========================== HELPERS =========================================
 -- Rate-limited debug log. Each log() on this build is a reflection call + a ~13-frame
@@ -923,6 +934,32 @@ local function staggerAcross(dest, pos)
                 dest.z + pz * side * COLUMN_STAGGER)
 end
 
+-- My own slot in the Schuetzenkette, as a world position on a line through the gunner.
+-- Cascade-free BY CONSTRUCTION: the slot comes from my own roster index and the line is anchored
+-- on the gunner and the direction of the threat. Nothing here reads another rifleman's position,
+-- which is what made follow-the-leader stall (see the rejection note below).
+--
+-- Why this is the change worth making, when the two file attempts were not: an interval of 4 m is
+-- 0.3 of the engine's own ~13 m pathing scatter, so NO interval-based formation can be seen. What
+-- can be seen is ANISOTROPY - a line is wide across the axis and thin along it, the inverse of the
+-- ~19 m blob squads currently form. Extent, not interval, is the measurable signature.
+local function ketteSlot(mgP, fx, fz, pos)
+    if not (mgP and pos) then return mgP end
+    local m = math.sqrt(fx * fx + fz * fz)
+    if m < 0.01 then return mgP end
+    local ux, uz = fx / m, fz / m
+    local px, pz = -uz, ux                        -- across the axis of the threat
+    local idx, n = rosterIndex()
+    local half = math.ceil(n / 2)
+    -- front half right of the gunner, rear half left: the doctrinal split
+    local k, sign
+    if idx <= half then k, sign = idx, 1 else k, sign = idx - half, -1 end
+    local off = sign * k * KETTE_INTERVAL
+    local cap = KETTE_FRONT / 2
+    if off > cap then off = cap elseif off < -cap then off = -cap end
+    return vec3(mgP.x + px * off, mgP.y, mgP.z + pz * off)
+end
+
 -- FILE FORMATION: TRIED TWICE, MEASURED, REJECTED BOTH TIMES (2026-08-31 / 09-01).
 -- Squads march as blobs - measured 13.5 m across the axis vs 15.9 m along it, a ratio of 1.19 -
 -- because the +/-2.5 m stagger is far below the ~13 m of natural scatter from base-AI pathing.
@@ -1431,7 +1468,14 @@ while true do
                     -- france 0.01), so it was not the defender/base-AI conflict — men under fire
                     -- simply go to ground instead of walking to the gun. A rifle squad closes up
                     -- on its Support gunner while still moving, which is what this now models.
-                    orderMove(mgPos, now)
+                    -- Form the KETTE on the gunner rather than merely closing on him. Facing
+                    -- the enemy if any are sensed, otherwise the objective - which is where the
+                    -- enemy is expected, and is the same thing doctrinally.
+                    local fx, fz
+                    if ec then fx, fz = ec.x - mgPos.x, ec.z - mgPos.z
+                    elseif obj then fx, fz = obj.x - mgPos.x, obj.z - mgPos.z end
+                    local slot = (fx and ketteSlot(mgPos, fx, fz, pos)) or mgPos
+                    orderMove(slot, now)
                     decision, detail = "RALLY-on-MG", "d="..string.format("%.0f", distance(pos, mgPos))
                 elseif ROAD_FOLLOW and obj then
                     orderMove(staggerAcross(roadStepToward(pos, obj), pos), now)
@@ -1455,6 +1499,14 @@ while true do
         if decision ~= DEC.last then
             DEC.last = decision
             safe(function() global.set(DEC.code[decision] or 0, "D" .. uid) end)
+        end
+        -- Roster slot, published every tick (cheap: one integer). Formation work depends on a
+        -- man's slot being STABLE - if the engine reshuffles getAllMembers order between ticks,
+        -- slot assignments swap and men would cross each other constantly. Publishing it lets the
+        -- telemetry prove stability instead of assuming it.
+        if DEBUG then
+            local ri = rosterIndex()
+            safe(function() global.set(ri, "R" .. uid) end)
         end
         if decision then
             -- Build the trace ONLY if something could consume it. Arguments are evaluated
