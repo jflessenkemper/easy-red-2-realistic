@@ -11,6 +11,10 @@ everywhere else.
 
 **→ [realistic.md](realistic.md) is the full specification.** Install is section 0.
 
+**→ [docs/test-scenarios.md](docs/test-scenarios.md)** — thirteen small scenarios, one per
+feature, each built to force its branch of the cascade. Most run on the **non-DLC** VirtualScene
+map, so the whole suite works in direct-launch mode.
+
 ---
 
 ## Base game vs Realistic — every feature
