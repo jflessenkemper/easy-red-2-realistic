@@ -160,30 +160,49 @@ Extend existing tools; do not start new ones.
 **Gate:** `python3 tools/movement_audit.py ../er2-realistic/.llm/runs/base1.telem
 ../er2-realistic/.llm/runs/base2.telem` reproduces the four numbers in item 1.
 
-## Phase 4 — settle formation OFFLINE (cheap, deterministic, do it before any battle)
+## Phase 4 — settle formation OFFLINE — **DONE 2026-09-08**
 
-`.llm/kette-measurement.md:31-37` argues the Kette's prediction may be **geometrically
-unachievable**: `KETTE_FRONT = 36` implies σ_across ≈ 10.4 m for a *perfect* line, **narrower** than
-the 17.4 m measured — and narrowing across *raises* along/across. So a live T1 can fail with working
-code or pass with broken code. Do not book a live run to answer this.
+**Built:** `tests/offline_formation.lua`. Drives the **real** brain (one `load()` per man, so the
+genuine `ketteSlot` + `rosterIndex` path runs), captures each man's `moveTo` destination, adds
+Gaussian pathing scatter, and computes σ_across / σ_along with **the same maths as
+`movement_audit.formation()`** — repeated to give a distribution. Run it:
+`luajit tests/offline_formation.lua 600 19`.
 
-1. **Extend `tests/offline_brain.lua`** to drive **N synthetic squads** and report the along/across
-   **distribution** under an injectable ~13 m pathing-scatter model. Today it drives one brain per
-   scenario, `moveTo` only sets a boolean (`:54`), there is no scatter model, and stubbed
-   `distance()` is **2D** while the engine's is **3D** — fix those two infidelities too
-   (`getTerrainHeight` also always returns 0).
-2. **Decide from the distribution, and write the number down:**
-   - If the Kette's effect is inside the noise band → **revert the Kette** and say so in the README
-     with the number. Two previous formation attempts were correctly reverted on evidence; a third
-     unproven one must not ship.
-   - Then try **leader-only `Squad.followLeader` / `attackFromPoint`**, measured the same way
-     offline first. Issue it **only** when `isSquadLeader()` is true, or every man spams the same
-     order every tick. This is the engine's own formation system and it structurally cannot cause
-     the cascade stall that killed attempt 1.
+**Result, calibrated so the control reproduces the live measurement:**
+
+| variant | across σ | along σ | ratio | p10 | p90 |
+|---|---:|---:|---:|---:|---:|
+| blob (pre-Kette control) | 17.4 m | 17.4 m | **0.95** | 0.63 | 1.59 |
+| Kette as shipped | 21.9 m | 17.3 m | **0.78** | 0.49 | 1.24 |
+
+Effect **−0.17** against a live run-to-run spread of **0.23** → **inside the noise band**. The
+geometry works and moves the ratio in the intended direction; it simply cannot be verified in a
+battle. Feature 9 therefore can never be marked ✅ from live evidence.
+
+**The old arithmetic in this file and in `kette-measurement.md` was WRONG.** It claimed
+`KETTE_FRONT = 36` implies σ_across ≈ 10.4 m, *narrower* than the measured 17.4 m, so the ratio
+would *rise*. That compares the **ordered** spread against the **observed** spread, but observed =
+ordered ⊕ scatter in quadrature: √(10.4² + 19²) ≈ 21.7 m, and the harness measures 21.9 m. The
+Kette **widens** the squad and the ratio **falls**. Do not restate the old claim.
+
+**Scatter is 19 m, not 13 m** — fitted so the pre-Kette control reproduces the live
+RALLY-on-MG across-spread of 17.4 m (6 m → 5.5 m · 13 m → 11.9 m · **19 m → 17.4 m** · 20 m →
+18.3 m). This matters: at 13 m the effect reads −0.31 and would wrongly justify booking live runs.
+Calibration is what flips the verdict.
+
+**Still open — the decision:** keep the Kette (sourced doctrine, works offline, zero cost, but
+never verifiable live) or revert it (standing rule: an unproven change should not ship). Note this
+is *proven offline and unverifiable live*, which is not the same state as *unproven* — the two
+previously rejected attempts were actively harmful (a cascade stall; a slowed advance that lost the
+battle), and the Kette is neither. **Ask the user.**
+
+**Next:** try leader-only `Squad.followLeader` / `attackFromPoint`, measured the same way offline
+first. Issue **only** when `isSquadLeader()` is true, or every man spams the same order every tick.
+It structurally cannot cause the cascade stall that killed attempt 1.
 
 **Hard rule:** formation must be encoded as **axis and extent, never interval**. Every doctrinal
-interval is sub-σ against ~13 m scatter (Schützenkette 4–5 m is 0.31–0.38 σ), so no interval-based
-formation is measurable, ever.
+interval is sub-σ (Schützenkette 4–5 m is 0.26 σ at 19 m scatter), so no interval-based formation is
+measurable, ever.
 
 ## Phase 5 — the SHOWCASE scenario (the user watches every feature, live)
 

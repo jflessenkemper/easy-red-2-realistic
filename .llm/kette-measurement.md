@@ -1,58 +1,111 @@
-# Schützenkette (feature 9) — measurement state, 2026-09-03
+# Schützenkette (feature 9) — SETTLED OFFLINE, 2026-09-08
 
-**Status: still UNPROVEN. Do not mark ✅. Do not re-derive the numbers below.**
+**Status: the geometry WORKS and moves the metric in the predicted direction. The effect is
+BELOW the live run-to-run noise floor, so it can never be verified in a battle.**
 
-## The mistake to avoid
+Run it yourself — seconds, no game:
 
-`movement_audit.py headline()` pools **every** moving dismounted invader into one along/across
-ratio. `RALLY-on-MG` — the only branch that forms the Kette — is **5.48%** of soldier samples
-(1142 / 20842 in base2). So the Kette is diluted roughly **18:1** in that metric, far below its own
-0.23 run-to-run spread. **A battle-wide ratio can never test this feature.** Measure the isolated
-population instead.
+```
+luajit tests/offline_formation.lua 600 19
+```
 
-## Isolated control (pre-Kette), by decision code
+## The headline numbers
 
-Both files were banked in commit `7d61445`, the same commit that added `ketteSlot`, so they are a
-deliberate pre-Kette control. Entry tuple from `load()` is `(x, z, flag, squad, inVeh, dec, y)`;
-`dec` is index 5, `RALLY-on-MG` is code 27. Same maths as `headline()`, filtered to one `dec`.
+Calibrated so the pre-Kette control reproduces the live measurement (see calibration below):
 
-| run | decision | squad-frames | man-samples | ratio | across σ | along σ |
-|---|---|---:|---:|---:|---:|---:|
-| base2 | RALLY-on-MG | 89 | 447 | **1.12** | 17.4 m | 19.1 m |
-| base2 | ROAD-MARCH | 92 | 356 | 1.21 | 5.9 m | 8.2 m |
-| base1 | RALLY-on-MG | **0** | 0 | — | — | — |
-| base1 | ROAD-MARCH | 21 | 74 | 0.74 | 10.5 m | 6.8 m |
+| variant | across σ | along σ | ratio (median) | p10 | p90 |
+|---|---:|---:|---:|---:|---:|
+| blob (pre-Kette control) | 17.4 m | 17.4 m | **0.95** | 0.63 | 1.59 |
+| Kette as shipped | 21.9 m | 17.3 m | **0.78** | 0.49 | 1.24 |
 
-## Why this is still not settled
+- The Kette **widens** the squad across the axis of march (17.4 → 21.9 m) and leaves the along-axis
+  spread alone, which pushes along/across **down** — toward the "line" signature, as intended.
+- Effect on the ratio: **−0.17**. The metric's recorded **live** run-to-run spread is **0.23**.
+- So the effect is **inside the noise band**. No number of battles could attribute the change to
+  the Kette rather than to variance. 600 synthetic trials can see it; a battle cannot.
 
-1. **The population is wildly unstable run-to-run.** Two identical-configuration battles produced
-   **0** and **89** RALLY-on-MG squad-frames. One post-Kette run therefore proves nothing; this
-   needs several runs before a median means anything.
-2. **The predicted direction is doubtful on the geometry.** `KETTE_FRONT = 36` caps the line at
-   ±18 m, so a *perfect* Kette has σ_across ≈ 36/√12 ≈ **10.4 m** — *narrower* than the measured
-   17.4 m. Narrowing the across term **raises** along/across. The prediction ("ratio drops below 1")
-   may be unachievable at this frontage regardless of whether the code works.
-3. `ketteSlot` offsets are purely lateral from the gunner, so destination σ_along is 0 — but men
-   *en route* stay scattered, and the observed scatter (~13 m) exceeds the Kette's own across-extent.
-   Net effect on the ratio is genuinely ambiguous, not obviously favourable.
+## The previous arithmetic in this file was WRONG — do not restate it
 
-## What would actually settle it
+The earlier version of this note argued the prediction was unachievable, like this:
 
-Stonne (Germans are already the invaders there, doctrine is `mgCentric`, and it is where the control
-came from). VirtualScene is a dead end for this: its Germans are **defenders**, so the whole
-attacker branch containing `RALLY-on-MG` and `ROAD-MARCH` is unreachable — measured 504/504
-decisions `DEFEND-hold`, `ed=-1`, `obj d=7`. Making them invaders needs the mission's
-`invadersFaction` / `invadersIsAllies` fields, and **no editor control for them was found** in the
-bottom toolbar (≡ toggle, 📍 lat/long, ☁ weather, 👥 squads, 💾 save, `</>` phase script) or in the
-bottom-right place-object group.
+> `KETTE_FRONT = 36` caps the line at ±18 m, so a *perfect* Kette has σ_across ≈ 36/√12 ≈ 10.4 m —
+> *narrower* than the measured 17.4 m. Narrowing the across term **raises** along/across.
 
-Cheaper and better than more live runs: extend `tests/offline_brain.lua` to drive N synthetic squads
-through `ketteSlot` with realistic pathing scatter, and get the ratio's *distribution* offline.
-That answers point 2 for free and tells you whether a live run is even worth booking.
+**That reasoning is invalid.** It compares the *ordered* spread (10.4 m) against the *observed*
+spread (17.4 m), but the observed spread is the ordered spread **plus pathing scatter, added in
+quadrature**. With scatter σ ≈ 19 m the shipped Kette predicts
+√(10.4² + 19²) ≈ 21.7 m — and the harness measures **21.9 m**. The Kette does not narrow the
+squad at all; it *widens* it, and the ratio falls rather than rises.
 
-## The standing rule that applies
+Anything downstream that repeated "the Kette raises the ratio" or "the prediction is wrong in sign"
+is wrong and came from here.
 
-Two previous formation attempts were rejected on evidence (`fileBehind` cascade stall; index-depth
-inside the noise band — see the notes above `boundTeam()` in `Realistic.lua`). Prefer reverting an
-unproven third to shipping it. If the offline distribution says the frontage makes the effect
-unmeasurable, **revert the Kette** rather than shipping it unproven.
+## Calibration — why scatter is 19 m, not 13 m
+
+The scatter model is the load-bearing assumption, so it is fitted to observed data rather than
+asserted. Target: the pre-Kette control must reproduce the **live** RALLY-on-MG across-spread of
+**17.4 m** (from `.llm/runs/base2.telem`, banked pre-Kette in commit `7d61445`).
+
+| scatter σ | blob across σ | vs live 17.4 m |
+|---:|---:|---|
+| 6 m | 5.5 m | far too tight |
+| 13 m | 11.9 m | too tight |
+| 18 m | 16.5 m | close |
+| **19 m** | **17.4 m** | **matches** |
+| 20 m | 18.3 m | slightly wide |
+
+The widely-quoted "~13 m pathing scatter" is therefore **too small** for this population. At 13 m
+the measured effect would be −0.31, which *exceeds* the 0.23 band and would wrongly justify booking
+live runs. Calibration is what flips the verdict, so do not skip it.
+
+Sensitivity, 400 trials each: scatter 6 m → −0.57 (exceeds band) · 13 m → −0.31 (exceeds) ·
+19 m → −0.17 (inside) · 20 m → −0.18 (inside).
+
+## Why the metric cannot see it, in one line
+
+Single-trial spread is enormous: p10–p90 is **0.96** for the blob and **0.74** for the Kette. The
+distributions overlap heavily. A 0.17 shift in the median sits well inside one run's own range,
+which is exactly what the 0.23 live spread figure encodes.
+
+## Also true, and independent of the Kette
+
+- `RALLY-on-MG` is **5.48%** of soldier samples (1142/20842 in base2), so it is diluted ~18:1 in
+  any battle-wide figure. Always filter by decision code:
+  `movement_audit.py` now does this — `formation(sol, veh, dec=27)`.
+- The branch population is wildly unstable run to run: two identical configurations produced
+  **0** and **89** RALLY-on-MG squad-frames.
+- **`PINNED` measures 0.89** over 48 live squad-frames. Sub-1 ratios occur naturally, so
+  "ratio < 1" was never on its own a signature of a line.
+- Formation must be encoded as **axis and extent, never interval**: every doctrinal interval is
+  sub-σ (Schützenkette 4–5 m is 0.26 σ at 19 m scatter).
+
+## What the harness actually does
+
+`tests/offline_formation.lua` drives the **real** brain — one `load()` per man, so the genuine
+`ketteSlot` + `rosterIndex` path executes, not a reimplementation. It captures the `moveTo`
+destination each man is handed, adds Gaussian scatter, then computes σ_across / σ_along about the
+mean heading using **the same maths as `movement_audit.formation()`**, and repeats to get a
+distribution. The pre-Kette control is produced by substituting the one call site back to `mgPos`,
+which is literally what the code did before commit `7d61445`.
+
+It also fixes two infidelities in `tests/offline_brain.lua`: `distance()` is **3D** here (the
+engine's is; the other harness stubs 2D), and `moveTo` records its destination instead of only
+setting a flag.
+
+Both variants reach `RALLY-on-MG` ~5350 times per 600 trials, so the branch is genuinely exercised.
+
+## The decision this leaves
+
+The Kette is **not** in the same position as the two rejected attempts. Attempt 1 caused a cascade
+stall (six move-decisions at exactly 0.00 m/s); attempt 2 slowed the advance and lost the battle.
+The Kette does neither — it is lateral-only, derives every offset from the man's own roster index
+so no destination depends on another soldier's live position, and costs nothing per tick.
+
+So the choice is between:
+
+- **keep it** — sourced 1940 doctrine, demonstrably doing what it claims offline, zero cost, but
+  permanently unverifiable in-game and therefore never markable ✅; or
+- **revert it** — per the standing rule that an unproven change should not ship.
+
+The distinction that matters: this feature is not *unproven*, it is *proven offline and
+unverifiable live*. Those are different states, and the standing rule was written for the first.
