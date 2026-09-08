@@ -71,9 +71,38 @@ while true do
                 if ep and distance(pos, ep) <= THREAT_R then near = near + 1 end
             end
         end
-        log(string.format("[WATCH]   #%s %-9s%s  enemies<%dm:%d  %s",
+        -- GROUND TRUTH from the engine itself, not inferred from position deltas. This is the
+        -- point of the whole file: the project's standing problem has been that "a decision label
+        -- is not proof of behaviour", so every cover/pinned/drag claim was judged by a speed
+        -- threshold, and analyse_run.py openly concedes 16 of its labels are ungateable that way
+        -- (a man sprinting to a wall and a man refusing to move both look wrong against one of the
+        -- two thresholds). These reads answer the question directly.
+        --
+        -- All verified present on v2.0.9 by the 2026-08-29 probe (docs/verified-api.md:300-369)
+        -- and all guarded anyway, so a build without one degrades to "?" instead of dying.
+        -- Kept in the OBSERVER, never the brain: Realistic.lua is at the Lua 200-local ceiling and
+        -- this file issues no orders, so it is safe to run alongside anything.
+        local onCover = safeGet(function() return s.isOnCover() end)
+        local moving  = safeGet(function() return s.isMoving() end)
+        local crawl   = safeGet(function() return s.isCrawling() end)
+        local supv    = safeGet(function() return s.getSuppressionValue() end)
+        local carry   = safeGet(function() return s.isCarryingBody() end)
+        local vel     = safeGet(function() return s.getVelocity() end)
+        local spd
+        if vel then
+            spd = safeGet(function() return math.sqrt(vel.x * vel.x + vel.z * vel.z) end)
+        end
+        local function tri(v) if v == true then return "1" elseif v == false then return "0" end return "?" end
+
+        -- Machine-readable, one soldier per line, fixed field order. Parsed by
+        -- er2-plugin/tools/watch_audit.py.
+        log(string.format("[WATCH]   #%s %-9s%s  enemies<%dm:%d  %s"
+            .. "  cover:%s move:%s crawl:%s carry:%s sup:%s spd:%s",
             tostring(uid), cls, ldr and "*LEAD" or "     ", THREAT_R, near,
-            pos and string.format("(%.0f,%.0f)", pos.x, pos.z) or "(?)"))
+            pos and string.format("(%.0f,%.0f)", pos.x, pos.z) or "(?)",
+            tri(onCover), tri(moving), tri(crawl), tri(carry),
+            supv and string.format("%.2f", supv) or "?",
+            spd and string.format("%.2f", spd) or "?"))
     end
 
     sleep(WATCH_TICK)
