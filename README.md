@@ -283,11 +283,17 @@ bounding by half-sections or wandering. So the evidence is **measured**: the cou
 decision counts from one continuous battle on the map above, taken straight from `Player.log` with
 **0 Lua errors**, and they are the source of the ✅ figures in the tables.
 
-The engine exposes **no formation orders**. Every formation is produced the same way, and it is the
-whole trick: index a man within his real squad roster, give him his *own* destination offset from
-the axis of advance, and a formation emerges with zero coordination between soldiers — no shared
-state, no messages, nothing to desynchronise. (Whether the *result* is measurable is a separate
-question, answered "no" in the feature 9 section above.)
+"The engine exposes no formation orders" was this project's belief for months, and it is
+**false** — `Squad.followLeader` exists and has now been called successfully. What remains true is
+that it makes no measurable difference: −0.06 on the anisotropy ratio against a 0.23 noise floor,
+against the hand-rolled approach's −0.17. See the feature 9 section above.
+
+So formations are still produced without it, and that mechanism is the interesting part: index a
+man within his real squad roster, give him his *own* destination offset from the axis of advance,
+and a formation emerges with zero coordination between soldiers — no shared state, no messages,
+nothing to desynchronise. No soldier's destination ever depends on another soldier's live
+position, which is what makes it impossible for the cascade to deadlock the way an earlier
+leader-following attempt did.
 
 ![Staggered file on the approach march](docs/images/formation-staggered-file.svg)
 
@@ -437,6 +443,26 @@ SENSE_RADIUS)* — with the second term growing as the **square** of the radius.
 It is not UTF-8 clean, which is why every `grep` in this file passes `-a`.
 
 ---
+
+## The test map — a range that demonstrates the features
+
+`tools/deploy.py` gives the **Realistic Test map** mission a 13-station demonstration range
+(`missions/scenarios/showcase.lua`, inlined at deploy time). Each station is a self-contained
+tableau 500 m from its neighbours — far enough that no station's soldiers can sense another's,
+which `validateLayout()` asserts before the range will build at all. Load the mission and walk
+the line; each station carries an on-map label naming the decision it is there to show.
+
+Station 12 is the only one with an *attracting* objective, because objective flow is what it
+demonstrates. The other twelve labels are deliberately non-attracting — an earlier version had
+every label attract, which pulled squads off their stations and collapsed the whole range into a
+migration.
+
+**Four stations will not demonstrate their feature, and it is not a layout problem.** Stations 5,
+6, 9 and 11 need vehicles that have an owning faction, and `spawnVehicle()` takes no faction
+parameter — so `isSameFaction()` can never be true for a script-spawned vehicle, and the enemy
+will not engage a factionless tank. Advance-behind-armour and crew bail-out therefore need an
+**editor-placed** vehicle spawner. This is the same limitation described in the features 5 and 18
+section above, and it applies to the range for exactly the same reason.
 
 ## Deploying, and the one step that still needs a human
 
