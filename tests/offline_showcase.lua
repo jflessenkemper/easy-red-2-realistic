@@ -34,6 +34,12 @@ _G.er2 = {
     time=function() return 100 end,
     getPlayer=function() return nil end,
     getSoldiersInArea=function(_,_,o) return o end,
+    -- FILL-style: must be called WITH a table. Returning one objective exercises the derived-origin
+    -- path, which is the default; an empty table would only ever test the fallback.
+    getAllObjectives=function(t)
+        t[1] = { getPosition = function() return {x=1000,y=0,z=-500} end }
+        return t
+    end,
 }
 local fn = assert(loadfile("missions/scenarios/showcase.lua"))
 local ok, err = pcall(fn)

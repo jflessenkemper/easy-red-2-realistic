@@ -25,7 +25,12 @@
 -- relative to that single coordinate, so it is the only thing you have to capture by hand.
 --============================================================================
 
-local ORIGIN      = vec3(0, 0, 0)   -- <<< SET THIS. One P-capture in the editor.
+-- ORIGIN is DERIVED, not hand-set. The mission's own first objective is guaranteed to be inside
+-- the playable area, which is exactly what the range needs, so there is no coordinate to capture
+-- in the editor and nothing to keep in sync per map. Set ORIGIN_OVERRIDE only if you want the
+-- range somewhere specific (aim the editor camera and press P to copy a position).
+local ORIGIN_OVERRIDE = nil         -- e.g. vec3(1200, 0, -400)
+local ORIGIN                        -- resolved below, after the helpers exist
 -- 500 m, not 300. The gap must exceed the LARGEST enemyD below (300 m, station 9) plus the 90 m
 -- SENSE_RADIUS, or a station's own enemies land on its NEIGHBOUR's centre. At 300 m spacing
 -- station 9's enemies sat exactly on station 10 - the precise cross-contamination this spacing
@@ -69,6 +74,33 @@ if not er2.isMasterClient() then return end
 local MY_PHASE = safeGet(function() return er2.getCurrentPhaseId() end) or 0
 local INV = safeGet(function() return er2.getInvadersFaction() end)
 local DEF = safeGet(function() return er2.getDefendersFaction() end)
+
+-- Resolve the origin: an explicit override, else the first mission objective, else the map centre.
+-- getAllObjectives is a FILL-style API and must be called WITH a table - a bare call throws on
+-- every invocation.
+if ORIGIN_OVERRIDE then
+    ORIGIN = ORIGIN_OVERRIDE
+    log2(string.format("origin: override (%.0f,%.0f)", ORIGIN.x, ORIGIN.z))
+else
+    local objs = {}
+    safe(function() er2.getAllObjectives(objs) end)
+    for _, o in pairs(objs) do
+        local op = o and safeGet(function() return o.getPosition() end)
+        if op then
+            -- Offset well clear of the objective itself so the range does not overlap whatever
+            -- the mission already has fighting over it.
+            ORIGIN = vec3(op.x + 400, op.y, op.z + 400)
+            log2(string.format("origin: derived from the first mission objective -> (%.0f,%.0f)",
+                 ORIGIN.x, ORIGIN.z))
+            break
+        end
+    end
+    if not ORIGIN then
+        ORIGIN = vec3(0, 0, 0)
+        log2("origin: no objective found, falling back to (0,0). If the range spawns off-map, set "
+             .. "ORIGIN_OVERRIDE with a P-captured position.")
+    end
+end
 
 local function at(dx, dz) return vec3(ORIGIN.x + dx, ORIGIN.y, ORIGIN.z + dz) end
 
