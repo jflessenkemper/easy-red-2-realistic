@@ -1,3 +1,10 @@
+# NOTE ON GAME VERSION
+Everything below was probed against **v2.0.9**. The installed build is now **v2.1.0** (observed on
+the main menu, 2026-09-08), and at least one documented signature has already been found wrong
+there (`spawnVehicle` arg 3). Treat every entry as "verified on 2.0.9, unconfirmed on 2.1.0" until
+re-probed, and re-probe before relying on anything that has never actually been called. The editor
+hub UI also changed layout in 2.1.0, so er2-plugin/docs/ui-map.md coordinates are stale.
+
 # Easy Red 2 — VERIFIED Lua API (mined from shipped scripts)
 
 ## OFFICIAL DOCS CROSS-CHECK (easyred2.com/wiki, 2026-08-09) — see forum-crosscheck.md
@@ -120,6 +127,14 @@ The engine ships a Lua prelude of GLOBAL wrappers (all coroutine-based on er2.*W
 - `spawnSquad_script(pos, radius, faction, squad_id, script_file)` -> Squad WITH BRAIN attached
 - `spawnSquadOnVehicle(pos, radius, faction, squad_id, veh)` / `..._script(...)`
 - `spawnVehicle(vehicle_id, pos, rot)` / `spawnVehicle_camo(id,pos,rot,camoId)` / `_dest(...)`
+  !! **`rot` IS A vec3, NOT DEGREES** — CORRECTED 2026-09-08 on v2.1.0. `spawnVehicle(id, pos, 180)`
+     throws `bad argument #3 to 'spawnVehicleWithCallback' (userdata expected, got number)`.
+     Pass a direction vector, e.g. `vec3(1,0,0)`.
+  !! **AND THE THROW ESCAPES pcall.** It happens inside the engine's own argument marshalling and
+     rethrows as TargetInvocationException through Unity's coroutine machinery, so the enclosing
+     `pcall` does NOT catch it and the whole phase script dies mid-build. Same uncatchable class as
+     `soldier_suppressed`. A guard is not protection here — only passing the right type is.
+     Observed: the showcase range built station 1, then stopped, with the script silently dead.
 - `spawnMissionObjective(pos, radius, text, icon, attractor)` -> Objective
 - `sayMissionClip(soldier, clipName)` -> length  (calls soldier:sayMissionClipWithCallback)
 - `print(msg[, time])`, `distance(a,b)`, `round(f,dp)`, `log(t)`, `sleep(t)`

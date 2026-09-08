@@ -20,7 +20,16 @@ _G.sleep = function() error("STOPHUD",0) end
 _G.global = { get=function() return nil end, set=function() end }
 _G.spawnSquad_script = function() spawned.squads=spawned.squads+1 return {} end
 _G.spawnSquad = function() spawned.squads=spawned.squads+1 return {} end
-_G.spawnVehicle = function() spawned.vehicles=spawned.vehicles+1 end
+-- TYPE-CHECKS arg 3. The engine wants userdata (a vec3); passing a number throws inside its own
+-- argument marshalling, ESCAPES pcall, and kills the phase script - the range built one station
+-- and stopped. A stub that accepted anything is what let that reach the game.
+_G.spawnVehicle = function(id, pos, rot)
+    if type(rot) ~= "table" or rot.x == nil then
+        error("spawnVehicle arg 3 must be a vec3 direction (userdata in-engine), got "
+              .. type(rot) .. " -- this KILLS the phase script and pcall cannot catch it", 0)
+    end
+    spawned.vehicles = spawned.vehicles + 1
+end
 _G.spawnMissionObjective = function(pos,r,txt,icon,attract)
     spawned.objectives=spawned.objectives+1
     if attract then spawned.attracting=spawned.attracting+1 end
@@ -58,6 +67,21 @@ if layouterr > 0 or refused then os.exit(1) end
 if spawned.attracting ~= 4 then
     print("FAIL expected exactly 4 attracting objectives, got " .. spawned.attracting)
     print("     a station LABEL is attracting; labels must pass attractor = false")
+    os.exit(1)
+end
+-- Assert ZERO spawn failures. The script guards every spawn with pcall, so a bad argument is
+-- swallowed offline and only shows up as a logged FAILED line - which is exactly how a numeric
+-- spawnVehicle rotation reached the game and killed the phase script. Counting the log lines is
+-- the signal; the pcall means an exception never reaches this test.
+local spawnfails = 0
+for _, l in ipairs(logs) do
+    if l:find("FAILED to spawn") or l:find("WARNING squad") then
+        spawnfails = spawnfails + 1
+        print("  " .. l)
+    end
+end
+if spawnfails > 0 then
+    print("FAIL " .. spawnfails .. " spawn failure(s); every id and argument type must be valid")
     os.exit(1)
 end
 if spawned.squads < 20 then

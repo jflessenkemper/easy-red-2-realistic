@@ -102,6 +102,17 @@ else
     end
 end
 
+-- DOCTRINE IS PINNED, not inherited. The demo squads are spawned on whichever faction this
+-- mission happens to call the invaders, and doctrine is derived from the soldier's FACTION string
+-- - so on a mission whose invaders are British, German-equipped demo troops would get britain's
+-- profile (aggression 0.50, assaultRange 25) instead of germany's (0.75, 35). Station 4 puts its
+-- enemies at exactly 25 m, so that difference decides whether the assault station works at all.
+-- The brain already exposes an override for exactly this; use it so the range behaves the same on
+-- any host mission. Primitives only in a Lua global, and the value comes first.
+safe(function() global.set("germany", "realistic_nation_invaders") end)
+safe(function() global.set("france",  "realistic_nation_defenders") end)
+log2("doctrine pinned: invaders=germany, defenders=france (independent of the host mission)")
+
 local function at(dx, dz) return vec3(ORIGIN.x + dx, ORIGIN.y, ORIGIN.z + dz) end
 
 -- Grid: four columns, four rows, so thirteen stations fit with room to spare.
@@ -269,14 +280,31 @@ for _, s in ipairs(STATIONS) do
     end
 
     -- Vehicles: { name, offsetX, offsetZ }
+    --
+    -- ARG 3 IS A vec3 DIRECTION, NOT A ROTATION IN DEGREES. docs/verified-api.md documented
+    -- spawnVehicle(vehicle_id, pos, rot) and a number looked like the obvious reading; it is not.
+    -- MEASURED 2026-09-08 on v2.1.0: passing 180 threw
+    --     bad argument #3 to 'spawnVehicleWithCallback' (userdata expected, got number)
+    -- and - this is the important part - the exception ESCAPED THE ENCLOSING pcall, propagated
+    -- into Unity's coroutine machinery and killed the entire phase script. The range built
+    -- station 1 and then simply stopped. Same uncatchable class as the soldier_suppressed NRE:
+    -- the throw happens inside the engine's own argument marshalling, before the Lua body, so
+    -- pcall cannot help and a guard is NOT protection. The only safe move is to pass the right
+    -- type.
     for _, v in ipairs(s.vehicles or {}) do
-        if not safe(function() spawnVehicle(v[1], at(dx + v[2], dz + v[3]), 0) end) then
+        if not safe(function() spawnVehicle(v[1], at(dx + v[2], dz + v[3]), vec3(1, 0, 0)) end) then
             log2("FAILED to spawn vehicle '" .. tostring(v[1]) .. "'")
             failed = failed + 1
         end
     end
+    -- Emplacements face back down -X toward the German squads, who sit at the station centre.
     for i, e in ipairs(s.emplace or {}) do
-        safe(function() spawnVehicle(e, at(dx + ed, dz + (i - 1) * 30), 180) end)
+        if not safe(function()
+               spawnVehicle(e, at(dx + ed, dz + (i - 1) * 30), vec3(-1, 0, 0))
+           end) then
+            log2("FAILED to spawn emplacement '" .. tostring(e) .. "'")
+            failed = failed + 1
+        end
     end
 
     -- STATION LABEL. attractor = FALSE for every label except the two stations that need a real
