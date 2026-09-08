@@ -332,8 +332,67 @@ local T10 = {
     { pos = vec3(275, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },
 }
 
--- Ships INERT. Set this to T10 to re-run the scenario.
+-- T9 + T6 COMBINED RIG. Three stations, 500 m apart, so one run exercises all three.
+--
+-- DECISION RECORDED: T9, T6 and T6's negative control are run together rather than as separate
+-- scenarios. Station separation of 500 m is already proven to isolate stations (it must exceed
+-- SENSE_RADIUS 90 so one station's enemies cannot enter another's force ratio), so a combined run
+-- yields one run of EACH at a quarter of the cost. Nothing is lost: the branches under test are
+-- different, and the geometries do not interact.
+--
+--   T9  crew bail-out  - a CREWED Panzer II C with a tank crew aboard, killed by an AT squad at
+--                        80 m. A truck will not do: its occupants are passengers, not crew, and
+--                        the branch keys off what the man was RIDING.
+--   T6  armour advance - rifle squad + Sdkfz251 halftrack within ARMOUR_SCAN 45 m, enemy at 75 m
+--                        (inside SENSE_RADIUS 90 so the squad is threatened - the branch lives in
+--                        the threatened arm of the cascade).
+--   T6c NEGATIVE CONTROL - identical, but an Opel Blitz instead of the halftrack. A TRUCK MUST
+--                        NOT QUALIFY as armour. If ADVANCE-behind-armour fires here, the
+--                        name filter is broken. This is the half of T6 that can actually fail.
+--
+-- RUN 1 RESULT, 2026-09-08 (VirtualScene, zero Lua errors). The rig itself works: 5 squads,
+-- 3 vehicles and the tank crew ABOARD the Panzer all spawned, and MOUNTED/CREW-defer fired 135
+-- times, which confirms the new mounted-spawn path. But neither feature under test was observed:
+--   * T9  - the Panzer II C SURVIVED. fr_ATsquad at 80 m did not destroy it, so there was nothing
+--           to bail out of. Bring the AT squad closer, or give the French an AT gun, before
+--           calling this scenario run at all.
+--   * T6  - ADVANCE-behind-armour fired ZERO times at BOTH stations. At the control station the
+--           squads were genuinely threatened (measured ne=1-2, ed=72-76) and correctly produced no
+--           armour advance, but that is NOT a passing control.
+--
+-- MEASUREMENT PRINCIPLE, recorded because it is easy to mis-read: A NEGATIVE CONTROL PROVES
+-- NOTHING WHILE THE POSITIVE CASE IS SILENT. Zero fires at the truck station only discriminates
+-- if the halftrack station fires. Absence everywhere is absence of evidence, not evidence of a
+-- working name filter. Do not mark T6 either way until the positive half fires.
+local T9_T6 = {
+    -- T9 at (200,200)
+    { pos = vec3(280, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },
+    -- T6 at (700,200)
+    { pos = vec3(700, 0, 200), side = "invader",  squad = "ger_infantry_1940", radius = 10 },
+    { pos = vec3(775, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },
+    -- T6 control at (1200,200)
+    { pos = vec3(1200, 0, 200), side = "invader",  squad = "ger_infantry_1940", radius = 10 },
+    { pos = vec3(1275, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },
+}
+-- Vehicles: { name, pos, direction }. ARG 3 IS A vec3 DIRECTION, NOT DEGREES - a number throws
+-- inside the engine's own marshalling and the throw ESCAPES pcall, killing the phase script.
+local T9_T6_VEHICLES = {
+    { "Panzer II C",    vec3(200, 0, 200),  vec3(1, 0, 0) },   -- T9: the crewed tank
+    { "Sdkfz251 1939",  vec3(720, 0, 200),  vec3(1, 0, 0) },   -- T6: real armour
+    { "Opel Blitz",     vec3(1220, 0, 200), vec3(1, 0, 0) },   -- T6c: a truck, must NOT qualify
+}
+-- Squads that must spawn ON a vehicle: { squadId, vehiclePos }. The crew branch and the transport
+-- branch both key off what the man was RIDING, so a dismounted spawn cannot reach either.
+local T9_T6_MOUNTED = {
+    { "ger_tankCrew_1940", vec3(200, 0, 200) },
+}
+
+-- Ships INERT. To arm a scenario, assign the matching trio:
+--   T10   -> TEST_SPAWNS = T10
+--   T9+T6 -> TEST_SPAWNS = T9_T6, TEST_VEHICLES = T9_T6_VEHICLES, TEST_MOUNTED = T9_T6_MOUNTED
 local TEST_SPAWNS = {}
+local TEST_VEHICLES = {}
+local TEST_MOUNTED = {}
 local TEST_OBJECTIVE = nil     -- e.g. vec3(0,0,60); nil = don't create one
 local TEST_OBJ_RADIUS = 40
 
@@ -350,6 +409,30 @@ if #TEST_SPAWNS > 0 then
         dbg(string.format("test spawn %d: %s %s -> %s", i, s.side, tostring(s.squad),
             ok and "ok" or "FAILED (check the squad id in Id tables)"))
     end
+end
+
+-- Vehicles for a scenario rig. Direction is a vec3; see the note on the tables above.
+for i, v in ipairs(TEST_VEHICLES) do
+    local ok = pcall(function() spawnVehicle(v[1], v[2], v[3]) end)
+    dbg(string.format("test vehicle %d: %s -> %s", i, tostring(v[1]),
+        ok and "ok" or "FAILED (check the vehicle name, and that arg 3 is a vec3)"))
+end
+
+-- Squads that must start MOUNTED. The vehicle handle is found by AREA SCAN, because spawnVehicle
+-- returns nothing usable (it resolves to spawnVehicleWithCallback). getVehiclesInArea is
+-- fill-style and must be called WITH a table.
+for i, m in ipairs(TEST_MOUNTED) do
+    local vlist, veh = {}, nil
+    pcall(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
+    for _, cand in pairs(vlist) do if cand then veh = cand break end end
+    local ok = false
+    if veh then
+        ok = pcall(function()
+            return spawnSquadOnVehicle_script(m[2], 8, INV, m[1], veh, "Realistic.lua")
+        end)
+    end
+    dbg(string.format("test mounted %d: %s -> %s", i, tostring(m[1]),
+        ok and "ok (aboard)" or "FAILED (no vehicle found in range, or the API rejected it)"))
 end
 if TEST_OBJECTIVE then
     local ok = pcall(function()

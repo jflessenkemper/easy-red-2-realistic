@@ -178,8 +178,11 @@ click  300,184   # Play
 click 1824,1007  # Exit, from the in-battle pause menu, back to the editor
 ```
 
-A phase script is loaded at battle start, so **exit to the editor and Play again** after every
-deploy or the old script keeps running.
+A phase script is loaded at battle start, so it must be re-entered after every deploy or the old
+script keeps running. **But `1824,1007` ("Exit") goes to the MAIN MENU, not the editor** - so do
+the FULL route again from there. Following it with the editor's Sigma coordinates clicks blind on
+main-menu items; it landed on CREDITS once, and **Escape on the Credits screen QUITS THE GAME**
+(`inner_alive=0`, relaunch required). BACK there only scrolls. Do not navigate into Credits.
 
 **AUDIO — mute Easy Red 2 ONLY.** Mute the sink-input whose `application.name` is `FMOD Ex App`.
 Do **NOT** mute `@DEFAULT_SINK@` and do **NOT** loop over every sink-input: doing that muted the
