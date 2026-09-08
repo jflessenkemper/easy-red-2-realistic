@@ -427,6 +427,17 @@ end
 
 if not HUD then log2("HUD disabled") return end
 
+-- ACCUMULATED per station: every decision code ever seen there, across the whole run.
+-- This is the fix for a census that was measuring the wrong thing. The first version sampled a
+-- single instant and asked "is an expected decision happening RIGHT NOW". But the features are
+-- TRANSIENT - a man is PINNED for a few seconds, ASSAULTs for one bound, ROUTs once - while the
+-- steady state is DEFEND-hold and ROAD-MARCH. So an instantaneous census reported 0-3 of 13
+-- stations while the brain trace for the SAME run showed twenty branches firing, including PINNED
+-- 77 times, FIGHT-from-cover 132, ASSAULT 14, ROUT 17 and AT 6. The range was working; the
+-- instrument was not. Same rule as the rest of this project: absence at one instant is not
+-- absence over time.
+local SEEN = {}
+
 -- Census of ONE station: what are the soldiers there actually deciding?
 -- Reads the brain's published decision from global "D"..uid, so it costs the brain nothing.
 local function census(st)
@@ -459,7 +470,17 @@ local function census(st)
             if code == want then hit = true end
         end
     end
-    return counts, total, hit, top, topn
+    -- fold this sample into the station's accumulated set
+    SEEN[st.n] = SEEN[st.n] or {}
+    for code, n in pairs(counts) do
+        SEEN[st.n][code] = (SEEN[st.n][code] or 0) + n
+    end
+    -- a station passes if an expected decision has EVER been seen, not just now
+    local everHit = false
+    for _, want in ipairs(st.expect or {}) do
+        if (SEEN[st.n][want] or 0) > 0 then everHit = true end
+    end
+    return counts, total, everHit, top, topn
 end
 
 local function decList(counts)
@@ -477,22 +498,28 @@ end
 -- it exists to demonstrate, which makes the range self-verifying rather than something you have to
 -- walk and interpret.
 local function fullCensus()
-    announce("===== SHOWCASE RANGE: station census =====")
+    announce("===== SHOWCASE RANGE: cumulative station census =====")
     local working, silent = 0, 0
     for _, st in ipairs(STATIONS) do
-        local counts, total, hit, top, topn = census(st)
-        if total == 0 then
-            announce(string.format("  %-2d %-28s  (no decisions published yet)", st.n,
+        local counts, total, everHit = census(st)
+        local acc = SEEN[st.n] or {}
+        local accN = 0
+        for _ in pairs(acc) do accN = accN + 1 end
+        if accN == 0 then
+            announce(string.format("  %-2d %-28s  (nothing seen yet)", st.n,
                      st.name:gsub("^%d+%s*", "")))
             silent = silent + 1
         else
+            -- report the ACCUMULATED set, which is what the pass/fail is judged on
             announce(string.format("  %-2d %-28s %s  %s", st.n, st.name:gsub("^%d+%s*", ""),
-                     hit and "OK " or "-- ", decList(counts)))
-            if hit then working = working + 1 end
+                     everHit and "OK " or "-- ", decList(acc)))
+            if everHit then working = working + 1 end
         end
     end
-    announce(string.format("===== %d/%d stations showing an expected decision =====",
-             working, #STATIONS))
+    -- Station 13 (kill feed) needs a human in a squad and cannot pass unattended; 12 is the
+    -- unattended target.
+    announce(string.format("===== %d/%d stations have shown an expected decision "
+             .. "(13 needs a player) =====", working, #STATIONS))
 end
 
 local lastHud, lastCensus = 0, 0
