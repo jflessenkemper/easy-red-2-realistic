@@ -53,7 +53,10 @@ local function mkSoldier(t)
     s.isSquadReady         = function() return t.squadReady ~= false end
     s.getAiParams          = function() return t.aiparams or {} end
     -- void commands: record, never fail
-    s.moveTo   = function() t.moved = true end
+    -- RECORD the destination, not just the fact of an order. Without this the harness could
+    -- only prove a moveTo happened, never that it pointed anywhere sensible - which is how
+    -- CREW-onfoot claimed to "break contact" while actually taking the nearest cover.
+    s.moveTo   = function(p) t.moved = true; t.dest = p end
     s.findCover= function() t.covered = true end
     s.stop     = function() end
     s.say      = function() end
@@ -63,6 +66,10 @@ local function mkSoldier(t)
     s.leaveVehicle= function() end
     s.boardVehicle= function() end
     s.setBrain    = function() end
+    -- Expose the state table so a scenario's check() can read what the void commands recorded.
+    -- Without this, moveTo's destination was written somewhere unreachable and a direction
+    -- assertion could only ever fail.
+    s.state = t
     return s
 end
 
@@ -327,7 +334,21 @@ local TESTS = {
           -- whole point of the branch. Truck PASSENGERS are not crew, which is why live testing
           -- never produced this: both bail-outs were trucks.
           local me = soldierAt(0, 0, { uid = 1000, class = "tank crew", vehicle = nil })
-          return { me = me, objective = v3(0, 0, 400), nearby = { me }, ticks = 4 }
+          -- An ENEMY at +60 m on x, so "away" is unambiguously -x. He is an attacker, so the
+          -- rearward moveTo is available to him.
+          return { me = me, objective = v3(0, 0, 400), ticks = 4,
+                   nearby = { me, soldierAt(60, 0, { uid = 2000, faction = "France_allies" }) } }
+      end,
+      check = function(scn)
+          -- BREAKING CONTACT, asserted by DIRECTION and not by the label. The branch used to call
+          -- findCover alone while claiming to break contact; findCover has no directional
+          -- preference, and bailed-out crew measured -7.59 m/frame TOWARD the enemy on a real log.
+          local d = scn.me and scn.me.state and scn.me.state.dest
+          if not d then return false, "no rearward moveTo was issued - he is not breaking contact" end
+          if d.x >= 0 then
+              return false, string.format("moveTo x=%.0f is TOWARD the enemy at +60 (want negative)", d.x)
+          end
+          return true, string.format("breaks contact to x=%.0f, away from the enemy at +60", d.x)
       end },
 
     -- PROTOCOL INVARIANT. The consumer treats RQ_T >= 0 as "a complete request is ready", so the

@@ -1349,8 +1349,33 @@ while true do
             aiSet("enableAiBehaviour", true)
             aiSet("allowFindCoverWhenSuppressed", true)
             react("scared", now)
-            takeCover(pos, now)
-            decision, detail = "CREW-onfoot", (threatened and "under threat" or "vehicle lost")
+            -- BREAKING CONTACT IS NOW ACTUALLY IMPLEMENTED. This branch used to call takeCover()
+            -- alone, while its own comment claimed the crewman "breaks contact". findCover has NO
+            -- directional preference - it takes the NEAREST cover, which is as often toward the
+            -- enemy as away. MEASURED on base2: bailed-out crew moved -7.59 m/frame ALONG the
+            -- away-from-enemy axis (n=49), i.e. consistently TOWARD the enemy they were supposed
+            -- to be escaping. The label was right and the behaviour was not.
+            --
+            -- Same two-step as ROUT, which is proven: a rearward moveTo first, then cover on a
+            -- LATER tick. Never both in one tick - findCover and moveTo cancel.
+            --
+            -- routCoverAt is REUSED rather than duplicated, which costs zero new locals in a file
+            -- at the Lua 200-local ceiling. Safe because the two users are mutually exclusive:
+            -- this is branch 1 and ROUT is branch 3, so a shaken crewman is claimed here first
+            -- and can never be in both states on one tick.
+            if routCoverAt and now >= routCoverAt then
+                routCoverAt = nil
+                takeCover(pos, now)
+                decision, detail = "CREW-onfoot", "gone to ground"
+            elseif fallbackFrom(pos, ec, now) then
+                routCoverAt = now + ROUT_COVER_DELAY
+                decision, detail = "CREW-onfoot", "breaking contact"
+            else
+                -- defender, or nothing sensed to run from: go to ground where he stands
+                takeCover(pos, now)
+                decision, detail = "CREW-onfoot",
+                    (threatened and "under threat" or "vehicle lost")
+            end
 
         elseif inVehicle or CLS.crew then
             -- ANY non-infantry unit still with its vehicle (tank crew, plane pilot, gun crew,
