@@ -1,7 +1,7 @@
 --============================================================================
 -- Realistic.lua  —  per-soldier "realistic survival" brain for Easy Red 2
 --   Attach via the Squad Spawner "Brain" field. Runs LOCALLY on every unit;
---   myself() is the soldier. Verified against build v2.0.9 (see .llm/api/verified-api.md
+--   myself() is the soldier. Verified against build v2.0.9 (see docs/verified-api.md
 --   and the play-test forensics). This brain LAYERS caution + doctrine on top of
 --   the engine's base AI; it never stores UserData in a global (that is fatal on
 --   this build) and every uncertain call is guarded.
@@ -365,12 +365,24 @@ end
 --   1) explicit per-side override global (optional manual control for modded/ambiguous maps)
 --   2) parsed from my faction handle string
 --   3) DOCTRINE_DEFAULT
+-- FAIL-SAFE, and deliberately so: `== true` means any failure to resolve the comparison makes this
+-- man a DEFENDER, which means no move orders ever reach him (defenders provably ignore moveTo). That
+-- is the safe direction, but on an exotic faction setup a whole side would sit still and the mod
+-- would look dead with nothing logged. So say it once.
+-- Reuses one local deliberately (no separate `resolved` variable): this file is AT the Lua
+-- 200-local ceiling and a single extra top-level local breaks every brain at compile time.
 local amInvader = safeGet(function()
     return er2.isSameFaction(myFaction, er2.getInvadersFaction())
-end) == true
-local override
-if amInvader then override = global.get("realistic_nation_invaders")
-else               override = global.get("realistic_nation_defenders") end
+end)
+if amInvader == nil then
+    dbg("side unresolved for faction '"..tostring(myFaction).."' — treating as DEFENDER (no move orders)")
+end
+amInvader = (amInvader == true)
+-- Guarded like every other engine call in this file. An unguarded throw here would kill the brain
+-- chunk silently: ER2 does not surface a brain coroutine death as a Lua error.
+local override = safeGet(function()
+    return global.get(amInvader and "realistic_nation_invaders" or "realistic_nation_defenders")
+end)
 local myNation = override or nationFromFaction(myFaction) or "default"
 local DOC = DOCTRINE[myNation] or DOCTRINE_DEFAULT
 
@@ -456,7 +468,7 @@ local DEC = {
     last = nil,
     code = {
         ["CREW-onfoot"]=1, ["MOUNTED/CREW-defer"]=2, ["ROUT"]=3, ["ROUT-cover"]=4,
-        ["AT-stalk"]=5, ["AT-hunt"]=6, ["AT-hold-cover"]=7, ["ASSAULT"]=8, ["ASSAULT-cover"]=9,
+        ["AT-stalk"]=5, ["AT-hunt"]=6, ["ASSAULT"]=8, ["ASSAULT-cover"]=9,   -- 7 retired: huntArmour never returned AT-hold-cover
         ["PINNED"]=10, ["MEDIC-sortie"]=11, ["MEDIC-hold-cover"]=12,
         ["DRAG-approach"]=13, ["DRAG-pickup"]=14, ["DRAG-to-cover"]=15, ["DRAG-abandon"]=16,
         ["RADIO-fire-mission"]=17, ["LEADER-cover"]=18, ["SUPPORT-hold-fire"]=19,
@@ -840,11 +852,20 @@ end
 -- Deliberately issues NO moveTo. `findCover` is the only relocation used, so this behaves
 -- identically on the defending side, which provably ignores move orders — the same constraint
 -- that forced ADVANCE-behind-armour and the ROUT fallback to become attacker-only.
-local atTargetId, atForceFailed = nil, false
-local function huntArmour(pos, now)
+-- Grouped in a table, not three top-level locals: this file sits near the Lua 200-local ceiling
+-- and `luajit -bl` passes where the real loader rejects it, so new state goes in a table.
+local AT = { id = nil, forceFailed = false, best = nil }
+
+-- ACQUISITION ONLY — no orders, no side effects. This runs before the cascade, every tick, for
+-- every AT man, INCLUDING while he is mounted and while he is shaken. Issuing orders here (as it
+-- did until 2026-09-08) meant a passenger received the cover/target orders that branch 2 exists to
+-- prevent, and a routing man's `findCover` countermanded the `moveTo` his own ROUT branch issued
+-- one line later — the project's own "never pair findCover and moveTo in one tick" rule, broken by
+-- the mod itself. Orders now live in atEngage(), called from the AT branch alone.
+local function huntArmour(pos)
     local vlist = {}
     _scanPos, _scanR, _scanT = pos, AT_RANGE, vlist
-    if not safe(_scanVehicles) then return nil end
+    if not safe(_scanVehicles) then AT.best = nil; return nil end
     local best, bestD = nil, 1e9
     for _, v in pairs(vlist) do
         if v then
@@ -857,25 +878,33 @@ local function huntArmour(pos, now)
         end
     end
     if not best then
-        atTargetId = nil          -- nothing left to hunt; stop holding a stale forced target
+        AT.id = nil               -- nothing left to hunt; stop holding a stale forced target
+        AT.best = nil
         return nil
     end
+    AT.best = best
+    return (bestD > AT_EFFECTIVE) and "AT-stalk" or "AT-hunt", bestD
+end
+
+-- ORDER ISSUANCE for the AT branch. Called ONLY from that branch, so it cannot reach a mounted or
+-- routing man. Outside effective range he closes by covered bounds; inside it he stops and shoots.
+local function atEngage(pos, now)
+    local best = AT.best
+    if not best then return end
     -- forceTarget is VERIFIED only against a SOLDIER (verified-api.md:189 `.forceTarget(enemySoldier)`
     -- [SDKFZ:37]); passing a Vehicle is unproven on this build. Guard it and degrade honestly to
     -- alert-only rather than reporting a capability we do not have. Logged once per brain.
     local id = safeGet(function() return best.getUniqueId() end)
-    if id and id ~= atTargetId then
-        atTargetId = id
-        if not safe(function() me.forceTarget(best) end) and not atForceFailed then
-            atForceFailed = true
+    if id and id ~= AT.id then
+        AT.id = id
+        if not safe(function() me.forceTarget(best) end) and not AT.forceFailed then
+            AT.forceFailed = true
             dbg("AT: forceTarget(vehicle) rejected — engaging via alert only")
         end
     end
     safe(function() me.alertFor(15) end)
     react("enemyTank", now)
-    -- Outside effective range he closes by covered bounds; inside it he stops and shoots.
     takeCover(pos, now)
-    return (bestD > AT_EFFECTIVE) and "AT-stalk" or "AT-hunt", bestD
 end
 
 -- BOUNDING OVERWATCH team assignment. Returns 0 or 1 — which half of the squad this man is in.
@@ -1190,7 +1219,7 @@ while true do
         -- Scanned ONLY for AT men: an AT_RANGE getVehiclesInArea sweep every tick for every
         -- soldier would be a real per-tick cost for the ~3% of the battalion who are AT.
         local atLabel, atDist = nil, nil
-        if isAT then atLabel, atDist = huntArmour(pos, now) end
+        if isAT then atLabel, atDist = huntArmour(pos) end
 
         -- isAT is excluded too: an AT man is the battalion's only answer to armour, and the AT
         -- branch above already handled him whenever there was a vehicle to hunt. Letting him
@@ -1281,7 +1310,9 @@ while true do
 
         elseif isAT and atLabel then
             -- ANTI-TANK, above ASSAULT so the AT man is never spent charging infantry while a
-            -- vehicle is on the field. Falls through when there is nothing to hunt.
+            -- vehicle is on the field. Falls through when there is nothing to hunt. The orders are
+            -- issued HERE, not during acquisition, so they cannot reach a mounted or routing man.
+            atEngage(pos, now)
             decision, detail = atLabel, "veh d="..string.format("%.0f", atDist or 0)
 
         elseif assaultNow then

@@ -192,12 +192,42 @@ for flag in VERBOSE DEBUG; do
     fi
   done
 done
-for flag in PROBE_APIS PROBE_GLOBALS TRACE_LOOP WATCH TELEMETRY; do
+for flag in PROBE_APIS PROBE_GLOBALS TRACE_LOOP WATCH TELEMETRY SHOWCASE_HUD; do
   if grep -qE "^local $flag\s*=" "$PHASE"; then
     if grep -qE "^local $flag\s*=\s*false" "$PHASE"; then ok "$flag=false"
     else bad "$flag must ship false (diagnostic left enabled)"; fi
   fi
 done
+
+# DBG_SAMPLE is a SHIPPING DEFAULT, not a flag, and it was ungated until 2026-09-08 even though
+# docs/LOOP-PROMPT.md claimed check 6 covered it. Every test scenario sets it to 1 (at 6, a ten-man
+# scenario traces one man), so a scenario build shipped 29/29 green with tracing wide open. It also
+# lives in the BRAIN, while the loop above only scans the phase script.
+if grep -qE '^local DBG_SAMPLE\s*=\s*6\b' "$BRAIN"; then
+  ok "DBG_SAMPLE=6 (shipping default)"
+else
+  bad "DBG_SAMPLE must ship 6 - found: $(grep -oE '^local DBG_SAMPLE\s*=\s*[0-9]+' "$BRAIN" || echo none)"
+fi
+
+echo "== 6b. Toolchain is capable =="
+# Without luajit, checks 2, 4d and 4e SKIP and are simply not counted - the script still printed
+# "FAIL 0" on a 24-check run and that read as a full pass. Worse, 4e (which LOADS the brain) is the
+# only gate that catches the Lua 200-local ceiling, because `luajit -bl` can pass a file the real
+# loader rejects. So a missing luajit is itself a failure, not a skip.
+if command -v luajit >/dev/null 2>&1; then
+  ok "luajit present ($(luajit -v 2>&1 | head -1 | cut -d' ' -f1-2)) - bytecode and load checks ran"
+else
+  bad "luajit missing - checks 2, 4d and 4e did NOT run; this score is not a release gate"
+fi
+
+echo "== 6c. DEC decision-code map agrees across all three copies =="
+if python3 tests/dec_map_check.py > /tmp/decmap.$$ 2>&1; then
+  ok "$(sed -n 's/^ok    //p' /tmp/decmap.$$ | head -1)"
+else
+  while read -r line; do bad "${line#FAIL  }"; done < <(grep '^FAIL' /tmp/decmap.$$)
+  grep -q '^FAIL' /tmp/decmap.$$ || bad "dec_map_check.py failed: $(head -1 /tmp/decmap.$$)"
+fi
+rm -f /tmp/decmap.$$
 
 echo "== 7. Docs are usable by a stranger =="
 if grep -qE 'jflessenkemper|/tmp/claude|ME_Stonne' realistic.md; then

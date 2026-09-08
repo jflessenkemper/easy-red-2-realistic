@@ -10,7 +10,7 @@
 --   attraction, bail-out, fire missions — is LOG ONLY and never reaches the screen.
 --   Also hosts the phase half of crew bail-out (feature 18) and the consumer half of the
 --   radioman fire mission (feature 19; Realistic.lua is the producer).
---   Verified against build v2.0.9 (see .llm/api/verified-api.md).
+--   Verified against build v2.0.9 (see docs/verified-api.md).
 --============================================================================
 
 local DEBUG = false
@@ -1113,10 +1113,27 @@ end
 -- be ~350 calls a frame and would itself change the thing being measured. Entities are batched
 -- TELEM_BATCH to a line, which turns a frame into about a dozen calls instead.
 --
--- Format:  [TELEM] <t> S <uid>,<x>,<z>,<flag>;<uid>,<x>,<z>,<flag>;...
---          [TELEM] <t> V <uid>,<x>,<y>,<z>,<name>;...
+-- Format — NINE fields per soldier entry. This comment documented four until 2026-09-08 while the
+-- emitter below wrote nine; both Python parsers branch on `len(parts) >= 8`, so a drift here is
+-- silent. tests/check.sh now cross-checks this block against the format string in telemetryFrame().
+--
+--   [TELEM] <t> S <uid>,<x>,<y>,<z>,<flag>,<squad>,<inVeh>,<dec>,<ri>;<...>;...
+--   [TELEM] <t> V <uid>,<x>,<y>,<z>,<name>;...
+--
+--   t      mission clock, %.1f
+--   uid    soldier unique id (even stride of 262; may be negative)
+--   x,y,z  rounded to whole metres - sub-metre precision is noise at map scale and costs bytes
 --   flag   I invader · D defender · i invader suppressed · d defender suppressed · x down/dead
---   x,z    rounded to whole metres - sub-metre precision is noise at map scale and costs bytes
+--          · ? neither side
+--   squad  squad key = the squad LEADER's uid; 0 = unresolved
+--   inVeh  1 if getCurrentVehicle() is non-nil. DIRECT, not inferred - men in a vehicle all report
+--          the vehicle's position, which once faked a 1.0 m median spacing that was really 32 m, so
+--          every spacing/formation statistic MUST filter on this
+--   dec    the brain's decision code from global "D"..uid; 0 = unknown. Published CHANGE-ONLY, so
+--          it is a latched last-known value, not a per-frame sample
+--   ri     roster index from global "R"..uid. Only published when the BRAIN's DEBUG is true, so it
+--          is 0 for the whole battle otherwise. Proves roster-slot stability, which every formation
+--          feature depends on
 local TELEMETRY  = false -- diagnostic; check.sh refuses to ship this true
 local TELEM_EVERY = 2          -- s between frames
 local TELEM_BATCH = 40         -- entities per log line
