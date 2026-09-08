@@ -160,6 +160,22 @@ else
   echo "  SKIP  (needs luajit)"
 fi
 
+echo "== 4f. Showcase range layout =="
+# The showcase is a PLAYABLE demo, so its failure mode is a ruined demonstration rather than a
+# crash: a station's enemies within SENSE_RADIUS of a neighbour's centre, or an attracting label
+# dragging a neighbour's squad out of position. Both are silent in-game and both are caught here.
+if [ -f missions/scenarios/showcase.lua ]; then
+  if [ -n "$LUA" ] && command -v luajit >/dev/null 2>&1; then
+    if out=$(luajit tests/offline_showcase.lua 2>&1); then
+      ok "showcase range layout coherent ($(echo "$out" | sed -n 's/^LAYOUT OK  *//p'))"
+    else
+      bad "showcase range layout: $(echo "$out" | grep -E 'LAYOUT ERROR|^FAIL' | head -2 | tr '\n' ' ')"
+    fi
+  else
+    echo "  SKIP  showcase layout needs luajit"
+  fi
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
