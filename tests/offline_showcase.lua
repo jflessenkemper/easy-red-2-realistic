@@ -19,6 +19,9 @@ _G.log = function(m) logs[#logs+1]=tostring(m) end
 _G.sleep = function() error("STOPHUD",0) end
 _G.global = { get=function() return nil end, set=function() end }
 _G.spawnSquad_script = function() spawned.squads=spawned.squads+1 return {} end
+-- The mounted variant. Without this stub the script silently took its dismounted FALLBACK and the
+-- test would pass while station 11's transport branch stayed unreachable in-game.
+_G.spawnSquadOnVehicle_script = function() spawned.mounted=(spawned.mounted or 0)+1 return {} end
 _G.spawnSquad = function() spawned.squads=spawned.squads+1 return {} end
 -- TYPE-CHECKS arg 3. The engine wants userdata (a vec3); passing a number throws inside its own
 -- argument marshalling, ESCAPES pcall, and kills the phase script - the range built one station
@@ -43,6 +46,8 @@ _G.er2 = {
     time=function() return 100 end,
     getPlayer=function() return nil end,
     getSoldiersInArea=function(_,_,o) return o end,
+    -- Return a vehicle so the MOUNTED path is exercised, not the dismounted fallback.
+    getVehiclesInArea=function(_,_,o) o[1] = { getName=function() return "Opel Blitz" end } return o end,
     -- FILL-style: must be called WITH a table. Returning one objective exercises the derived-origin
     -- path, which is the default; an empty table would only ever test the fallback.
     getAllObjectives=function(t)
@@ -58,15 +63,32 @@ for _,l in ipairs(logs) do
   if l:find("REFUSING") then refused = true end
   if l:find("LAYOUT ERROR") then layouterr = layouterr + 1 print("  "..l) end
 end
-print(string.format("squads/vehicles %d/%d  objectives %d (attracting %d)",
-      spawned.squads, spawned.vehicles, spawned.objectives, spawned.attracting))
+print(string.format("squads/vehicles %d/%d  mounted %d  objectives %d (attracting %d)",
+      spawned.squads, spawned.vehicles, spawned.mounted or 0, spawned.objectives,
+      spawned.attracting))
+-- Station 11 MUST spawn its squad mounted; the fallback logs a warning and leaves the branch dead.
+if (spawned.mounted or 0) < 1 then
+    print("FAIL no squad was spawned mounted - transport reuse (station 11) cannot fire")
+    os.exit(1)
+end
 print("layout errors: "..layouterr.."   refused to build: "..tostring(refused))
 if layouterr > 0 or refused then os.exit(1) end
--- Only the stations that declare a real objective may attract. Stations 1, 11 and 12 do, and 12
--- adds a second - so four. Any more means a LABEL is attracting and will drag a neighbour's squad.
-if spawned.attracting ~= 4 then
-    print("FAIL expected exactly 4 attracting objectives, got " .. spawned.attracting)
-    print("     a station LABEL is attracting; labels must pass attractor = false")
+-- EXACTLY TWO attracting objectives: station 12's pair, which is the only station that exists to
+-- demonstrate objective flow. Every station now gets its own objective as a march target, but an
+-- ATTRACTOR steers base AI map-wide, so any extra one drags other stations' squads across the
+-- range. That collapse was measured for real - only 1-3 of 13 stations demonstrated anything - so
+-- this number going up is a regression, not a tweak.
+if spawned.attracting ~= 2 then
+    print("FAIL expected exactly 2 attracting objectives (station 12's pair), got "
+          .. spawned.attracting)
+    print("     an extra attractor steers base AI map-wide and empties other stations")
+    os.exit(1)
+end
+-- One objective per station is what keeps each squad local (13 stations + station 12's second).
+-- Fewer means some squad has no local march target and will walk off the range.
+if spawned.objectives < 13 then
+    print("FAIL only " .. spawned.objectives .. " objectives; every station needs its own or its "
+          .. "squad marches to a distant one and leaves the station")
     os.exit(1)
 end
 -- Assert ZERO spawn failures. The script guards every spawn with pcall, so a bad argument is

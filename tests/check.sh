@@ -225,6 +225,22 @@ else
   bad "DBG_SAMPLE must ship 6 - found: $(grep -oE '^local DBG_SAMPLE\s*=\s*[0-9]+' "$BRAIN" || echo none)"
 fi
 
+echo "== 5b. Fire support is reachable at all =="
+# FIRE_DANGER_R must stay BELOW the brain's SENSE_RADIUS. If they are equal, feature 19 is
+# mathematically unreachable: the radioman publishes the enemy centroid as the target, that
+# centroid is within SENSE_RADIUS of him by construction, and danger-close then refuses because HE
+# is a friendly inside the radius of his own target. That was the state for the project's whole
+# history - six observed requests, six refusals, and it read as bad luck rather than arithmetic.
+sr=$(grep -oE '^local SENSE_RADIUS[[:space:]]*=[[:space:]]*[0-9]+' "$BRAIN" | grep -oE '[0-9]+$')
+fd=$(grep -oE '^local FIRE_DANGER_R[[:space:]]*=[[:space:]]*[0-9]+' "$PHASE" | grep -oE '[0-9]+$')
+if [ -n "$sr" ] && [ -n "$fd" ]; then
+  if [ "$fd" -lt "$sr" ]; then
+    ok "FIRE_DANGER_R $fd < SENSE_RADIUS $sr (a barrage can be accepted)"
+  else
+    bad "FIRE_DANGER_R $fd >= SENSE_RADIUS $sr - feature 19 is UNREACHABLE, every request refuses"
+  fi
+fi
+
 echo "== 6b. Toolchain is capable =="
 # Without luajit, checks 2, 4d and 4e SKIP and are simply not counted - the script still printed
 # "FAIL 0" on a 24-check run and that read as a full pass. Worse, 4e (which LOADS the brain) is the

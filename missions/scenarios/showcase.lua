@@ -40,6 +40,11 @@ local HUD         = true            -- on-screen readout. This file is a demo, s
 local HUD_EVERY   = 1.5             -- s between HUD refreshes
 local HUD_RADIUS  = 120             -- m around the player whose soldiers are listed
 local HUD_MAX     = 8               -- lines per refresh; a HUD, not a log
+-- 30 s between censuses, and the FIRST one is held back until the range has had time to spawn
+-- (29 squads arrive over a coroutine, not instantly) and to close with the enemy. Judging at 15 s
+-- reported 2/13 simply because most squads were still marching.
+local CENSUS_EVERY = 30
+local CENSUS_WARMUP = 120           -- s after build before the first census is meaningful
 
 local BRAIN = "Realistic.lua"
 
@@ -127,73 +132,73 @@ end
 -- exactly one cascade branch. `enemyD` is the distance from the German squad to its enemies, and
 -- it is the single most important number per station: it decides which branch wins.
 local STATIONS = {
-    { n = 1,  name = "1 Approach march + formation",
+    { n = 1, expect = {28, 27}, name = "1 Approach march + formation",
       shows = "ROAD-MARCH, RALLY-on-MG, lateral stagger",
-      ger = { GER_RIFLE }, enemy = {}, objective = true,
+      ger = { GER_RIFLE }, enemy = {},
       note = "no enemies at all, objective 400 m away; the gunner ends up off a flank" },
 
-    { n = 2,  name = "2 Pinned + fight from cover",
+    { n = 2, expect = {10, 24}, name = "2 Pinned + fight from cover",
       shows = "PINNED, then FIGHT-from-cover as suppression lifts",
-      ger = { GER_RIFLE }, enemy = { FR_GUNS, FR_GUNS, FR_GUNS }, enemyD = 40,
+      ger = { GER_RIFLE }, enemy = { FR_GUNS, FR_GUNS }, enemyD = 45,
       emplace = { V_MG_EMP, V_MG_EMP },
       note = "three MG teams at 40 m: >=2 enemies inside PINNED_RADIUS 50" },
 
-    { n = 3,  name = "3 Rout",
+    { n = 3, expect = {3, 4}, name = "3 Rout",
       shows = "ROUT / ROUT-cover, falling back ~40 m",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 60,
+      ger = { GER_RIFLE }, ger2 = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 65,
       note = "heavily outnumbered so force ratio drops under Germany's moraleFloor 0.22" },
 
-    { n = 4,  name = "4 Close assault",
+    { n = 4, expect = {8, 9}, name = "4 Close assault",
       shows = "ASSAULT / ASSAULT-cover, closing to contact",
       ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 25,
       note = "ONE enemy squad at 25 m: inside assaultRange 35, and not enough to trigger PINNED" },
 
-    { n = 5,  name = "5 AT team hunts armour",
+    { n = 5, expect = {5, 6}, name = "5 AT team hunts armour",
       shows = "AT-stalk beyond 60 m, AT-hunt inside it",
-      ger = { GER_AT }, enemy = {}, vehicles = { { V_FRTANK, 100, 0 }, { V_FRTANK, 120, 30 } },
+      ger = { GER_AT }, enemy = {}, vehicles = { { V_FRTANK, 50, 0 }, { V_FRTANK, 65, 25 } },
       note = "enemy armour but NO enemy infantry, so nothing else can pre-empt the AT branch" },
 
-    { n = 6,  name = "6 Advance behind armour",
+    { n = 6, expect = {20}, name = "6 Advance behind armour",
       shows = "ADVANCE-behind-armour, line abreast ~6 m behind the hull",
-      ger = { GER_RIFLE }, enemy = { FR_GUNS }, enemyD = 200,
+      ger = { GER_RIFLE }, enemy = { FR_GUNS }, enemyD = 70,
       vehicles = { { V_HALF, 20, 0 } },
       note = "halftrack within ARMOUR_SCAN 45 m. Control: swap it for an Opel Blitz - a truck must NOT qualify" },
 
-    { n = 7,  name = "7 Bounding overwatch",
+    { n = 7, expect = {21, 22, 23}, name = "7 Bounding overwatch",
       shows = "BOUND-move and BOUND-overwatch swapping every 8 s",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 150,
+      ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       note = "threatened but only ONE enemy, far enough that PINNED cannot pre-empt bounding" },
 
-    { n = 8,  name = "8 Medic and wounded drag",
+    { n = 8, expect = {11, 12, 13, 14, 15}, name = "8 Medic and wounded drag",
       shows = "MEDIC-sortie, DRAG-approach to pickup to to-cover",
       ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 120,
       note = "enemy at 120 m is OUTSIDE PINNED_RADIUS 50, which the medic sortie requires" },
 
-    { n = 9,  name = "9 Crew bail-out",
+    { n = 9, expect = {1}, name = "9 Crew bail-out",
       shows = "crew leave the wreck, then CREW-onfoot away from the enemy",
       ger = { GER_CREW }, enemy = { FR_GUNS }, enemyD = 300,
       vehicles = { { V_PZ2, 0, 0 } },
       note = "a CREWED vehicle, not a truck: truck occupants are passengers, not crew" },
 
-    { n = 10, name = "10 Radio fire mission",
+    { n = 10, expect = {17}, name = "10 Radio fire mission",
       shows = "RADIO-fire-mission, and a barrage that actually LANDS",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 130,
+      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 80,
       note = "130 m is the whole point: it clears FIRE_DANGER_R 90 m from every friendly. "
           .. "Every barrage so far was correctly REFUSED danger close" },
 
-    { n = 11, name = "11 Transport reuse",
+    { n = 11, expect = {30, 31}, name = "11 Transport reuse",
       shows = "RETURN-to-transport then REBOARD-transport",
-      ger = { GER_RIFLE }, enemy = {}, objective = true, objectiveD = 200,
+      ger = {}, mounted = { GER_RIFLE }, enemy = {}, objectiveD = 200,
       vehicles = { { V_TRUCK, 30, 0 } },
       note = "no contact, objective beyond REBOARD_MIN_DIST 120, truck inside REBOARD_SCAN 60" },
 
-    { n = 12, name = "12 Consolidate and objective flow",
+    { n = 12, expect = {26}, objective = "attract", name = "12 Consolidate and objective flow",
       shows = "CONSOLIDATE, capture, then flow to the second objective",
       ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 80,
-      objective = true, secondObjective = true,
+      secondObjective = true,
       note = "small enough that objective 1 falls in minutes, then attraction releases it" },
 
-    { n = 13, name = "13 Kill feed and callouts",
+    { n = 13, expect = {24, 10}, name = "13 Kill feed and callouts",
       shows = "on-screen kill feed, one squadmate callout per death",
       ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 100,
       player = true,
@@ -272,6 +277,30 @@ for _, s in ipairs(STATIONS) do
     for i, sid in ipairs(s.ger or {}) do
         spawnSquadAt(sid, at(dx + (i - 1) * 20, dz), INV, 12)
     end
+    -- A squad spawned ON a vehicle, which is the only way the transport-reuse branch is reachable:
+    -- it keys off myTransportId, remembered while MOUNTED, so a squad that never rode anything can
+    -- never return to it. Measured: station 11 showed only ROAD-MARCH until this was added.
+    for _, sid in ipairs(s.mounted or {}) do
+        local vp = at(dx + 30, dz)
+        safe(function() spawnVehicle(V_TRUCK, vp, vec3(1, 0, 0)) end)
+        -- Find the truck by AREA SCAN rather than trusting spawnVehicle's return value, which is
+        -- undocumented and empty (it resolves to spawnVehicleWithCallback). Relying on it made
+        -- this branch always take the dismounted fallback. getVehiclesInArea is fill-style and
+        -- must be called WITH a table.
+        local vlist, veh = {}, nil
+        safe(function() er2.getVehiclesInArea(vp, 40, vlist) end)
+        for _, v in pairs(vlist) do if v then veh = v break end end
+        local ok = veh and safeGet(function()
+            return spawnSquadOnVehicle_script(vp, 8, INV, sid, veh, BRAIN)
+        end)
+        if ok then
+            built = built + 1
+        else
+            log2("mounted spawn unavailable for '" .. tostring(sid)
+                 .. "' - falling back to a dismounted squad (transport reuse will not fire)")
+            spawnSquadAt(sid, at(dx, dz), INV, 12)
+        end
+    end
 
     -- Enemy side, placed enemyD metres along +X so the axis of threat is consistent
     local ed = s.enemyD or 100
@@ -310,17 +339,40 @@ for _, s in ipairs(STATIONS) do
     -- STATION LABEL. attractor = FALSE for every label except the two stations that need a real
     -- objective. An attractor changes AI behaviour, so a label that attracted would pull
     -- neighbouring stations' squads out of position and wreck their demonstrations.
-    -- Real objectives go on the -Z axis, NOT the +X axis the enemies use, so an ATTRACTING
-    -- objective can never end up near a neighbouring station and pull its squad out of position.
-    local isRealObjective = (s.objective == true)
-    local od = s.objectiveD or 250
-    local labelPos = isRealObjective and at(dx, dz - od) or centre
+    -- ONE OBJECTIVE PER STATION, and this is load-bearing rather than cosmetic.
+    --
+    -- Originally only 4 stations had an objective. The brain marches an unthreatened attacker to
+    -- his NEAREST objective, so every squad without a local one found an objective up to 1500 m
+    -- away and marched off its station - the whole range collapsed into blobs at the few stations
+    -- that had one. MEASURED before this fix: ROAD-MARCH x10 at station 8, x8 at 11 and 13, and
+    -- dozens of soldiers piled onto stations 10 and 12. Only 1-3 of 13 stations demonstrated
+    -- anything.
+    --
+    -- Offset 180 m on -Z, NOT at the centre: a squad standing on its own objective is inside
+    -- ARRIVE_RADIUS 30 and consolidates instead of demonstrating (measured: CONSOLIDATE x8 at
+    -- station 13). 180 m also clears REBOARD_MIN_DIST 120, which station 11 needs. Own objective
+    -- is 180 m away while the nearest neighbouring one is 320 m, so "nearest" is unambiguous.
+    --
+    -- attractor is FALSE everywhere except station 12, which exists to demonstrate objective flow.
+    -- An attractor steers base AI map-wide, so a second attracting objective would drag other
+    -- stations' squads across the range - the same collapse by a different route.
+    -- THE OBJECTIVE SITS BEYOND THE ENEMY, on the same +X axis, so marching to it DRIVES the
+    -- squad into contact. It was on -Z, perpendicular to the enemy, and the result was that every
+    -- station showed ROAD-MARCH + RALLY-on-MG for ever: the squad dutifully marched away from the
+    -- enemy it was supposed to be demonstrating against. Putting the objective past the enemy
+    -- makes each station self-driving - approach, contact, then whichever branch the geometry
+    -- forces - which is also how a real approach march ends.
+    --
+    -- Clamped to 220 m so it stays nearer its OWN station than any neighbour's (they are 500 m
+    -- apart, so the next centre is 280 m further on).
+    local od = s.objectiveD or math.min(220, (s.enemyD or 100) + 120)
+    local attract = (s.objective == "attract")
     local o = safeGet(function()
-        return spawnMissionObjective(labelPos, 40, s.name, 0, isRealObjective)
+        return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
     end)
-    if o then labels[#labels + 1] = s.name end
+    if o then labels[#labels + 1] = s.name else failed = failed + 1 end
     if s.secondObjective then
-        safe(function() spawnMissionObjective(at(dx + 200, dz - od), 40,
+        safe(function() spawnMissionObjective(at(dx + od, dz - 200), 45,
                                              s.name .. " (second)", 0, true) end)
     end
 
@@ -375,40 +427,119 @@ end
 
 if not HUD then log2("HUD disabled") return end
 
-local lastHud = 0
+-- Census of ONE station: what are the soldiers there actually deciding?
+-- Reads the brain's published decision from global "D"..uid, so it costs the brain nothing.
+local function census(st)
+    local dx, dz = cell(st.n)
+    local c = at(dx, dz)
+    local list = {}
+    -- 240 m, not 260: stations are 500 m apart, so a wider ring reaches a neighbour.
+    safe(function() er2.getSoldiersInArea(c, 240, list) end)
+    local counts, total = {}, 0
+    for _, sol in pairs(list) do
+        -- INVADERS ONLY. Every feature on this range is invader-side, so the defenders' uniform
+        -- DEFEND-hold drowned the signal: station 10 read 18 DEFEND-hold against 2 of the
+        -- decisions it was actually meant to show.
+        local sf = sol and safeGet(function() return sol.getFaction() end)
+        local isInv = sf and safeGet(function() return er2.isSameFaction(sf, INV) end) == true
+        if isInv and safeGet(function() return sol.isAlive() end) ~= false then
+            local uid = safeGet(function() return sol.getUniqueId() end)
+            local code = uid and safeGet(function() return global.get("D" .. uid) end)
+            if code and code ~= 0 then
+                counts[code] = (counts[code] or 0) + 1
+                total = total + 1
+            end
+        end
+    end
+    -- did any EXPECTED decision appear?
+    local hit, top, topn = false, nil, 0
+    for code, n in pairs(counts) do
+        if n > topn then top, topn = code, n end
+        for _, want in ipairs(st.expect or {}) do
+            if code == want then hit = true end
+        end
+    end
+    return counts, total, hit, top, topn
+end
+
+local function decList(counts)
+    local parts = {}
+    for code, n in pairs(counts) do
+        parts[#parts + 1] = (DECN[code] or ("code" .. code)) .. " x" .. n
+    end
+    table.sort(parts)
+    return table.concat(parts, ", ")
+end
+
+-- SPECTATOR CENSUS. The per-player HUD needs er2.getPlayer(), which is nil until someone picks a
+-- faction and spawns - so on the faction-selection screen the readout printed nothing at all and
+-- looked broken. This reports every station at once instead, and CHECKS each against the decision
+-- it exists to demonstrate, which makes the range self-verifying rather than something you have to
+-- walk and interpret.
+local function fullCensus()
+    announce("===== SHOWCASE RANGE: station census =====")
+    local working, silent = 0, 0
+    for _, st in ipairs(STATIONS) do
+        local counts, total, hit, top, topn = census(st)
+        if total == 0 then
+            announce(string.format("  %-2d %-28s  (no decisions published yet)", st.n,
+                     st.name:gsub("^%d+%s*", "")))
+            silent = silent + 1
+        else
+            announce(string.format("  %-2d %-28s %s  %s", st.n, st.name:gsub("^%d+%s*", ""),
+                     hit and "OK " or "-- ", decList(counts)))
+            if hit then working = working + 1 end
+        end
+    end
+    announce(string.format("===== %d/%d stations showing an expected decision =====",
+             working, #STATIONS))
+end
+
+local lastHud, lastCensus = 0, 0
+local buildT = safeGet(function() return er2.time() end) or 0
 while true do
     local ph = safeGet(function() return er2.getCurrentPhaseId() end)
     if ph == MY_PHASE then
         local t = safeGet(function() return er2.time() end) or 0
-        if (t - lastHud) >= HUD_EVERY then
+        local p = safeGet(function() return er2.getPlayer() end)
+        local pp = p and safeGet(function() return p.getPosition() end)
+
+        if pp and (t - lastHud) >= HUD_EVERY then
+            -- PLAYER PRESENT: the walk-the-range readout.
             lastHud = t
-            local p = safeGet(function() return er2.getPlayer() end)
-            local pp = p and safeGet(function() return p.getPosition() end)
-            if pp then
-                local st, sd = nearestStation(pp)
-                if st then
-                    announce(string.format("== %s  (%.0f m from centre) ==", st.name, sd))
-                    announce("   showing: " .. st.shows)
-                end
-                local list = {}
-                safe(function() er2.getSoldiersInArea(pp, HUD_RADIUS, list) end)
-                local shown = 0
-                for _, s in pairs(list) do
-                    if shown >= HUD_MAX then break end
-                    if s and safeGet(function() return s.isAlive() end) ~= false then
-                        local uid = safeGet(function() return s.getUniqueId() end)
-                        local code = uid and safeGet(function() return global.get("D" .. uid) end)
-                        if code and code ~= 0 then
-                            announce(string.format("   %-9s %s", roleOf(s),
-                                     DECN[code] or ("code " .. tostring(code))))
-                            shown = shown + 1
-                        end
+            local st, sd = nil, 1e9
+            for _, cand in ipairs(STATIONS) do
+                local dx, dz = cell(cand.n)
+                local d = distance(pp, at(dx, dz))
+                if d < sd then st, sd = cand, d end
+            end
+            if st then
+                announce(string.format("== %s  (%.0f m from centre) ==", st.name, sd))
+                announce("   showing: " .. st.shows)
+            end
+            local list = {}
+            safe(function() er2.getSoldiersInArea(pp, HUD_RADIUS, list) end)
+            local shown = 0
+            for _, sol in pairs(list) do
+                if shown >= HUD_MAX then break end
+                if sol and safeGet(function() return sol.isAlive() end) ~= false then
+                    local uid = safeGet(function() return sol.getUniqueId() end)
+                    local code = uid and safeGet(function() return global.get("D" .. uid) end)
+                    if code and code ~= 0 then
+                        announce(string.format("   %-9s %s", roleOf(sol),
+                                 DECN[code] or ("code " .. tostring(code))))
+                        shown = shown + 1
                     end
                 end
-                if shown == 0 then
-                    announce("   (no brain has published a decision within " .. HUD_RADIUS .. " m yet)")
-                end
             end
+            if shown == 0 then
+                announce("   (no brain nearby has published a decision yet)")
+            end
+
+        elseif not pp and t >= (buildT + CENSUS_WARMUP) and (t - lastCensus) >= CENSUS_EVERY then
+            -- NO PLAYER (spectating, or still on faction selection): report the whole range.
+            lastCensus = t
+            fullCensus()
         end
     end
     sleep(1)

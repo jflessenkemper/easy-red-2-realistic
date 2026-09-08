@@ -41,7 +41,24 @@ local NEAR_ENEMY_R    = 60    -- m, radius for the nearest-enemy weapon fallback
 local FEED_RADIUS     = 120   -- m
 
 -- Radioman fire mission (feature 19) — CONSUMER half; Realistic.lua is the producer.
-local FIRE_DANGER_R    = 90   -- m, refuse the mission if ANY friendly of the requesting side is this close
+-- 50 m, NOT 90. CORRECTED 2026-09-08 after enumerating why no barrage has ever landed.
+--
+-- It was 90, exactly equal to the brain's SENSE_RADIUS, and that made feature 19 MATHEMATICALLY
+-- UNREACHABLE rather than merely unlucky:
+--   * the radioman publishes the ENEMY CENTROID as the target (Realistic.lua: global.set(ec.x,"RQ_X"))
+--   * `ec` comes from a getSoldiersInArea(pos, SENSE_RADIUS 90) sweep, so the target is ALWAYS
+--     within 90 m of the radioman
+--   * dangerClose() refuses if ANY friendly of the requesting side is within FIRE_DANGER_R of the
+--     target - and the radioman is himself such a friendly, within 90 m of it by construction
+-- So every request was refused, always, and all six observed responses were "REFUSED danger
+-- close". The README called that "the fail-safe working, not a fault"; it was arithmetic. No test
+-- geometry could have fixed it, because the constraint is between the radioman and his OWN sensed
+-- enemies, not about where anything is placed.
+--
+-- 50 m leaves a usable window (enemies sensed at 50-90 m can be shelled) and is still 5x
+-- BARRAGE_BLAST, which is 10 m. It must stay comfortably BELOW SENSE_RADIUS or the feature dies
+-- again; tests/offline_phase.lua now asserts that relationship.
+local FIRE_DANGER_R    = 50   -- m, refuse the mission if ANY friendly of the requesting side is this close
 local FIRE_MIN_GAP     = 150  -- s, minimum gap between two accepted fire missions (phase-wide anti-spam)
 local FIRE_MAX         = 3    -- accepted fire missions per phase
 local PROBE_GLOBALS    = false -- ANSWERED 2026-08-29: yes, shared (brain wrote PROBE_B2P=4242,
