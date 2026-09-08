@@ -54,8 +54,10 @@
 local DONCHERY = { squads = {}, vehicles = {}, mounted = {} }
 
 --========================= geometry =========================================
--- ORIGIN is derived at load from the mission's first objective, exactly as showcase.lua does, so
--- no coordinate has to be captured by hand and the layout travels with the mission. The Meuse
+-- COORDINATES ARE ABSOLUTE WORLD POSITIONS, origin (0,0,0). An earlier version of this comment
+-- claimed the origin was derived at load from the mission's first objective "exactly as
+-- showcase.lua does" - it never was: add() and addVeh() below pass bare vec3(x, 0, z). If the
+-- layout ever needs to travel with the mission, that derivation has to be written first. The Meuse
 -- runs roughly east-west; the Germans are on the NORTH bank at -Z, the French dug in on the SOUTH
 -- bank at +Z, with the railway embankment behind the German line.
 local RIVER_GAP   = 260   -- m between the German assault line and the French positions

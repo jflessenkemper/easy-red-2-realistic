@@ -320,6 +320,19 @@ echo "== 4l. tools/deploy.py exists and what is deployed matches the repo build 
 # makes sure it still exists and that nobody has since hand-edited a deployed file or
 # changed the repo without redeploying. deploy.py --check does NOT re-enter check.sh (that
 # would recurse), so this is safe to call from here.
+#
+# DEADLOCK, FOUND 2026-09-08 AND THIS IS THE FIX. deploy.py refuses to write anything unless
+# check.sh is green - correctly, a red build must never ship. But this check goes red on exactly
+# the drift that deploying would REMOVE, so the moment anyone edited Realistic.lua or
+# RealisticEvents.lua, deployment became impossible: check.sh was red because the repo was not
+# deployed, and deploy.py would not deploy because check.sh was red. "Is what is deployed
+# current?" is a POST-condition of deploying, not a pre-condition of it. So deploy.py sets
+# SKIP_DEPLOY_DRIFT_CHECK=1 for its own gating run and this check reports SKIP; every other
+# caller - a human, CI, a bare `bash tests/check.sh` - still gets the full gate, and deploy.py
+# re-reads and hashes back every file it writes afterwards regardless.
+if [ "${SKIP_DEPLOY_DRIFT_CHECK:-0}" = "1" ]; then
+  echo "  SKIP  deployed-vs-repo drift (deploy.py is the caller; it is about to fix any drift)"
+else
 python3 - <<'PY'
 import os, subprocess, sys
 repo = os.getcwd()
@@ -346,6 +359,70 @@ if fail:
 print("ok    deploy.py --check agrees with all deployed files")
 PY
 if [ $? -eq 0 ]; then ok "deployed files match the repo build (deploy.py --check)"; else bad "deploy.py --check reports drift or deploy.py is missing"; fi
+fi   # SKIP_DEPLOY_DRIFT_CHECK
+
+echo "== 4m. Inlined showcase range is in sync with its source =="
+# Mirrors 4i, for the other inlined data set. The showcase range is inlined rather than loaded for
+# the same reason the Donchery OOB is: loadfile() resolves from an unlocatable '<mission>/globals/'
+# and its failure ABORTS the phase script even inside pcall. So the inlined copy can silently drift
+# from missions/scenarios/showcase.lua - the file that check 4f actually validates - and the drift
+# is invisible in-game, because a stale range still builds and still looks like a range.
+#
+# It also re-asserts the CUT: only the text above showcase.lua's `--@@ SHOWCASE INLINE CUT` marker
+# may be inlined. Below that marker are a top-level `return`, a spawn emitter that must not run
+# before setCallback registration, and a `while true ... sleep(1)` HUD loop - inlining any of it
+# would stop RealisticEvents.lua dead, silently, before a single callback registered.
+python3 - <<'PY'
+import os, subprocess, sys
+repo = os.getcwd()
+tool = os.path.join(repo, "tools", "gen_showcase_inline.py")
+fail = []
+if not os.path.isfile(tool):
+    fail.append("tools/gen_showcase_inline.py is missing - the showcase range can no longer be "
+                "inlined, so the test map's phase script would ship inert and spawn nothing.")
+else:
+    p = subprocess.run([sys.executable, tool, "--check"], cwd=repo,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if p.returncode != 0:
+        for line in p.stdout.strip().split("\n"):
+            if line.strip():
+                fail.append(line.strip())
+    else:
+        # The tool proves sync. This proves the inlined block is actually WIRED: the source table
+        # must be declared above the rig declarations, which is what deploy.py's variant assigns at.
+        # WORD-BOUNDARY REGEX, not str.startswith. Caught while red-testing this very gate:
+        # `l.startswith("local SHOWCASE")` also matches `local SHOWCASE_RENAMED`, so renaming the
+        # table - which leaves the inlined copy perfectly in sync while destroying the name
+        # deploy.py assigns from - sailed straight through. deploy.py itself uses `\b` and would
+        # have refused, but a gate that only fails when a later tool also fails is not a gate.
+        import re
+        src = open(os.path.join(repo, "RealisticEvents.lua"), encoding="utf-8").read()
+        lines = src.split("\n")
+        def line_of(pattern):
+            for i, l in enumerate(lines):
+                if re.match(pattern, l):
+                    return i + 1
+            return None
+        sc = line_of(r"^local SHOWCASE\b")
+        decl = line_of(r"^local TEST_SPAWNS\b")
+        run = line_of(r"^runSpawnRig\(\)")
+        if sc is None:
+            fail.append("no top-level `local SHOWCASE` in RealisticEvents.lua - the inlined block "
+                        "no longer defines the table deploy.py assigns from, and the test-map "
+                        "variant would ship `TEST_SPAWNS = nil`: no spawns, no error, no log line.")
+        elif decl is None or run is None:
+            fail.append("could not locate `local TEST_SPAWNS` and/or `runSpawnRig()`")
+        elif not (sc < decl < run):
+            fail.append("ordering is wrong: local SHOWCASE at %s, local TEST_SPAWNS at %s, "
+                        "runSpawnRig() at %s - must be strictly increasing or the assignment "
+                        "captures a nil upvalue." % (sc, decl, run))
+if fail:
+    for f in fail:
+        print("FAIL  " + f)
+    sys.exit(1)
+print("ok    inlined showcase range is in sync and defined above the rig it feeds")
+PY
+if [ $? -eq 0 ]; then ok "inlined showcase range in sync with missions/scenarios/showcase.lua"; else bad "inlined showcase range is stale or mis-ordered"; fi
 
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py

@@ -19,9 +19,13 @@ WHAT SHIPS WHERE
     only whatever the mission editor placed. That inert state is the repo's shipping build
     and tests/check.sh check 6 gates it. We do not un-inert the repo copy.
 
-    ME_Stonne_38n85202 gets a VARIANT with the Donchery historical order of battle switched
-    on. The switch is three assignments and nothing else, produced HERE at deploy time so
-    the repo copy stays clean.
+    TWO of the four get a VARIANT, produced HERE at deploy time so the repo copy stays clean:
+      ME_Stonne_38n85202             -> the Donchery historical order of battle (DONCHERY.*)
+      ME_Realistic Test map_...      -> the showcase demonstration range (SHOWCASE.*)
+    The switch is three assignments and nothing else. Without the test-map variant, loading
+    "Realistic Test map" gives you an INERT phase script: the range exists as data in
+    missions/scenarios/showcase.lua and is inlined into the phase script, but nothing consumes
+    it, so you spawn in and see nothing at all.
 """
 
 import argparse
@@ -49,8 +53,9 @@ MISSIONS = [
     "ME_Stonne_38n85202",
 ]
 
-# The one mission that gets the Donchery order of battle rather than the inert build.
+# The two missions that get an armed variant rather than the inert build.
 STONNE = "ME_Stonne_38n85202"
+TESTMAP = "ME_Realistic Test map_o6526q70"
 
 BRAIN_SRC = os.path.join(REPO, "Realistic.lua")
 PHASE_SRC = os.path.join(REPO, "RealisticEvents.lua")
@@ -60,40 +65,51 @@ PHASE_DST_NAME = "phase_0.lua"
 
 
 # ---------------------------------------------------------------------------------------
-# The Stonne variant
+# The armed variants
 # ---------------------------------------------------------------------------------------
 #
-# The rig tables are declared as three `local` statements. The Donchery OOB is INLINED into
-# the phase script (by tools/gen_donchery_inline.py) as `local DONCHERY = ...` and, crucially,
-# that inlining happens EARLIER IN THE FILE than the declarations. So `DONCHERY` is already
-# in scope at the declaration site and we can assign there directly - no separate
-# re-assignment block is needed, and no forward reference is created.
+# The rig tables are declared as three `local` statements. Both data sets are INLINED into
+# the phase script - the Donchery OOB by tools/gen_donchery_inline.py as `local DONCHERY = ...`,
+# the showcase range by tools/gen_showcase_inline.py as `local SHOWCASE = ...` - and, crucially,
+# both inlinings happen EARLIER IN THE FILE than the declarations. So the source table is already
+# in scope at the declaration site and we can assign there directly - no separate re-assignment
+# block is needed, and no forward reference is created.
 #
-# build_stonne_phase() ASSERTS that ordering instead of trusting this comment. If someone
-# moves the generated OOB block below the declarations, the assert fires and deployment
-# stops, rather than silently shipping `TEST_SPAWNS = nil` (which would spawn nothing while
-# logging no error at all - the exact failure mode this project has already paid for twice).
+# build_variant() ASSERTS that ordering instead of trusting this comment. If someone moves a
+# generated block below the declarations, the assert fires and deployment stops, rather than
+# silently shipping `TEST_SPAWNS = nil` (which would spawn nothing while logging no error at all -
+# the exact failure mode this project has already paid for twice).
+
+RIG_NAMES = ("TEST_SPAWNS", "TEST_VEHICLES", "TEST_MOUNTED")
 
 DECL_RE = re.compile(
     r"^local (TEST_SPAWNS|TEST_VEHICLES|TEST_MOUNTED)(\s*)= \{\}\s*$", re.M
 )
 
-# Which DONCHERY field each rig table takes. Field names verified against RealisticEvents.lua
-# line 475: `local DONCHERY = { squads = {}, vehicles = {}, mounted = {} }`.
+# Which field of the source table each rig table takes. Both tables carry the same three field
+# names, verified against RealisticEvents.lua:
+#   `local DONCHERY = { squads = {}, vehicles = {}, mounted = {} }`
+#   `local SHOWCASE = { squads = {}, vehicles = {}, mounted = {} }`
 RIG_FIELDS = {
-    "TEST_SPAWNS": "DONCHERY.squads",
-    "TEST_VEHICLES": "DONCHERY.vehicles",
-    "TEST_MOUNTED": "DONCHERY.mounted",
+    "TEST_SPAWNS": "squads",
+    "TEST_VEHICLES": "vehicles",
+    "TEST_MOUNTED": "mounted",
 }
 
-INJECT_TAG = "-- injected by tools/deploy.py: Stonne runs the Donchery order of battle"
+# (lua table name, what the variant is, the tool that inlines it)
+VARIANTS = {
+    STONNE: ("DONCHERY", "Stonne runs the Donchery order of battle",
+             "tools/gen_donchery_inline.py"),
+    TESTMAP: ("SHOWCASE", "the test map runs the showcase demonstration range",
+              "tools/gen_showcase_inline.py"),
+}
 
 
-def build_stonne_phase(src):
+def build_variant(src, table, what, tool):
     """Return (variant_source, injected_lines).
 
     Rewrites the three inert `local TEST_x = {}` declarations into assignments from the
-    inlined DONCHERY table. Raises if the file does not look the way we expect.
+    inlined `table`. Raises if the file does not look the way we expect.
     """
     lines = src.split("\n")
 
@@ -103,17 +119,15 @@ def build_stonne_phase(src):
                 return i + 1
         return None
 
-    donchery_line = line_of(r"^local DONCHERY\b")
-    if donchery_line is None:
+    src_line = line_of(r"^local %s\b" % table)
+    if src_line is None:
         raise SystemExit(
-            "REFUSING TO DEPLOY: no top-level `local DONCHERY` in RealisticEvents.lua. "
-            "The OOB is supposed to be inlined by tools/gen_donchery_inline.py; without it "
-            "the variant would assign from a nil global and spawn nothing, silently."
+            "REFUSING TO DEPLOY: no top-level `local %s` in RealisticEvents.lua. It is supposed "
+            "to be inlined by %s; without it the variant would assign from a nil global and "
+            "spawn nothing, silently." % (table, tool)
         )
 
-    decl_lines = [
-        line_of(r"^local %s\s*= \{\}\s*$" % name) for name in RIG_FIELDS
-    ]
+    decl_lines = [line_of(r"^local %s\s*= \{\}\s*$" % name) for name in RIG_NAMES]
     if any(n is None for n in decl_lines):
         raise SystemExit(
             "REFUSING TO DEPLOY: could not find all three inert rig declarations "
@@ -124,14 +138,14 @@ def build_stonne_phase(src):
     first_decl = min(decl_lines)
 
     # ORDERING IS THE WHOLE CORRECTNESS ARGUMENT. Assigning at the declaration is only valid
-    # because DONCHERY is defined above it.
-    if donchery_line >= first_decl:
+    # because the source table is defined above it.
+    if src_line >= first_decl:
         raise SystemExit(
-            "REFUSING TO DEPLOY: `local DONCHERY` is at line %d but the rig declarations "
-            "start at line %d. Assigning at the declaration would capture a nil upvalue. "
-            "Move the generated OOB block back above the declarations, or change this script "
-            "to emit a re-assignment placed after DONCHERY and before runSpawnRig()."
-            % (donchery_line, first_decl)
+            "REFUSING TO DEPLOY: `local %s` is at line %d but the rig declarations start at "
+            "line %d. Assigning at the declaration would capture a nil upvalue. Move the "
+            "generated block back above the declarations, or change this script to emit a "
+            "re-assignment placed after %s and before runSpawnRig()."
+            % (table, src_line, first_decl, table)
         )
 
     run_line = line_of(r"^runSpawnRig\(\)")
@@ -146,11 +160,12 @@ def build_stonne_phase(src):
             "declarations at line %d." % (run_line, max(decl_lines))
         )
 
+    tag = "-- injected by tools/deploy.py: " + what
     injected = []
 
     def replace(m):
         name, pad = m.group(1), m.group(2)
-        new = "local %s%s= %s   %s" % (name, pad, RIG_FIELDS[name], INJECT_TAG)
+        new = "local %s%s= %s.%s   %s" % (name, pad, table, RIG_FIELDS[name], tag)
         injected.append(new)
         return new
 
@@ -161,7 +176,7 @@ def build_stonne_phase(src):
         )
 
     # Keep the injected lines in file order for the human-readable printout.
-    order = {name: i for i, name in enumerate(RIG_FIELDS)}
+    order = {name: i for i, name in enumerate(RIG_NAMES)}
     injected.sort(key=lambda l: order[l.split()[1]])
     return out, injected
 
@@ -190,16 +205,23 @@ def build_plan():
     brain = read(BRAIN_SRC)
     phase_inert_text = open(PHASE_SRC, encoding="utf-8").read()
     phase_inert = phase_inert_text.encode("utf-8")
-    stonne_text, injected = build_stonne_phase(phase_inert_text)
-    stonne = stonne_text.encode("utf-8")
+
+    # Build every armed variant up front, so a failed assert stops deployment before a single
+    # byte is written rather than halfway through the four missions.
+    variants, injected = {}, {}
+    for mission, (table, what, tool) in VARIANTS.items():
+        text, lines = build_variant(phase_inert_text, table, what, tool)
+        variants[mission] = text.encode("utf-8")
+        injected[mission] = (table, lines)
 
     plan = []
     for mission in MISSIONS:
         dst_dir = os.path.join(MISSION_ROOT, mission, "scripts", "mission")
         plan.append((mission, os.path.join(dst_dir, BRAIN_DST_NAME), brain, "brain"))
-        if mission == STONNE:
+        if mission in variants:
+            label = "phase (%s)" % VARIANTS[mission][0]
             plan.append(
-                (mission, os.path.join(dst_dir, PHASE_DST_NAME), stonne, "phase (Donchery)")
+                (mission, os.path.join(dst_dir, PHASE_DST_NAME), variants[mission], label)
             )
         else:
             plan.append(
@@ -218,10 +240,18 @@ def run_check_sh():
 
     NOTE: --check deliberately does NOT call this. check.sh's own check 4l invokes
     `deploy.py --check`, and running check.sh from there would recurse forever.
+
+    SKIP_DEPLOY_DRIFT_CHECK=1 suppresses check 4l for THIS run only. 4l asks "is what is deployed
+    current?", which is a post-condition of deploying and not a pre-condition of it: gating the
+    write on it deadlocked deployment outright, because every repo edit made 4l red and a red
+    check.sh blocked the very deploy that would have cleared it. Nothing else is relaxed, and
+    every file written below is still re-read and hashed against the exact expected bytes.
     """
+    env = dict(os.environ, SKIP_DEPLOY_DRIFT_CHECK="1")
     proc = subprocess.run(
         ["bash", "tests/check.sh"],
         cwd=REPO,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -283,10 +313,17 @@ def main():
     print("tests/check.sh: %s -- proceeding" % final)
     print()
 
-    print("Stonne variant injects these lines (rewriting the inert declarations in place):")
-    for line in injected:
-        print("    " + line)
-    print()
+    # PRINT THE INJECTED LUA. The whole point of generating a variant at deploy time is that
+    # nobody has to trust it - so it is shown, verbatim, every run.
+    for mission in MISSIONS:
+        if mission not in injected:
+            continue
+        table, lines = injected[mission]
+        print("%s -> %s variant injects these lines (rewriting the inert declarations in place):"
+              % (mission, table))
+        for line in lines:
+            print("    " + line)
+        print()
 
     # --- write ---------------------------------------------------------------------------
     rows = []
@@ -322,13 +359,22 @@ def main():
         print("%-*s  %-16s  %-4s  %s" % (width, mission, label, verdict, digest))
     print()
 
+    # SUMMARY. Every count here is derived from the rows actually written and re-read, not from
+    # the plan, so it cannot claim a variant shipped that did not.
     brain_ok = sum(1 for _, l, v, _ in rows if l == "brain" and v == "PASS")
     inert_ok = sum(1 for _, l, v, _ in rows if l == "phase (inert)" and v == "PASS")
-    stonne_ok = all(v == "PASS" for _, l, v, _ in rows if l == "phase (Donchery)")
-    print(
-        "brain %d/%d, phase inert %d/%d, Stonne variant %s"
-        % (brain_ok, len(MISSIONS), inert_ok, len(MISSIONS) - 1, "ok" if stonne_ok else "FAILED")
-    )
+    n_inert = len(MISSIONS) - len(VARIANTS)
+    parts = ["brain %d/%d" % (brain_ok, len(MISSIONS)),
+             "phase inert %d/%d" % (inert_ok, n_inert)]
+    for mission in MISSIONS:
+        if mission not in VARIANTS:
+            continue
+        table = VARIANTS[mission][0]
+        label = "phase (%s)" % table
+        got = [v for _, l, v, _ in rows if l == label]
+        parts.append("%s variant %s"
+                     % (table, "ok" if got and all(v == "PASS" for v in got) else "FAILED"))
+    print(", ".join(parts))
     return 1 if failures else 0
 
 

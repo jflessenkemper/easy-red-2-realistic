@@ -14,15 +14,34 @@
 -- 90 m. If two stations are within sensing distance, one station's enemies enter the other's
 -- force-ratio calculation and both demonstrations are ruined.
 --
--- DEPLOY: copy this file to a TEST mission as its phase script:
---   ~/.config/unity3d/Corvostudio/Easy Red 2/mission_editor/<mission>/scripts/mission/phase_0.lua
--- and put Realistic.lua in that mission's scripts/AI/. It is SELF-CONTAINED: it spawns everything
--- and attaches the brain itself, so it does NOT need RealisticEvents.lua and must not be deployed
--- alongside it (one phase script per phase).
+--============================================================================
+-- THIS FILE HAS TWO ROLES, AND THE SPLIT IS THE INLINE-CUT MARKER BELOW.
 --
--- FIRST RUN: set ORIGIN. Open the mission in the editor, aim the camera at the middle of a large
--- flat area, press P to copy the cursor position, and paste it below. Everything else is laid out
--- relative to that single coordinate, so it is the only thing you have to capture by hand.
+-- ROLE 1 - RIG DATA SOURCE (everything ABOVE the cut). The part above the cut builds
+--   SHOWCASE = { squads = {}, vehicles = {}, mounted = {} } in exactly the shape
+--   RealisticEvents.lua's TEST_SPAWNS / TEST_VEHICLES / TEST_MOUNTED rig consumes, and spawns the
+--   station objectives. tools/gen_showcase_inline.py splices THAT PREFIX ONLY into
+--   RealisticEvents.lua, and tools/deploy.py then points the rig at it for the Realistic Test map.
+--   That is how the range becomes reachable from the game while still getting the kill feed, the
+--   crew bail-out drain and - the one thing this file could never do alone - the fire-mission
+--   CONSUMER that makes station 10's barrage actually land.
+--
+--   Consequently NOTHING above the cut may contain a top-level `return` or a blocking loop.
+--   Inlined text runs in RealisticEvents.lua's main chunk at line ~582: a `return` there would
+--   abort the phase script, and a `while true` would mean not one setCallback ever registers.
+--   That is why the master-client guard, INV/DEF, the emitter and the HUD all live BELOW the cut,
+--   and why the layout refusal is an `if` rather than a `return`.
+--
+-- ROLE 2 - STANDALONE PHASE SCRIPT (the whole file). Deployed on its own it still works exactly as
+--   before: the tail below the cut spawns the SHOWCASE tables itself and runs the HUD/census loop.
+--   tests/offline_showcase.lua drives THIS path, so the rig tables are validated on every run of
+--   tests/check.sh (check 4f) - they are not a second, untested code path.
+--   DEPLOY standalone: copy to <mission>/scripts/mission/phase_0.lua and put Realistic.lua in that
+--   mission's scripts/AI/. It must NOT be deployed alongside RealisticEvents.lua (one phase script
+--   per phase) - which is precisely the limitation the inline route removes.
+--============================================================================
+--
+-- FIRST RUN: ORIGIN is DERIVED, not hand-set (see below), so there is nothing to capture.
 --
 -- MEASURED RESULT, 2026-09-08 (VirtualScene, brain DEBUG on, decisions split by side).
 -- The demo (invader) squads demonstrate the feature set comprehensively:
@@ -36,12 +55,18 @@
 -- with accumulation. Do not treat a low census score as a statement about the AI; that mistake
 -- has already been made twice here.
 --
--- KNOWN GAP - STATION 10 CANNOT COMPLETE IN THIS FILE. The radioman DOES publish his request
--- (RADIO-fire-mission fires), but the CONSUMER that accepts it and fires the barrage lives in
--- RealisticEvents.lua, and this file REPLACES that as the phase script. Measured: 2 requests,
--- 0 accepted, 0 refused, 0 rounds away - nothing answered. The barrage is proven in the T10
--- isolation scenario instead, which runs with RealisticEvents.lua deployed.
+-- STATION 10 - the gap that the inline route CLOSES. Run standalone, the radioman DOES publish his
+-- request (RADIO-fire-mission fires) but nothing answers it, because the CONSUMER that accepts it
+-- and fires the barrage lives in RealisticEvents.lua and this file replaces that as the phase
+-- script. Measured standalone: 2 requests, 0 accepted, 0 refused, 0 rounds away. Run INLINED into
+-- RealisticEvents.lua the consumer is present, so station 10 can complete.
 --============================================================================
+
+-- THE RIG TABLES. Filled below, in the shape RealisticEvents.lua's rig consumes:
+--   squads   : { squad = id, side = "invader"|"defender", pos = vec3, radius = n }
+--   vehicles : { name, pos, direction }   -- arg 3 is a vec3 DIRECTION, never degrees; see below
+--   mounted  : { squadId, vehiclePos, side }
+local SHOWCASE = { squads = {}, vehicles = {}, mounted = {} }
 
 -- ORIGIN is DERIVED, not hand-set. The mission's own first objective is guaranteed to be inside
 -- the playable area, which is exactly what the range needs, so there is no coordinate to capture
@@ -54,15 +79,6 @@ local ORIGIN                        -- resolved below, after the helpers exist
 -- station 9's enemies sat exactly on station 10 - the precise cross-contamination this spacing
 -- exists to prevent. validateLayout() below now fails the build if that ever recurs.
 local STATION_GAP = 500             -- m between station centres (SENSE_RADIUS is 90)
-local HUD         = true            -- on-screen readout. This file is a demo, so it ships ON.
-local HUD_EVERY   = 1.5             -- s between HUD refreshes
-local HUD_RADIUS  = 120             -- m around the player whose soldiers are listed
-local HUD_MAX     = 8               -- lines per refresh; a HUD, not a log
--- 30 s between censuses, and the FIRST one is held back until the range has had time to spawn
--- (29 squads arrive over a coroutine, not instantly) and to close with the enemy. Judging at 15 s
--- reported 2/13 simply because most squads were still marching.
-local CENSUS_EVERY = 30
-local CENSUS_WARMUP = 120           -- s after build before the first census is meaningful
 
 local BRAIN = "Realistic.lua"
 
@@ -70,15 +86,18 @@ local BRAIN = "Realistic.lua"
 -- Every id below was read out of the real ME_Stonne mission file, so all of them exist on this
 -- install. NOTHING here is guessed.
 --
--- GAP, stated rather than papered over: there is NO confirmed French RIFLE squad id. The mission
--- contains only fr_ATsquad, fr_artilleryCrew and fr_tankCrew. So the opposing infantry below uses
--- fr_ATsquad, which is a real squad but an anti-tank one. To use a proper French rifle section,
--- find its id with the editor's loadout SEARCH box and put it in FR_RIFLE. Greyed-out entries in
--- that picker are DLC-locked.
+-- THE FRENCH RIFLE SQUAD IS RESOLVED. This block used to say there was no confirmed French rifle
+-- id and that the opposing infantry fell back on fr_ATsquad, an anti-tank squad. That gap is
+-- closed: `fr_reservist_infantry` is used by the game's own ME_French Ardennes mission, and it is
+-- also historically exact for this theatre, since III/147e RIF were reservists of a serie B
+-- division (docs/donchery-build-sheet.md:165-170). It is on the confirmed-id list that
+-- tests/offline_donchery.lua:23 enforces. The stale note mattered: EIGHT of the thirteen stations
+-- below use FR_RIFLE as the opposing force, so a wrong id there leaves eight stations with no
+-- enemy at all and nothing to demonstrate.
 local GER_RIFLE = "ger_infantry_1940"          -- 1940 rifle squad, has a Support gunner
 local GER_AT    = "ger_infantry_AT_earlywar"   -- AT squad, for the armour-hunting station
 local GER_CREW  = "ger_tankCrew_1940"          -- for the bail-out station
-local FR_RIFLE  = "fr_reservist_infantry"      -- confirmed; see the note above
+local FR_RIFLE  = "fr_reservist_infantry"      -- confirmed twice over; see the note above
 local FR_GUNS   = "fr_artilleryCrew"           -- emplaced-crew stand-in
 
 local V_PZ2     = "Panzer II C"
@@ -88,40 +107,39 @@ local V_MG_EMP  = "Hotchkiss Stationary Ground"
 local V_FRTANK  = "Char B1"
 
 --========================= helpers ==========================================
-local function safeGet(fn) local ok, v = pcall(fn); if ok then return v end return nil end
-local function safe(fn) return (pcall(fn)) end
-local function log2(m) log("[SHOWCASE] " .. tostring(m)) end
-local function announce(m) log2(m); pcall(function() print(m) end) end
-
-if not er2.isMasterClient() then return end
-local MY_PHASE = safeGet(function() return er2.getCurrentPhaseId() end) or 0
-local INV = safeGet(function() return er2.getInvadersFaction() end)
-local DEF = safeGet(function() return er2.getDefendersFaction() end)
+-- DELIBERATELY PREFIXED `sc`. These three used to be called safe/safeGet/log2, and RealisticEvents.lua
+-- defines its own safe() and safeGet() at lines 60-63. The prefix above the cut is inlined into that
+-- file's main chunk, so an unprefixed `local function safeGet` would SHADOW the phase script's own
+-- version for the remaining ~1100 lines. Shadowing a working file on the assumption that two
+-- pcall wrappers are byte-identical is exactly the silent-risk class this project keeps paying for.
+local function scSafeGet(fn) local ok, v = pcall(fn); if ok then return v end return nil end
+local function scSafe(fn) return (pcall(fn)) end
+local function scLog(m) log("[SHOWCASE] " .. tostring(m)) end
 
 -- Resolve the origin: an explicit override, else the first mission objective, else the map centre.
 -- getAllObjectives is a FILL-style API and must be called WITH a table - a bare call throws on
 -- every invocation.
 if ORIGIN_OVERRIDE then
     ORIGIN = ORIGIN_OVERRIDE
-    log2(string.format("origin: override (%.0f,%.0f)", ORIGIN.x, ORIGIN.z))
+    scLog(string.format("origin: override (%.0f,%.0f)", ORIGIN.x, ORIGIN.z))
 else
     local objs = {}
-    safe(function() er2.getAllObjectives(objs) end)
+    scSafe(function() er2.getAllObjectives(objs) end)
     for _, o in pairs(objs) do
-        local op = o and safeGet(function() return o.getPosition() end)
+        local op = o and scSafeGet(function() return o.getPosition() end)
         if op then
             -- Offset well clear of the objective itself so the range does not overlap whatever
             -- the mission already has fighting over it.
             ORIGIN = vec3(op.x + 400, op.y, op.z + 400)
-            log2(string.format("origin: derived from the first mission objective -> (%.0f,%.0f)",
-                 ORIGIN.x, ORIGIN.z))
+            scLog(string.format("origin: derived from the first mission objective -> (%.0f,%.0f)",
+                  ORIGIN.x, ORIGIN.z))
             break
         end
     end
     if not ORIGIN then
         ORIGIN = vec3(0, 0, 0)
-        log2("origin: no objective found, falling back to (0,0). If the range spawns off-map, set "
-             .. "ORIGIN_OVERRIDE with a P-captured position.")
+        scLog("origin: no objective found, falling back to (0,0). If the range spawns off-map, set "
+              .. "ORIGIN_OVERRIDE with a P-captured position.")
     end
 end
 
@@ -132,9 +150,9 @@ end
 -- enemies at exactly 25 m, so that difference decides whether the assault station works at all.
 -- The brain already exposes an override for exactly this; use it so the range behaves the same on
 -- any host mission. Primitives only in a Lua global, and the value comes first.
-safe(function() global.set("germany", "realistic_nation_invaders") end)
-safe(function() global.set("france",  "realistic_nation_defenders") end)
-log2("doctrine pinned: invaders=germany, defenders=france (independent of the host mission)")
+scSafe(function() global.set("germany", "realistic_nation_invaders") end)
+scSafe(function() global.set("france",  "realistic_nation_defenders") end)
+scLog("doctrine pinned: invaders=germany, defenders=france (independent of the host mission)")
 
 local function at(dx, dz) return vec3(ORIGIN.x + dx, ORIGIN.y, ORIGIN.z + dz) end
 
@@ -201,8 +219,10 @@ local STATIONS = {
     { n = 10, expect = {17}, name = "10 Radio fire mission",
       shows = "RADIO-fire-mission, and a barrage that actually LANDS",
       ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 80,
-      note = "130 m is the whole point: it clears FIRE_DANGER_R 90 m from every friendly. "
-          .. "Every barrage so far was correctly REFUSED danger close" },
+      note = "80 m clears FIRE_DANGER_R, which is 50 m (RealisticEvents.lua:61) - NOT the 90 m "
+          .. "this note used to quote. At 90 the radius equalled SENSE_RADIUS, so the gate was "
+          .. "arithmetically impossible to open and every barrage was refused danger-close. That "
+          .. "was the bug, not the geometry; 24 shells landed once it was 50" },
 
     { n = 11, expect = {30, 31}, name = "11 Transport reuse",
       shows = "RETURN-to-transport then REBOARD-transport",
@@ -224,29 +244,30 @@ local STATIONS = {
 }
 
 --========================= build the range ==================================
-local built, failed = 0, 0
 local labels = {}
+local failed = 0
 
-local function spawnSquadAt(squadId, pos, faction, radius)
-    local sq = safeGet(function()
-        return spawnSquad_script(pos, radius or 12, faction, squadId, BRAIN)
-    end)
-    if sq == nil then
-        -- Fall back to a brainless spawn so the station still exists and is visibly wrong,
-        -- rather than silently missing. A bad squad id shows up here.
-        if safe(function() spawnSquad(pos, radius or 12, faction, squadId) end) then
-            log2("WARNING squad '" .. tostring(squadId) .. "' spawned WITHOUT a brain")
-        else
-            log2("FAILED to spawn squad '" .. tostring(squadId) .. "' - check the id")
-            failed = failed + 1
-            return nil
-        end
-    end
-    built = built + 1
-    return sq
+-- The two rig emitters. `side` is a STRING here, not a faction handle: the rig resolves
+-- "invader"/"defender" to INV/DEF itself, which is what lets this whole prefix be inlined ABOVE
+-- the point where a faction handle even exists.
+local function addSquad(squadId, pos, side, radius)
+    SHOWCASE.squads[#SHOWCASE.squads + 1] =
+        { squad = squadId, side = side, pos = pos, radius = radius or 12 }
+end
+-- ARG 3 IS A vec3 DIRECTION, NOT A ROTATION IN DEGREES. docs/verified-api.md documented
+-- spawnVehicle(vehicle_id, pos, rot) and a number looked like the obvious reading; it is not.
+-- MEASURED 2026-09-08 on v2.1.0: passing 180 threw
+--     bad argument #3 to 'spawnVehicleWithCallback' (userdata expected, got number)
+-- and - this is the important part - the exception ESCAPED THE ENCLOSING pcall, propagated
+-- into Unity's coroutine machinery and killed the entire phase script. The range built
+-- station 1 and then simply stopped. Same uncatchable class as the soldier_suppressed NRE:
+-- the throw happens inside the engine's own argument marshalling, before the Lua body, so
+-- pcall cannot help and a guard is NOT protection. The only safe move is to pass the right type.
+local function addVeh(name, pos, dir)
+    SHOWCASE.vehicles[#SHOWCASE.vehicles + 1] = { name, pos, dir }
 end
 
--- LAYOUT VALIDATION, before anything is spawned. The failure mode this catches is subtle and
+-- LAYOUT VALIDATION, before anything is emitted. The failure mode this catches is subtle and
 -- silent: a station's enemies drift within sensing range of a NEIGHBOUR's centre, so that
 -- neighbour's squad counts them in its force ratio and takes a completely different branch. The
 -- demonstration then shows the wrong feature and looks like an AI bug. Refuse to build instead.
@@ -266,8 +287,8 @@ local function validateLayout()
                     local ddx, ddz = (dx + ed) - ox, dz - oz
                     local d = math.sqrt(ddx * ddx + ddz * ddz)
                     if d < (SENSE + MARGIN) then
-                        log2(string.format("LAYOUT ERROR station %d's enemies are %.0f m from "
-                             .. "station %d's centre (need >= %d)", s.n, d, o.n, SENSE + MARGIN))
+                        scLog(string.format("LAYOUT ERROR station %d's enemies are %.0f m from "
+                              .. "station %d's centre (need >= %d)", s.n, d, o.n, SENSE + MARGIN))
                         bad = bad + 1
                     end
                 end
@@ -278,14 +299,16 @@ local function validateLayout()
 end
 
 local layoutErrors = validateLayout()
+-- AN `if`, NOT A `return`. This used to be `return`, and a top-level return is FATAL once this
+-- prefix is inlined into RealisticEvents.lua's main chunk: it would abort the phase script and
+-- take every callback registration with it.
 if layoutErrors > 0 then
-    log2("REFUSING to build: " .. layoutErrors .. " layout conflict(s). Raise STATION_GAP or "
-         .. "lower the offending enemyD. Nothing was spawned.")
-    return
-end
+    scLog("REFUSING to build: " .. layoutErrors .. " layout conflict(s). Raise STATION_GAP or "
+          .. "lower the offending enemyD. Nothing was spawned.")
+else
 
-log2("building the demonstration range, " .. #STATIONS .. " stations, "
-     .. STATION_GAP .. " m apart (SENSE_RADIUS is 90, layout validated)")
+scLog("building the demonstration range, " .. #STATIONS .. " stations, "
+      .. STATION_GAP .. " m apart (SENSE_RADIUS is 90, layout validated)")
 
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
@@ -293,65 +316,30 @@ for _, s in ipairs(STATIONS) do
 
     -- German side
     for i, sid in ipairs(s.ger or {}) do
-        spawnSquadAt(sid, at(dx + (i - 1) * 20, dz), INV, 12)
+        addSquad(sid, at(dx + (i - 1) * 20, dz), "invader", 12)
     end
-    -- A squad spawned ON a vehicle, which is the only way the transport-reuse branch is reachable:
-    -- it keys off myTransportId, remembered while MOUNTED, so a squad that never rode anything can
-    -- never return to it. Measured: station 11 showed only ROAD-MARCH until this was added.
+    -- A squad that must spawn ON a vehicle, which is the only way the transport-reuse branch is
+    -- reachable: it keys off myTransportId, remembered while MOUNTED, so a squad that never rode
+    -- anything can never return to it. Measured: station 11 showed only ROAD-MARCH until this was
+    -- added. The truck it boards is the one in s.vehicles at the SAME position - it used to be
+    -- spawned a second time here, which put two Opel Blitzes on the same square metre.
     for _, sid in ipairs(s.mounted or {}) do
-        local vp = at(dx + 30, dz)
-        safe(function() spawnVehicle(V_TRUCK, vp, vec3(1, 0, 0)) end)
-        -- Find the truck by AREA SCAN rather than trusting spawnVehicle's return value, which is
-        -- undocumented and empty (it resolves to spawnVehicleWithCallback). Relying on it made
-        -- this branch always take the dismounted fallback. getVehiclesInArea is fill-style and
-        -- must be called WITH a table.
-        local vlist, veh = {}, nil
-        safe(function() er2.getVehiclesInArea(vp, 40, vlist) end)
-        for _, v in pairs(vlist) do if v then veh = v break end end
-        local ok = veh and safeGet(function()
-            return spawnSquadOnVehicle_script(vp, 8, INV, sid, veh, BRAIN)
-        end)
-        if ok then
-            built = built + 1
-        else
-            log2("mounted spawn unavailable for '" .. tostring(sid)
-                 .. "' - falling back to a dismounted squad (transport reuse will not fire)")
-            spawnSquadAt(sid, at(dx, dz), INV, 12)
-        end
+        SHOWCASE.mounted[#SHOWCASE.mounted + 1] = { sid, at(dx + 30, dz), "invader" }
     end
 
     -- Enemy side, placed enemyD metres along +X so the axis of threat is consistent
     local ed = s.enemyD or 100
     for i, sid in ipairs(s.enemy or {}) do
-        spawnSquadAt(sid, at(dx + ed, dz + (i - 1) * 25), DEF, 10)
+        addSquad(sid, at(dx + ed, dz + (i - 1) * 25), "defender", 10)
     end
 
     -- Vehicles: { name, offsetX, offsetZ }
-    --
-    -- ARG 3 IS A vec3 DIRECTION, NOT A ROTATION IN DEGREES. docs/verified-api.md documented
-    -- spawnVehicle(vehicle_id, pos, rot) and a number looked like the obvious reading; it is not.
-    -- MEASURED 2026-09-08 on v2.1.0: passing 180 threw
-    --     bad argument #3 to 'spawnVehicleWithCallback' (userdata expected, got number)
-    -- and - this is the important part - the exception ESCAPED THE ENCLOSING pcall, propagated
-    -- into Unity's coroutine machinery and killed the entire phase script. The range built
-    -- station 1 and then simply stopped. Same uncatchable class as the soldier_suppressed NRE:
-    -- the throw happens inside the engine's own argument marshalling, before the Lua body, so
-    -- pcall cannot help and a guard is NOT protection. The only safe move is to pass the right
-    -- type.
     for _, v in ipairs(s.vehicles or {}) do
-        if not safe(function() spawnVehicle(v[1], at(dx + v[2], dz + v[3]), vec3(1, 0, 0)) end) then
-            log2("FAILED to spawn vehicle '" .. tostring(v[1]) .. "'")
-            failed = failed + 1
-        end
+        addVeh(v[1], at(dx + v[2], dz + v[3]), vec3(1, 0, 0))
     end
     -- Emplacements face back down -X toward the German squads, who sit at the station centre.
     for i, e in ipairs(s.emplace or {}) do
-        if not safe(function()
-               spawnVehicle(e, at(dx + ed, dz + (i - 1) * 30), vec3(-1, 0, 0))
-           end) then
-            log2("FAILED to spawn emplacement '" .. tostring(e) .. "'")
-            failed = failed + 1
-        end
+        addVeh(e, at(dx + ed, dz + (i - 1) * 30), vec3(-1, 0, 0))
     end
 
     -- STATION LABEL. attractor = FALSE for every label except the two stations that need a real
@@ -383,21 +371,132 @@ for _, s in ipairs(STATIONS) do
     --
     -- Clamped to 220 m so it stays nearer its OWN station than any neighbour's (they are 500 m
     -- apart, so the next centre is 280 m further on).
+    --
+    -- OBJECTIVES ARE SPAWNED HERE IN BOTH ROLES, not emitted into the rig. The rig has ONE
+    -- TEST_OBJECTIVE slot and this range needs fourteen, and objective creation - unlike squad
+    -- spawning - depends on no callback, so doing it at load time is safe even when this prefix is
+    -- inlined above RealisticEvents.lua's setCallback block.
     local od = s.objectiveD or math.min(220, (s.enemyD or 100) + 120)
     local attract = (s.objective == "attract")
-    local o = safeGet(function()
+    local o = scSafeGet(function()
         return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
     end)
     if o then labels[#labels + 1] = s.name else failed = failed + 1 end
+    -- TAG THE NON-ATTRACTING LABELS so RealisticEvents.lua's attraction manager leaves them alone.
+    -- That manager does `for _, o in ipairs(objList) do setAttract(o, true, true) end` at load
+    -- (RealisticEvents.lua:1082) and re-asserts attraction every ATTRACT_EVERY seconds in
+    -- loopBody, which would turn all thirteen station labels into attractors and undo the
+    -- attractor=false design above - the map-wide drag that collapsed this range once already.
+    -- Station 12's attracting pair is deliberately left UNTAGGED: it exists to demonstrate
+    -- objective flow, and the attraction manager is the thing that demonstrates it.
+    if o and not attract then
+        scSafe(function()
+            global.set(1, "realistic_showcase_label" .. tostring(o.getUniqueId()))
+        end)
+    end
     if s.secondObjective then
-        safe(function() spawnMissionObjective(at(dx + od, dz - 200), 45,
-                                             s.name .. " (second)", 0, true) end)
+        scSafe(function() spawnMissionObjective(at(dx + od, dz - 200), 45,
+                                                s.name .. " (second)", 0, true) end)
     end
 
-    log2(string.format("station %-2d @(%.0f,%.0f)  %s", s.n, centre.x, centre.z, s.shows))
+    scLog(string.format("station %-2d @(%.0f,%.0f)  %s", s.n, centre.x, centre.z, s.shows))
 end
 
-log2(string.format("range built: %d squads/vehicles placed, %d failures, %d labels",
+scLog(string.format("range built: %d squads, %d vehicles, %d mounted, %d labels, %d failures",
+      #SHOWCASE.squads, #SHOWCASE.vehicles, #SHOWCASE.mounted, #labels, failed))
+
+end   -- if layoutErrors > 0 ... else
+
+--============================================================================
+--@@ SHOWCASE INLINE CUT - tools/gen_showcase_inline.py splices ONLY the text ABOVE this line.
+--
+-- EVERYTHING BELOW IS STANDALONE-ONLY and must never be inlined:
+--   * the master-client guard is a top-level `return` (RealisticEvents.lua:90 already has its own);
+--   * INV / DEF / MY_PHASE / announce / safe / safeGet / roleOf all collide with names
+--     RealisticEvents.lua already declares;
+--   * the emitter would spawn the range at load, BEFORE a single setCallback has run - the exact
+--     ordering bug check 4k exists to prevent, and the reason the rig is a deferred function;
+--   * the HUD ends in `while true ... sleep(1)`, so nothing after it would ever execute.
+--============================================================================
+
+if not er2.isMasterClient() then return end
+
+local safeGet = scSafeGet
+local safe = scSafe
+local log2 = scLog
+local function announce(m) log2(m); pcall(function() print(m) end) end
+
+local MY_PHASE = safeGet(function() return er2.getCurrentPhaseId() end) or 0
+local INV = safeGet(function() return er2.getInvadersFaction() end)
+local DEF = safeGet(function() return er2.getDefendersFaction() end)
+
+local HUD         = true            -- on-screen readout. This file is a demo, so it ships ON.
+local HUD_EVERY   = 1.5             -- s between HUD refreshes
+local HUD_RADIUS  = 120             -- m around the player whose soldiers are listed
+local HUD_MAX     = 8               -- lines per refresh; a HUD, not a log
+-- 30 s between censuses, and the FIRST one is held back until the range has had time to spawn
+-- (29 squads arrive over a coroutine, not instantly) and to close with the enemy. Judging at 15 s
+-- reported 2/13 simply because most squads were still marching.
+local CENSUS_EVERY = 30
+local CENSUS_WARMUP = 120           -- s after build before the first census is meaningful
+
+--========================= the standalone emitter ===========================
+-- Spawns the rig tables this file just built. Order matters and mirrors runSpawnRig(): squads,
+-- then vehicles, then mounted - the mounted path finds its vehicle by AREA SCAN, so the vehicle
+-- has to exist first.
+local built = 0
+local function spawnSquadAt(squadId, pos, faction, radius)
+    local sq = safeGet(function()
+        return spawnSquad_script(pos, radius or 12, faction, squadId, BRAIN)
+    end)
+    if sq == nil then
+        -- Fall back to a brainless spawn so the station still exists and is visibly wrong,
+        -- rather than silently missing. A bad squad id shows up here.
+        if safe(function() spawnSquad(pos, radius or 12, faction, squadId) end) then
+            log2("WARNING squad '" .. tostring(squadId) .. "' spawned WITHOUT a brain")
+        else
+            log2("FAILED to spawn squad '" .. tostring(squadId) .. "' - check the id")
+            failed = failed + 1
+            return nil
+        end
+    end
+    built = built + 1
+    return sq
+end
+
+for _, s in ipairs(SHOWCASE.squads) do
+    spawnSquadAt(s.squad, s.pos, (s.side == "invader") and INV or DEF, s.radius)
+end
+
+for _, v in ipairs(SHOWCASE.vehicles) do
+    if not safe(function() spawnVehicle(v[1], v[2], v[3]) end) then
+        log2("FAILED to spawn vehicle '" .. tostring(v[1]) .. "'")
+        failed = failed + 1
+    end
+end
+
+for _, m in ipairs(SHOWCASE.mounted) do
+    -- Find the vehicle by AREA SCAN rather than trusting spawnVehicle's return value, which is
+    -- undocumented and empty (it resolves to spawnVehicleWithCallback). Relying on it made this
+    -- branch always take the dismounted fallback. getVehiclesInArea is fill-style and must be
+    -- called WITH a table.
+    local vlist, veh = {}, nil
+    safe(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
+    for _, v in pairs(vlist) do if v then veh = v break end end
+    local fac = (m[3] == "defender") and DEF or INV
+    local ok = veh and safeGet(function()
+        return spawnSquadOnVehicle_script(m[2], 8, fac, m[1], veh, BRAIN)
+    end)
+    if ok then
+        built = built + 1
+    else
+        log2("mounted spawn unavailable for '" .. tostring(m[1])
+             .. "' - falling back to a dismounted squad (transport reuse will not fire)")
+        spawnSquadAt(m[1], m[2], fac, 12)
+    end
+end
+
+log2(string.format("standalone emitter: %d squads/crews placed, %d failures, %d labels",
      built, failed, #labels))
 if failed > 0 then
     log2("NOTE a failure above is almost always a squad or vehicle id that does not exist on this "
@@ -421,17 +520,6 @@ local DECN = {
     [26]="CONSOLIDATE", [27]="RALLY-on-MG", [28]="ROAD-MARCH", [29]="ADVANCE-baseAI",
     [30]="RETURN-to-transport", [31]="REBOARD-transport", [32]="FORM-followLeader",
 }
-
-local function nearestStation(p)
-    local best, bd = nil, 1e9
-    for _, s in ipairs(STATIONS) do
-        local dx, dz = cell(s.n)
-        local c = at(dx, dz)
-        local d = distance(p, c)
-        if d < bd then best, bd = s, d end
-    end
-    return best, bd
-end
 
 local function roleOf(s)
     if safeGet(function() return s.isSquadLeader() end) == true then return "leader"   end
