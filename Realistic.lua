@@ -827,7 +827,14 @@ local ARMOUR_ALLOW = {
     "somua","hotchkiss","renault","char","fcm","amc ","amr ","matilda","valentine","churchill",
     "cromwell","crusader","cruiser","sherman","stuart","grant","m3 lee","chaffee","t-34","t34",
     "kv-","kv1","kv2","is-2","isu","su-","bt-","t-26","t26","chi-ha","ha-go",
-    "sdkfz 251","sd.kfz. 251","sd.kfz 251","hanomag","universal carrier","bren carrier",
+    -- The game's OWN names have no space or dot: "Sdkfz251 1939", "Sdkfz222". The spaced and
+    -- dotted spellings below matched NEITHER, so the primary German halftrack and armoured car
+    -- both fell through as UNCLASSIFIED and isArmour() returned false - which is exactly why
+    -- ADVANCE-behind-armour fired ZERO times at a halftrack station on 2026-09-08. Both spellings
+    -- are kept, since other content may use either.
+    "sdkfz251","sdkfz250","sdkfz222","sdkfz221","sdkfz223","sdkfz231","sdkfz232","sdkfz233",
+    "sdkfz234","sdkfz263","sdkfz 251","sd.kfz. 251","sd.kfz 251","hanomag",
+    "universal carrier","bren carrier",
     "armoured car","armored car","puma","greyhound","daimler","humber","staghound",
 }
 local ARMOUR_DENY = {
@@ -840,6 +847,13 @@ local armourSeen = {}   -- per-brain dedup so an unknown name never logs twice f
 local function isArmour(v)
     local nm = tostring(safeGet(function() return v.getName() end) or ""):lower()
     if nm == "" then return false end
+    -- HARD EXCLUSIONS, checked BEFORE the allow list because the allow list is deliberately
+    -- greedy. "Hotchkiss Stationary Ground" is an EMPLACED MACHINE GUN, but "hotchkiss" is on the
+    -- allow list for the H35 TANK - so an emplacement was being classified as armour and offered
+    -- as something to advance behind. A static mount is never that, whatever gun it carries.
+    -- Inlined rather than given its own table: this file is at the Lua 200-local ceiling.
+    if nm:find("stationary", 1, true) or nm:find("emplac", 1, true)
+       or nm:find("static", 1, true) then return false end
     for _, t in ipairs(ARMOUR_ALLOW) do if nm:find(t, 1, true) then return true end end
     for _, t in ipairs(ARMOUR_DENY)  do if nm:find(t, 1, true) then return false end end
     if not armourSeen[nm] then

@@ -176,6 +176,21 @@ if [ -f missions/scenarios/showcase.lua ]; then
   fi
 fi
 
+echo "== 4g. Armour name filter classifies the real vehicle names =="
+# Vehicle has no getClassName(), so feature 5 decides what counts as armour by matching substrings
+# of getName(). A mis-match is SILENT in-game: the branch just never fires, or fires against cover
+# that is not cover. Three of the eight names in the real missions were wrong at once -
+# "Sdkfz251 1939" and "Sdkfz222" fell through UNCLASSIFIED because the allow list only had the
+# SPACED spellings, and "Hotchkiss Stationary Ground" (an emplaced MG) was allowed by the token
+# meant for the H35 tank.
+if python3 tests/armour_filter_check.py > /tmp/armour.$$ 2>&1; then
+  ok "$(sed -n 's/^ok    //p' /tmp/armour.$$ | head -1)"
+else
+  while read -r line; do bad "${line#FAIL  }"; done < <(grep '^FAIL' /tmp/armour.$$)
+  grep -q '^FAIL' /tmp/armour.$$ || bad "armour_filter_check.py: $(head -1 /tmp/armour.$$)"
+fi
+rm -f /tmp/armour.$$
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
