@@ -171,7 +171,19 @@ local VOICE_ENUM = {
 -- aggression   : 0..1 per-tick probability of pressing to assault when in range + steady.
 -- assaultRange : m within which an aggressive, steady man closes to assault.
 -- coverDiscipline : 0..1 preference for moving via cover/low ground while assaulting.
-local DOCTRINE_DEFAULT = { moraleFloor=0.30, mgCentric=false, aggression=0.45, assaultRange=20, coverDiscipline=0.6 }
+-- THE FALLBACK PROFILE, used by any faction whose string matches no token in NATION_TOKENS —
+-- i.e. every modded, custom or simply unmodelled nation. It must keep EVERY branch reachable.
+--
+-- It did not, until 2026-09-08: aggression was 0.45 against ASSAULT_MIN_AGGR 0.50, and mgCentric
+-- was false. So an unrecognised nation could never ASSAULT, never ASSAULT-cover, and never
+-- RALLY-on-MG — three of the catalogued features, switched off with nothing logged, while the
+-- README advertised the mod as working with any nation. aggression is now AT the assault
+-- threshold (a deliberately cautious 0.50, not Germany's 0.75) and mgCentric is true, which is
+-- also the majority of the modelled table: 8 of 10 nations are mgCentric, because a 1940 rifle
+-- section is built around its automatic weapon almost everywhere.
+--
+-- If you change ASSAULT_MIN_AGGR, change this too — check 8 fails if aggression drops below it.
+local DOCTRINE_DEFAULT = { moraleFloor=0.30, mgCentric=true, aggression=0.50, assaultRange=20, coverDiscipline=0.6 }
 local DOCTRINE = {
     -- Germany, May 1940 (Sedan/Stonne): high tempo, MG-centric, presses hard, holds when outnumbered.
     germany      = { moraleFloor=0.22, mgCentric=true,  aggression=0.75, assaultRange=35, coverDiscipline=0.80 },
@@ -314,21 +326,59 @@ local isMarksman = safeGet(function() return me.isMarksman() end) == true
 --   * crew / pilot / mounted — no flag exists, and the robust runtime signal is
 --     getCurrentVehicle() (checked every tick); this class hint is a belt-and-suspenders so we
 --     also defer during the brief seat/spawn race.
--- Note isCrew deliberately does NOT match "gunner" (that is the "Support Gunner" LMG class),
+-- Note CLS.crew deliberately does NOT match "gunner" (that is the "Support Gunner" LMG class),
 -- and its "tank" token is now cleared by the native AT flag so a "Tank Hunter" is not swallowed.
-local myClass  = tostring(safeGet(function() return me.getClassName() end) or ""):lower()
-local isMG     = myClass:find("support") ~= nil   -- ER2 "Support" = the LMG gunner
-local isMortar = myClass:find("mortar")  ~= nil
-local isCrew   = (not isAT) and (myClass:find("pilot") or myClass:find("aircraft")
-    or myClass:find("aircrew") or myClass:find("crew") or myClass:find("driver")
-    or myClass:find("tank")) ~= nil
+-- Grouped in ONE table, not four locals: this file is at the Lua 200-local ceiling and the
+-- broadened matcher below needs the room. CLS.class is the lowercased class string; the three
+-- booleans are derived from it.
+local CLS = {}
+CLS.class = tostring(safeGet(function() return me.getClassName() end) or ""):lower()
+
+-- MG-GUNNER DETECTION — the widest generality hole in the mod, because this man is not just a
+-- role tag: he is the ANCHOR of the formation branch (RALLY-on-MG forms the squad on mgPos). Until
+-- 2026-09-08 this was the single English token "support", so a custom or non-English squad whose
+-- gunner class is not named "Support" lost SUPPORT-hold-fire AND silently stopped forming up at
+-- all - with nothing logged. Order of preference:
+--   1) a mission author's explicit override (a substring, matched lowercased)
+--   2) a broadened token list covering the common English and non-English namings
+--   3) isAmmoBoxCarrier() as a corroborating native signal - the belt carrier travels with the gun
+-- There is no native isSupportGunner()/CLS.mortar() flag on v2.0.9; if one ever appears, prefer it.
+CLS.mgTokens = { "support", "lmg", "mg", "machine", "gunner", "mitrailleur", "pulemet",
+                 "maschinengewehr", "schutze", "automatic rifle", "bar " }
+CLS.mortarTokens = { "mortar", "granatwerfer", "mortier", "minomet" }
+
+-- Guarded like every other engine call. The override is a plain string, so it is safe as a Lua
+-- global (primitives only - UserData in a global kills every brain at boot).
+CLS.mgOverride = safeGet(function() return global.get("realistic_mg_class") end)
+CLS.mortarOverride = safeGet(function() return global.get("realistic_mortar_class") end)
+
+local function classMatches(cn, tokens, override)
+    if cn == "" then return false end
+    if type(override) == "string" and override ~= "" then
+        return cn:find(tostring(override):lower(), 1, true) ~= nil
+    end
+    for i = 1, #tokens do
+        if cn:find(tokens[i], 1, true) then return true end
+    end
+    return false
+end
+CLS.isMGClass = function(cn) return classMatches(cn, CLS.mgTokens, CLS.mgOverride) end
+
+CLS.mg = CLS.isMGClass(CLS.class)
+    or (CLS.mgOverride == nil and safeGet(function() return me.isAmmoBoxCarrier() end) == true)
+CLS.mortar = classMatches(CLS.class, CLS.mortarTokens, CLS.mortarOverride)
+-- "gunner" is now an MG token, so it must NOT also read as crew; the native AT flag already
+-- clears "tank" so a "Tank Hunter" is not swallowed.
+CLS.crew = (not isAT) and (not CLS.mg) and (CLS.class:find("pilot") or CLS.class:find("aircraft")
+    or CLS.class:find("aircrew") or CLS.class:find("crew") or CLS.class:find("driver")
+    or CLS.class:find("tank")) ~= nil
 
 -- roleTag: most-specific first. Native-flag roles win over the class-string ones. Recomputed
 -- when a squad resolves late, so a leader found on tick 20 does not trace as "trooper" forever.
 local function makeRoleTag()
-    return isCrew and "crew/aircraft"
+    return CLS.crew and "crew/aircraft"
         or (isLeader and "LEADER" or (isMedic and "medic" or (isAT and "AT"
-        or (isMG and "MG-gunner" or (isMortar and "mortar" or (isMarksman and "marksman"
+        or (CLS.mg and "MG-gunner" or (CLS.mortar and "mortar" or (isMarksman and "marksman"
         or (isRadio and "radioman" or "trooper")))))))
 end
 local roleTag = makeRoleTag()
@@ -428,7 +478,7 @@ local sqSize = mySquad and safeGet(function() return mySquad.getSquadSize() end)
 -- which would make the whole RQ_* fire-mission protocol a no-op. Integer only.
 safe(function() global.set(4242, "PROBE_B2P") end)
 dbg(string.format("ONLINE #%s %s/%s class='%s' faction=%s %s aiParams=%s squad=%s size=%s",
-    tostring(uid), myNation, roleTag, myClass, tostring(myFaction),
+    tostring(uid), myNation, roleTag, CLS.class, tostring(myFaction),
     DOC.mgCentric and "[MG-centric]" or "[rifle-centric]", AIP and "ok" or "MISSING",
     mySquad and "yes" or "nil(retrying)", tostring(sqSize)))
 
@@ -604,7 +654,11 @@ local function sense(pos)
                         local d = distance(pos, sp)
                         if d < mgD then
                             local cn = tostring(safeGet(_sClass) or ""):lower()
-                            if cn:find("support") then mgPos, mgD = sp, d end
+                            -- Same matcher as the man's own role, so a custom gunner class is
+                            -- found as the formation anchor too. Using the raw "support" token
+                            -- here while the role used the broadened list would mean a custom
+                            -- squad's gunner knew he was the gunner but nobody formed on him.
+                            if CLS.isMGClass(cn) then mgPos, mgD = sp, d end
                         end
                     end
                 end
@@ -709,10 +763,10 @@ end
 -- reuse-transport state: the vehicle this soldier last rode in as a passenger, and a
 -- throttle for board attempts. Persist across ticks (per-soldier upvalues).
 local myTransportId, lastBoardT = nil, -1000
--- CREW-ON-FOOT STATE. isCrew is a getClassName() test, and on v2.0.9 it can NEVER be true:
+-- CREW-ON-FOOT STATE. CLS.crew is a getClassName() test, and on v2.0.9 it can NEVER be true:
 -- a full Donchery battle with sampling disabled emitted exactly eight distinct classes —
 -- rifleman, squad leader, radioman, medic, engineer, support gunner, marksman, at unit — and not
--- one of "crew"/"tank"/"driver"/"pilot" that isCrew looks for. "Tank Crew (Panzer II Ausf. B)" is
+-- one of "crew"/"tank"/"driver"/"pilot" that CLS.crew looks for. "Tank Crew (Panzer II Ausf. B)" is
 -- the SQUAD name, not the soldier's class. So the CREW-onfoot branch was structurally
 -- unreachable: two Panzer IIs were knocked out, their crews ejected, and it fired zero times.
 -- Identify the man by what he was RIDING instead, which is observable: remember that our vehicle
@@ -1095,7 +1149,7 @@ end
 -- return to and re-board our remembered transport instead of abandoning it. Only called on a
 -- safe, far-objective advance. Returns a decision label if it acted, else nil (walk on foot).
 local function reuseTransport(pos, now)
-    if not (REUSE_TRANSPORT and myTransportId and not isCrew) then return nil end
+    if not (REUSE_TRANSPORT and myTransportId and not CLS.crew) then return nil end
     -- A man carrying a wounded comrade does not go looking for a truck. This gate was documented
     -- as a suitability rule long before it could exist (feature 17 was unimplemented, so there
     -- was no such thing as "carrying"); now that the drag branch is real, the rule is real too.
@@ -1199,7 +1253,7 @@ while true do
         -- morale intact. Excludes the men whose job is to BE the base of fire or to stay out of
         -- the firing line: MG, mortar, medic, leader and AT.
         local boundNow = threatened and amInvader and ec
-                         and (not isMG) and (not isMortar) and (not isMedic)
+                         and (not CLS.mg) and (not CLS.mortar) and (not isMedic)
                          and (not isLeader) and (not isAT)
                          and forceRatio >= DOC.moraleFloor
 
@@ -1224,7 +1278,7 @@ while true do
         -- isAT is excluded too: an AT man is the battalion's only answer to armour, and the AT
         -- branch above already handled him whenever there was a vehicle to hunt. Letting him
         -- charge infantry spends the anti-tank capability on a job any rifleman can do.
-        local assaultNow = threatened and (not isMG) and (not isMortar)
+        local assaultNow = threatened and (not CLS.mg) and (not CLS.mortar)
                            and (not isMedic) and (not isLeader) and (not isAT)
                            and edist <= DOC.assaultRange
                            and (DOC.aggression or 0) >= ASSAULT_MIN_AGGR
@@ -1242,7 +1296,7 @@ while true do
         local casUid  = casS and safeGet(function() return casS.getUniqueId() end) or nil
         local dragNow = false
         if casPos and casS and casUid and (nec == 0) and (casD <= DRAG_RADIUS)
-           and (not isMedic) and (not isLeader) and (not isMG) and (not isMortar)
+           and (not isMedic) and (not isLeader) and (not CLS.mg) and (not CLS.mortar)
            and dragTries < CARRY_MAX_TRIES and not dragBlack[casUid]
            and (amInvader or casD <= CARRY_ADJACENT) then
             if safeGet(_meCarry) == true then
@@ -1257,7 +1311,7 @@ while true do
         -- Every branch is terminal, and no branch may be gated by a condition a higher branch
         -- has already consumed (that is what made ASSAULT, ROUT and MEDIC-sortie unreachable).
         local decision, detail = nil, ""
-        if (isCrew or (rodeArmour and (now - lastAboardT) < CREW_SHOCK)) and not inVehicle then
+        if (CLS.crew or (rodeArmour and (now - lastAboardT) < CREW_SHOCK)) and not inVehicle then
             -- DISMOUNTED CREWMAN: his vehicle is gone (destroyed, disabled, or he was kicked out
             -- by the bail-out handler in the phase script). He used to stay in the branch below
             -- and defer to base AI forever, which is wrong twice over: he is no longer crewing
@@ -1270,7 +1324,7 @@ while true do
             takeCover(pos, now)
             decision, detail = "CREW-onfoot", (threatened and "under threat" or "vehicle lost")
 
-        elseif inVehicle or isCrew then
+        elseif inVehicle or CLS.crew then
             -- ANY non-infantry unit still with its vehicle (tank crew, plane pilot, gun crew,
             -- mounted infantry): this is an INFANTRY brain — never issue ground-move orders to a
             -- vehicle or aircraft. Defer fully to base AI; dismounted infantry (NOT crew, see the
@@ -1280,7 +1334,7 @@ while true do
             aiSet("allowLeaveVehicle", true)   -- mounted infantry must be free to dismount and fight
             -- remember our transport (passengers only, not permanent vehicle crew) so we can
             -- return to it later instead of abandoning it.
-            if inVehicle and not isCrew then
+            if inVehicle and not CLS.crew then
                 _v = myVeh
                 myTransportId = safeGet(_vUid) or myTransportId
             end
@@ -1400,7 +1454,7 @@ while true do
 
         elseif threatened then
             react("underFire", now)
-            if isMG or isMortar then
+            if CLS.mg or CLS.mortar then
                 react("covering", now)
                 takeCover(pos, now)
                 decision = "SUPPORT-hold-fire"

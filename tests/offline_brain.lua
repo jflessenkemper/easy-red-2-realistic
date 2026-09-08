@@ -43,6 +43,8 @@ local function mkSoldier(t)
     s.isMedic              = function() return t.medic == true end
     s.isRadioman           = function() return t.radio == true end
     s.isMarksman           = function() return t.marksman == true end
+    -- Corroborating native signal for the MG gunner, who has no isSupportGunner() flag.
+    s.isAmmoBoxCarrier     = function() return t.ammoBox == true end
     s.isCarryingBody       = function() return t.carrying == true end
     s.getCurrentVehicle    = function() return t.vehicle end
     s.getSquad             = function() return t.squad end
@@ -113,7 +115,9 @@ local function install(scn)
     }
     _G.er2 = {
         time                = function() return S.clock or 100 end,
-        getInvadersFaction  = function() return "Germany_axis" end,
+        -- Configurable so a scenario can run an UNMODELLED nation and still be the invader;
+        -- otherwise every move branch is unreachable, because defenders ignore moveTo.
+        getInvadersFaction  = function() return S.invFaction or "Germany_axis" end,
         isSameFaction       = function(a, b) return a == b end,
         getNearestObjective = function()
             if not S.objective then return nil end
@@ -342,6 +346,62 @@ local TESTS = {
               if at > tPos then return false, need .. " written AFTER RQ_T: " .. table.concat(order, ",") end
           end
           return true, "order " .. table.concat(order, " -> ")
+      end },
+
+    -- GENERALITY, added 2026-09-08. These two guard the README's "works with any nation and any
+    -- squad" claim, which was NOT true: DOCTRINE_DEFAULT shipped aggression 0.45 against
+    -- ASSAULT_MIN_AGGR 0.50 and mgCentric=false, so an unrecognised nation silently lost close
+    -- assault AND the whole formation branch, and the MG gunner - the formation ANCHOR - was found
+    -- by the single English substring "support".
+
+    { name = "UNMODELLED nation still reaches ASSAULT (DOCTRINE_DEFAULT)",
+      expect = "ASSAULT",
+      build = function()
+          -- "Ruritania" matches no token in NATION_TOKENS, so this exercises DOCTRINE_DEFAULT for
+          -- real. He is the invader, or no move branch is reachable at all.
+          -- The assault dice are probabilistic (math.random() < aggression), so pin them: this
+          -- asserts the THRESHOLD is passable, not that a given roll happened to win.
+          math.random = function() return 0 end
+          local me = soldierAt(0, 0, { uid = 1000, faction = "Ruritania_axis" })
+          return { me = me, invFaction = "Ruritania_axis", ticks = 6,
+                   nearby = { me,
+                              -- 3 friendlies: forceRatio 0.75, clear of moraleFloor 0.30 + 0.15
+                              soldierAt(2, 0,  { uid = 1002, faction = "Ruritania_axis" }),
+                              soldierAt(-2, 0, { uid = 1004, faction = "Ruritania_axis" }),
+                              soldierAt(0, 2,  { uid = 1006, faction = "Ruritania_axis" }),
+                              -- ONE enemy at 15 m: inside assaultRange 20, and only one inside
+                              -- PINNED_RADIUS 50, so PINNED (which sits below assault) stays off
+                              soldierAt(15, 0, { uid = 2000, faction = "Belgravia_allies" }) } }
+      end },
+
+    { name = "custom non-English gunner class is the MG anchor (SUPPORT-hold-fire)",
+      expect = "SUPPORT%-hold%-fire",
+      build = function()
+          math.random = function() return 0 end
+          -- "Mitrailleur Lourd" contains none of the old code's "support" token. Enemy at 60 m:
+          -- threatened, but outside PINNED_RADIUS 50, so PINNED cannot pre-empt. MG men are
+          -- excluded from the assault branch by design, so 12a is reached.
+          local me = soldierAt(0, 0, { uid = 1000, class = "Mitrailleur Lourd" })
+          return { me = me, ticks = 6,
+                   nearby = { me,
+                              soldierAt(2, 0,  { uid = 1002 }),
+                              soldierAt(-2, 0, { uid = 1004 }),
+                              soldierAt(60, 0, { uid = 2000, faction = "France_allies" }) } }
+      end },
+
+    { name = "realistic_mg_class override names an arbitrary gunner class",
+      expect = "SUPPORT%-hold%-fire",
+      build = function()
+          math.random = function() return 0 end
+          -- Matches NO token in the broadened list, so this passes only via the override - the
+          -- documented escape hatch for a squad the mod's author never saw.
+          local me = soldierAt(0, 0, { uid = 1000, class = "Waffentraeger Alpha" })
+          return { me = me, ticks = 6,
+                   globals = { realistic_mg_class = "waffentraeger" },
+                   nearby = { me,
+                              soldierAt(2, 0,  { uid = 1002 }),
+                              soldierAt(-2, 0, { uid = 1004 }),
+                              soldierAt(60, 0, { uid = 2000, faction = "France_allies" }) } }
       end },
 }
 

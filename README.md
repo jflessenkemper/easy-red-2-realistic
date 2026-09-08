@@ -75,9 +75,9 @@ partly working — each one says exactly what is and is not proven · **⬜** no
 | # | Feature | Base game | With Realistic |
 |---|---|---|---|
 | 25 | Non-infantry units | — | ✅ Tank crews, pilots, gun crews and mounted infantry defer wholly to base AI; a dismounted man resumes the full brain automatically |
-| 26 | Map/faction awareness | — | ✅ Nation parsed from the soldier's own faction at runtime — 31 tokens → 10 doctrines. No per-map configuration |
+| 26 | Map/faction awareness | — | ✅ Nation parsed from the soldier's own faction at runtime — 31 tokens → 10 doctrines. No per-map configuration. **Any unmatched nation gets a full-featured fallback** — see below |
 | 27 | Logging | — | ✅ Sampled and throttled; `log()` costs ~1.1 KB plus a stack walk, so unthrottled tick logging is a real frame cost |
-| 28 | Role detection | — | ✅ Native engine role flags, not class-name string matching — language-proof and mod-proof |
+| 28 | Role detection | — | ✅ Leader, AT, medic, radioman and marksman come from **native engine role flags** — language-proof and mod-proof. ⚠️ The **LMG gunner and mortar have no native flag on v2.0.9**, so they are matched on the class name; a broadened token list plus a `global` override covers custom squads (see below) |
 | 29 | Squad resolution | — | ✅ Retried until it binds, recovering the ~15% of soldiers whose squad isn't ready during the 3 s spawn window |
 
 ### Not possible on this build ⛔
@@ -91,6 +91,51 @@ partly working — each one says exactly what is and is not proven · **⬜** no
 | `ADVANCE-baseAI` (a fallback, not a feature) | fires only when an attacker can see **no objective at all**. Every ER2 mission phase requires at least one objective, so on a well-formed mission this is unreachable by design — it exists so a soldier on a malformed phase defers to base AI rather than standing still |
 
 ---
+
+## Any nation, any squad — exactly what happens
+
+The brain attaches itself to **every soldier the engine reports**, with no faction, class or
+squad-template filter, via `soldier_spawned` plus a sweep at phase start. You do not need to set the
+Squad Spawner's `Brain` field. Observed at 350 soldiers in one battle.
+
+**Nation.** The soldier's own faction string is matched against 31 tokens → 10 doctrine profiles. A
+faction matching none of them — a modded nation, a custom faction, or simply one not yet modelled —
+gets `DOCTRINE_DEFAULT`. **That fallback keeps every branch reachable:** `moraleFloor 0.30`,
+`mgCentric true`, `aggression 0.50`, `assaultRange 20 m`, `coverDiscipline 0.6`.
+
+> Until 2026-09-08 it did not. The fallback shipped `aggression 0.45` against an assault threshold
+> of 0.50, and `mgCentric false` — so an unrecognised nation could never close assault and never
+> form up, with nothing logged, while this README claimed the mod worked with any nation. Both are
+> fixed and both are now regression-tested offline
+> (`tests/offline_brain.lua`, "UNMODELLED nation still reaches ASSAULT").
+
+To force a specific doctrine regardless of the faction string, set a Lua global from your phase
+script — `realistic_nation_invaders` or `realistic_nation_defenders` — to a profile name
+(`germany`, `france`, `britain`, `unitedstates`, `soviet`, `japan`, `italy`, `finland`, `romania`,
+`hungary`).
+
+**Roles.** Squad leader, AT, medic, radioman and marksman come from native engine flags, so they
+work whatever the class is called, in any language. The **LMG gunner and mortar have no native flag
+on this build**, so they are matched on the class name. This matters more than it sounds: the gunner
+is the *anchor* of the formation branch, so a squad whose gunner is not recognised silently stops
+forming up. Covered three ways:
+
+1. a broadened token list — `support`, `mg`, `lmg`, `machine`, `gunner`, `mitrailleur`, `pulemet`,
+   `maschinengewehr`, `schutze`, `automatic rifle`, `bar`;
+2. `isAmmoBoxCarrier()` as a corroborating native signal;
+3. an explicit override for anything else — set `realistic_mg_class` (or `realistic_mortar_class`)
+   to a substring of your class name:
+
+```lua
+global.set("waffentraeger", "realistic_mg_class")   -- value first, primitives only
+```
+
+Both the token list and the override are regression-tested offline. Note the override *replaces*
+the token list rather than adding to it, so set it only if the defaults miss your squad.
+
+**Side.** If the invader/defender comparison cannot be resolved, the soldier is treated as a
+**defender** — the safe direction, since defenders take no move orders. It logs once when this
+happens, so an exotic faction setup does not look like a dead mod.
 
 ## Seeing it work
 
