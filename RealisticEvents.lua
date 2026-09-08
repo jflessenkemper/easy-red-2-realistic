@@ -301,10 +301,39 @@ end
 --   squad  : squad template id (see Script Settings -> Id tables in-game)
 --   radius : spawn scatter, metres
 -- Uses spawnSquad_script so each squad gets Realistic.lua attached at spawn time.
-local TEST_SPAWNS = {
-    -- { pos = vec3(0, 0, 0),   side = "invader",  squad = "ger_rifle_squad", radius = 12 },
-    -- { pos = vec3(0, 0, 120), side = "defender", squad = "fra_rifle_squad", radius = 12 },
+-- T10 - RADIO FIRE MISSION. Uncomment to run the scenario that proves feature 19.
+--
+-- The geometry is the whole point and every number is load-bearing:
+--   enemies at 75 m  -> INSIDE SENSE_RADIUS 90, so the radioman senses them and can form an
+--                       enemy centroid at all (he publishes that centroid as the target)
+--                    -> OUTSIDE FIRE_DANGER_R 50, so danger-close does NOT refuse it
+--   ONE enemy squad  -> ne is comfortably >= RADIO_MIN_ENEMIES 3, while nec (within
+--                       PINNED_RADIUS 50) is 0, so PINNED cannot pre-empt the radio branch
+--                       from proximity - only transient suppression can, which passes
+--   no objective     -> the squad is threatened so it will not march anyway, and a stationary
+--                       radioman is what STALL_DIST 15 m / STALL_WINDOW 30 s requires
+--   balanced numbers -> forceRatio ~0.5, far above germany's moraleFloor 0.22, so ROUT (which
+--                       sits ABOVE radio in the cascade) does not pre-empt it either
+--
+-- This scenario MUST run with THIS phase script, not showcase.lua: the request is published by
+-- the brain but the CONSUMER that accepts it and fires the barrage lives here. Measured in the
+-- showcase, which replaces this file: 2 requests, 0 accepted, 0 refused, 0 rounds away.
+--
+-- Placed at (200,200), clear of VirtualScene's own spawns near the origin (~280 m away, well
+-- beyond SENSE_RADIUS) so the mission's own squads cannot contaminate the force ratio.
+-- PROVEN 2026-09-08 with this rig, on VirtualScene, zero Lua errors:
+--   RADIO-fire-mission accepted: side=2 target=18,45 rounds in 12s (radio)
+--   RADIO-fire-mission rounds away: 24 shells on 18,45 for side 2
+--   RADIO-fire-mission complete
+-- The FIRST barrage in this project's history. It was unblocked by the FIRE_DANGER_R fix
+-- (90 -> 50); the geometry below is what makes the branch reachable at all.
+local T10 = {
+    { pos = vec3(200, 0, 200), side = "invader",  squad = "ger_infantry_1940", radius = 10 },
+    { pos = vec3(275, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },
 }
+
+-- Ships INERT. Set this to T10 to re-run the scenario.
+local TEST_SPAWNS = {}
 local TEST_OBJECTIVE = nil     -- e.g. vec3(0,0,60); nil = don't create one
 local TEST_OBJ_RADIUS = 40
 
