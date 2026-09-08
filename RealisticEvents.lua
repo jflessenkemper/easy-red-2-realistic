@@ -350,6 +350,20 @@ local T10 = {
 --                        NOT QUALIFY as armour. If ADVANCE-behind-armour fires here, the
 --                        name filter is broken. This is the half of T6 that can actually fail.
 --
+-- RUN 2 RESULT, 2026-09-08 - ROOT CAUSE FOUND, and it is the RIG, not the mod.
+-- spawnVehicle() HAS NO FACTION PARAMETER, so a script-spawned vehicle has NO OWNING SIDE. That
+-- single fact kills both scenarios:
+--   T6 - advanceBehindArmour() requires v.getFaction() non-nil AND isSameFaction(vf, myFaction),
+--        so the halftrack can never be "friendly armour". Confirmed: riflemen 20 m from it were
+--        genuinely threatened (ne=1-3, ed=70-74) and fell through to BOUND-*/LEADER-cover, which
+--        sit BELOW ADVANCE-behind-armour in the cascade - so 12b was evaluated and returned false.
+--   T9 - the enemy does not engage a factionless vehicle either. Two AT squads at 35-40 m produced
+--        ZERO vehicle_destroyed/disabled/fueltank events, so the Panzer was never even damaged.
+-- Both were re-run after the armour-filter fix and after moving the AT squads from 80 m to 35 m;
+-- neither change could have helped, because the blocker is upstream of both.
+-- CONCLUSION: features 5 and 18 need an EDITOR-PLACED vehicle spawner, which carries a faction.
+-- They are NOT provable on a scripted rig. Marked accordingly rather than re-attempted.
+--
 -- RUN 1 RESULT, 2026-09-08 (VirtualScene, zero Lua errors). The rig itself works: 5 squads,
 -- 3 vehicles and the tank crew ABOARD the Panzer all spawned, and MOUNTED/CREW-defer fired 135
 -- times, which confirms the new mounted-spawn path. But neither feature under test was observed:
@@ -365,8 +379,11 @@ local T10 = {
 -- if the halftrack station fires. Absence everywhere is absence of evidence, not evidence of a
 -- working name filter. Do not mark T6 either way until the positive half fires.
 local T9_T6 = {
-    -- T9 at (200,200)
-    { pos = vec3(280, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },
+    -- T9 at (200,200). AT squads at 35 m and 40 m, not 80 m: at 80 m the Panzer II C SURVIVED the
+    -- whole battle, so there was nothing to bail out of and the scenario was not a valid run.
+    -- Two squads, to make the kill reliable rather than hoped for.
+    { pos = vec3(235, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 8 },
+    { pos = vec3(240, 0, 235), side = "defender", squad = "fr_ATsquad",        radius = 8 },
     -- T6 at (700,200)
     { pos = vec3(700, 0, 200), side = "invader",  squad = "ger_infantry_1940", radius = 10 },
     { pos = vec3(775, 0, 200), side = "defender", squad = "fr_ATsquad",        radius = 10 },

@@ -127,6 +127,17 @@ The engine ships a Lua prelude of GLOBAL wrappers (all coroutine-based on er2.*W
 - `spawnSquad_script(pos, radius, faction, squad_id, script_file)` -> Squad WITH BRAIN attached
 - `spawnSquadOnVehicle(pos, radius, faction, squad_id, veh)` / `..._script(...)`
 - `spawnVehicle(vehicle_id, pos, rot)` / `spawnVehicle_camo(id,pos,rot,camoId)` / `_dest(...)`
+  !! **NO FACTION PARAMETER — a script-spawned vehicle has NO OWNING SIDE.** MEASURED 2026-09-08.
+     Consequences, both confirmed in one run:
+       * `advanceBehindArmour()` requires `v.getFaction()` non-nil AND `isSameFaction(vf, myFaction)`,
+         so a scripted vehicle can NEVER be "friendly armour". Feature 5 returned false with a
+         halftrack 20 m away and threatened riflemen (`ne=1-3, ed=70-74`) who fell through to
+         `BOUND-*`/`LEADER-cover` instead.
+       * the enemy never engages it either: two French AT squads at 35-40 m produced ZERO
+         vehicle_destroyed / vehicle_disabled / fueltank events, so a scripted tank cannot be
+         killed on cue and crew bail-out (feature 18) cannot be triggered that way.
+     **So features 5 and 18 are NOT testable with a script-spawned rig.** They need an
+     EDITOR-PLACED vehicle spawner, which carries a faction. Stonne has 92 of them.
   !! **`rot` IS A vec3, NOT DEGREES** — CORRECTED 2026-09-08 on v2.1.0. `spawnVehicle(id, pos, 180)`
      throws `bad argument #3 to 'spawnVehicleWithCallback' (userdata expected, got number)`.
      Pass a direction vector, e.g. `vec3(1,0,0)`.
