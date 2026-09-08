@@ -1049,7 +1049,7 @@ local loopBody               -- forward declaration; assigned just below
 --   still  = did not; entirely normal for defenders holding, men in cover, and the suppressed
 --   stuck  = has not moved in WATCH_STUCK seconds AND is an ATTACKER, who should be advancing.
 --            A non-zero stuck count that keeps climbing is the signal that something is wrong.
-local WATCH = false-- diagnostic; check.sh refuses to ship this true
+local WATCH = false -- diagnostic; check.sh refuses to ship this true
 local WATCH_EVERY = 8          -- s between sweeps
 local WATCH_MOVED = 2.0        -- m of displacement that counts as "moving"
 local WATCH_STUCK = 40         -- s stationary before an attacker is called stuck
@@ -1117,7 +1117,7 @@ end
 --          [TELEM] <t> V <uid>,<x>,<y>,<z>,<name>;...
 --   flag   I invader · D defender · i invader suppressed · d defender suppressed · x down/dead
 --   x,z    rounded to whole metres - sub-metre precision is noise at map scale and costs bytes
-local TELEMETRY  = false-- diagnostic; check.sh refuses to ship this true
+local TELEMETRY  = false -- diagnostic; check.sh refuses to ship this true
 local TELEM_EVERY = 2          -- s between frames
 local TELEM_BATCH = 40         -- entities per log line
 local telemNext = 0
