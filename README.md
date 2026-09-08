@@ -489,20 +489,30 @@ local TEST_VEHICLES = DONCHERY.vehicles
 local TEST_MOUNTED  = DONCHERY.mounted
 ```
 
-### ⚠️ Stonne needs one manual step in the mission editor
+### ⚠️ Stonne needs one manual step in the mission editor — and it is a correctness fix
 
-The 77 script-spawned units will **double up** with the mission's own editor spawners, which also
-respawn — so the battalion-vs-battalion, no-respawns intent is not achieved until those are
-switched off. Open *[Historical] Crossing at Donchery* in the editor and, for each of its six
-phases, set every unit and vehicle spawner to disabled.
+Open *[Historical] Crossing at Donchery* in the editor and, for each of its six phases, set every
+unit and vehicle spawner to disabled.
 
-This cannot be automated and was deliberately not attempted. The `.mer2` mission file is a .NET
-`BinaryFormatter` binary stream, not JSON. The spawner fields are all there — `squad_id`,
-`faction_id`, `spawnType`, `respawn_delay`, `forceFirstSpawn`, `spawnOnVehicle` — but `spawnType`
-is a C# enum serialised as a bare `value__` integer, and nothing in the file says which integer
-means "disabled". Writing the wrong value would silently change spawner semantics in your own
-mission content, so the tool was not written. Disable one spawner by hand and report the
-resulting integer and it becomes tractable.
+This was filed as tidy-up ("stop the script-spawned units doubling with respawning editor ones").
+It is more than that. **Measured in-game 2026-09-09: the order of battle stops at 8 of 31 squads**,
+with zero failures and zero Lua errors. Every other explanation was eliminated by measurement —
+the same rig placed **29 of 29** squads on the test map, the squad that dies as item 9 here
+succeeded as item 29 there, deriving a proper origin moved every position and changed nothing, and
+**reversing the entire order still died at item 9** on a different squad on the other side. What
+remains is the mission's own force: the engine reported **80 soldiers alive when only ~8 script
+squads (~40 men) had been placed**, so roughly 40 came from the still-enabled editor spawners and
+the script spawns are being starved.
+
+So disabling them is the most likely fix for the ceiling, though that is a hypothesis and not yet
+demonstrated. Until it is, **Donchery is NOT verified** and ships inert.
+
+This cannot be automated. The `.mer2` mission file is a .NET `BinaryFormatter` binary stream, not
+JSON. The spawner fields are all there — `squad_id`, `faction_id`, `spawnType`, `respawn_delay`,
+`forceFirstSpawn`, `spawnOnVehicle` — but `spawnType` is a C# enum serialised as a bare `value__`
+integer, and nothing in the file says which integer means "disabled". Writing the wrong value
+would silently change spawner semantics in your own mission content. Disable one spawner by hand
+and report the resulting integer and the rest can be automated.
 
 ## How this was verified
 

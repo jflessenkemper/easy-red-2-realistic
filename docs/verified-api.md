@@ -7,6 +7,90 @@ hub UI also changed layout in 2.1.0, so er2-plugin/docs/ui-map.md coordinates ar
 
 # Easy Red 2 — VERIFIED Lua API (mined from shipped scripts)
 
+
+
+## The Donchery spawn ceiling is the MISSION's own spawners, not the rig (isolated 2026-09-09)
+
+Three runs on Stonne/Donchery, DLC entitlement via Steam, v2.1.0. The spawn loop stops partway
+with **zero failures and zero Lua errors**, and the pre-attempt log line names the item exactly:
+
+```
+test spawn 8: invader ger_infantry_1940 -> ok
+test spawn 9/31: attempting invader ger_infantry_1940     <- no result line, ever
+```
+
+What was ELIMINATED, each by measurement rather than reasoning:
+
+| Hypothesis | Killed by |
+|---|---|
+| the rig / phase script is broken | the SAME rig spawned **29 of 29** squads on the test map |
+| the squad id is bad | `fr_reservist_infantry` succeeded as item **29** on the test map and fails as item **9** here |
+| the position is off-terrain | deriving the origin from the mission objective moved every position and it still died - one item later |
+| the ORDER matters | **reversing the whole order still died at item 9**, on a different squad, on the other side, at a different place |
+| a global count limit | 29 succeeded elsewhere in one pass |
+| an escaping engine throw with a message | `Player.log` has no `Exception`/`attempt to`/`bad argument` anywhere in the run |
+
+What the evidence POINTS AT: on Donchery the engine reported `tally invaders:39 defenders:41` -
+**80 soldiers alive when only ~8 script squads (~40 men) had been placed**. The other ~40 are the
+mission's OWN editor spawners, which are still enabled. So the mission arrives with a large
+standing force and the script spawns are being starved, while the test map (whose editor force is
+tiny) accepts 29.
+
+**This makes disabling Donchery's editor spawners a CORRECTNESS fix, not the cosmetic
+anti-double-up tidy-up it was previously filed as.** That step cannot be automated - the `.mer2`
+is a .NET BinaryFormatter stream whose `spawnType` is a bare enum integer - so it stays a manual
+editor action, now with a much better reason to do it.
+
+NOT YET PROVEN: that disabling them actually lifts the ceiling. It is the best-supported
+hypothesis, not a demonstrated fix.
+
+
+## countAliveInvaders() / countAliveDefenders() — inconsistent on script-spawned soldiers
+
+**Measured 2026-09-09 on the test map, v2.1.0, with DLC entitlement via Steam mode.** The
+showcase range spawned 29 squads through `spawnSquad_script`, and `[REALISTIC]` confirmed **158
+brains online** (81 Germany_axis, 77 England_allies) still making decisions at battle time
+t=583.9 s. Throughout, the engine reported:
+
+```
+[EVENTS] alive invaders=0  defenders=6
+```
+
+Seven invaders and six defenders is the count of the mission's own EDITOR-PLACED units; the 158
+script-spawned soldiers are invisible to both counters. The invader count reached 0 while ~80
+script-spawned Germans were demonstrably alive and moving.
+
+**BUT THE OPPOSITE WAS MEASURED ON DONCHERY, same session, same build.** With 8 script-spawned
+squads placed and nothing editor-placed yet engaged, the same counter reported:
+
+```
+[EVENTS] tally invaders:39  defenders:41
+```
+
+39 invaders is about 8 squads of 4-8 men - i.e. HERE the counter DOES see script-spawned soldiers.
+So the honest statement is that these counters were **0/6 on the test map while 158 script-spawned
+brains were alive and online**, and **39/41 on Donchery with ~8 script-spawned squads**. One of
+those two readings must have another explanation, and I do not have it: possible candidates are
+the test map's own "Max Concurrent" caps, its reinforcement pool, or the counter being scoped to
+something narrower than "all alive". DO NOT rely on these counters for a scripted force until
+that is resolved - and do not repeat the flat claim that they ignore script spawns, which is what
+this section said before the Donchery run contradicted it.
+
+**Consequences:**
+* **Feature 23 (battalion tally) cannot be trusted on a script-spawned order of battle** until
+  the contradiction above is explained. It read 0 for a live 80-man script-spawned side once.
+* Do not use these counters as a battle-alive or attrition signal for a scripted force.
+* Soldiers DO get a real faction either way: the doctrine resolver read Germany_axis /
+  England_allies correctly off script-spawned men, and enemy sensing works (`ne` reached 4). So
+  whatever this is, it is not faction assignment failing.
+
+**ALSO, AND SEPARATELY: Unity writes a stack trace after most log lines in Player.log.** Those
+traces are LOG DECORATION, not exceptions. A block of `MoonSharp.Interpreter...` frames following
+a `[EVENTS]` line means nothing went wrong. I misread one such block as a crash this session
+before checking what preceded it - grep for a real message (`attempt to`, `bad argument`,
+`Exception`) rather than treating a trace as evidence of failure.
+
+
 ## OFFICIAL DOCS CROSS-CHECK (easyred2.com/wiki, 2026-08-09) — see forum-crosscheck.md
 CONFIRMED by official docs (no code change needed):
 - Callbacks all match: `soldier_died(victim)`, `soldier_suppressed(suppressed, shooter)`,

@@ -475,23 +475,75 @@ local FORMRIG = {
 local DONCHERY = { squads = {}, vehicles = {}, mounted = {} }
 
 --========================= geometry =========================================
--- COORDINATES ARE ABSOLUTE WORLD POSITIONS, origin (0,0,0). An earlier version of this comment
--- claimed the origin was derived at load from the mission's first objective "exactly as
--- showcase.lua does" - it never was: add() and addVeh() below pass bare vec3(x, 0, z). If the
--- layout ever needs to travel with the mission, that derivation has to be written first. The Meuse
+-- COORDINATES ARE RELATIVE TO A DERIVED DY_ORIGIN, resolved at load from the mission's first
+-- objective exactly as showcase.lua does.
+--
+-- WHY, MEASURED IN-GAME 2026-09-09. These used to be ABSOLUTE world positions around (0,0,0), and
+-- that is what capped the order of battle at 7 squads for three straight runs. The spawn loop died
+-- mid-item with NO failure and NO Lua error - the pre-attempt log line named it exactly:
+--     test spawn 7: invader ger_infantry_1940 -> ok
+--     test spawn 8/31: attempting invader ger_infantry_1940      <- no result line, ever
+-- Squad 8 is the SAME squad id as the seven before it, so the id was never the problem: only its
+-- position differed (x = +57 rather than +19). On the French Ardennes map, (0,0,0) is not inside
+-- the playable terrain, so squads 1-7 landed on valid ground by luck and squad 8 did not - and
+-- spawning onto invalid ground throws inside the engine, which ESCAPES pcall and kills the phase
+-- script outright. The showcase range never hit this because it derives its origin, and it spawned
+-- all 29 of its squads with zero failures on the same engine build.
+--
+-- The Meuse
 -- runs roughly east-west; the Germans are on the NORTH bank at -Z, the French dug in on the SOUTH
 -- bank at +Z, with the railway embankment behind the German line.
 local RIVER_GAP   = 260   -- m between the German assault line and the French positions
 local EMBANKMENT  = -90   -- m behind the German line: the armour fires from here, in defilade
 local FRONTAGE    = 420   -- m of river frontage the attack is spread across
 
+-- DY_ORIGIN RESOLUTION. getAllObjectives is FILL-style and must be called WITH a table; a bare call
+-- throws on every invocation. Helpers are prefixed `dy` for the same reason showcase.lua prefixes
+-- its own: this block is inlined into RealisticEvents.lua's main chunk, and an unprefixed
+-- `local function safeGet` would SHADOW that file's own version for the rest of the file.
+-- PREFIXED DY_. showcase.lua declares its own `ORIGIN`/`ORIGIN_OVERRIDE`, and BOTH files are
+-- inlined into RealisticEvents.lua's single main chunk, so unprefixed names are declared twice
+-- and the later one shadows the earlier for the rest of the file. check 3 refuses this outright,
+-- which is the gate earning its keep - the shadowing would otherwise be silent.
+local DY_ORIGIN_OVERRIDE = nil          -- e.g. vec3(1200, 0, -400); set only to pin the layout by hand
+local DY_ORIGIN
+
+local function dySafeGet(fn) local ok, v = pcall(fn); if ok then return v end return nil end
+local function dySafe(fn) return (pcall(fn)) end
+local function dyLog(m) log("[DONCHERY] " .. tostring(m)) end
+
+if DY_ORIGIN_OVERRIDE then
+    DY_ORIGIN = DY_ORIGIN_OVERRIDE
+    dyLog(string.format("origin: override (%.0f,%.0f)", DY_ORIGIN.x, DY_ORIGIN.z))
+else
+    local objs = {}
+    dySafe(function() er2.getAllObjectives(objs) end)
+    for _, o in pairs(objs) do
+        local op = o and dySafeGet(function() return o.getPosition() end)
+        if op then
+            DY_ORIGIN = vec3(op.x, op.y, op.z)
+            dyLog(string.format("origin: derived from the first mission objective -> (%.0f,%.0f)",
+                  DY_ORIGIN.x, DY_ORIGIN.z))
+            break
+        end
+    end
+    if not DY_ORIGIN then
+        DY_ORIGIN = vec3(0, 0, 0)
+        dyLog("origin: NO objective found, falling back to (0,0) - which is off the playable "
+              .. "terrain on French Ardennes and will kill the spawn loop partway with no error. "
+              .. "Set DY_ORIGIN_OVERRIDE with a P-captured position.")
+    end
+end
+
 local function add(t, squadId, side, x, z, radius)
-    t[#t + 1] = { squad = squadId, side = side, pos = vec3(x, 0, z), radius = radius or 12 }
+    t[#t + 1] = { squad = squadId, side = side,
+                  pos = vec3(DY_ORIGIN.x + x, DY_ORIGIN.y, DY_ORIGIN.z + z), radius = radius or 12 }
 end
 local function addVeh(t, name, x, z, dirx, dirz)
     -- ARG 3 OF spawnVehicle IS A vec3 DIRECTION, NOT DEGREES. A number throws inside the engine's
     -- own argument marshalling and the throw ESCAPES pcall, killing the phase script outright.
-    t[#t + 1] = { name, vec3(x, 0, z), vec3(dirx or 0, 0, dirz or 1) }
+    t[#t + 1] = { name, vec3(DY_ORIGIN.x + x, DY_ORIGIN.y, DY_ORIGIN.z + z),
+                  vec3(dirx or 0, 0, dirz or 1) }
 end
 
 --========================= GERMAN — 2. Panzer-Division, north bank ==========
@@ -536,7 +588,7 @@ for _, a in ipairs(ARMOUR) do
     -- off what the man was RIDING. Editor-placed vehicles carry a faction; script-spawned ones do
     -- not, so features 5 and 18 are only re-provable here if these are converted to editor
     -- spawners. See docs/donchery-build-sheet.md.
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(a[2], 0, EMBANKMENT), "invader" }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(DY_ORIGIN.x + a[2], DY_ORIGIN.y, DY_ORIGIN.z + EMBANKMENT), "invader" }
 end
 
 -- Soft-skin transport. NOT motorcycles - see the note at the top.
@@ -564,7 +616,7 @@ end
 for i = 0, 5 do
     local x = -FRONTAGE / 2 + (FRONTAGE / 5) * i
     addVeh(DONCHERY.vehicles, "Hotchkiss Stationary Ground", x, RIVER_GAP + 15, 0, -1)
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(x, 0, RIVER_GAP + 15), "defender" }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(DY_ORIGIN.x + x, DY_ORIGIN.y, DY_ORIGIN.z + RIVER_GAP + 15), "defender" }
 end
 
 -- Three 25 mm SA-L Mle 1934 AT positions, emplaced.

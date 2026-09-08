@@ -13,8 +13,37 @@
 -- Usage: luajit tests/offline_donchery.lua      (exit 0 = the OOB is coherent)
 
 _G.vec3 = function(x, y, z) return { x = x or 0, y = y or 0, z = z or 0 } end
+_G.log = function(_) end   -- the OOB now logs its resolved origin
+
+-- ORIGIN DERIVATION STUB. The OOB resolves its origin from the mission's first objective, because
+-- absolute coordinates around (0,0,0) are OFF the playable terrain on French Ardennes and killed
+-- the spawn loop at squad 8 of 31 with no error at all. Here the objective is stubbed at a
+-- non-zero position ON PURPOSE: with a (0,0,0) stub every position would still be its own offset
+-- and the assertion below could not tell a derived layout from an absolute one.
+local DY_ORIGIN_STUB = { x = 1000, y = 5, z = 2000 }
+_G.er2 = {
+    getAllObjectives = function(t)
+        t[1] = { getPosition = function() return DY_ORIGIN_STUB end }
+    end,
+}
 
 local OOB = assert(loadfile("missions/donchery_oob.lua"))()
+
+-- The layout must have MOVED with the origin. A squad still sitting near (0,0) means the
+-- derivation was dropped and the loop will die partway through again.
+do
+    local near_zero = 0
+    for _, sq in ipairs(OOB.squads) do
+        if math.abs(sq.pos.x) < 500 and math.abs(sq.pos.z) < 500 then near_zero = near_zero + 1 end
+    end
+    if near_zero > 0 then
+        print(string.format("FAIL  %d of %d squads are still within 500 m of (0,0) despite the "
+              .. "origin stub at (%d,%d) - the origin derivation is not being applied, and the "
+              .. "spawn loop will die partway with no error",
+              near_zero, #OOB.squads, DY_ORIGIN_STUB.x, DY_ORIGIN_STUB.z))
+        os.exit(1)
+    end
+end
 
 -- Ids CONFIRMED to exist on this install. Nothing outside these lists may be used.
 local SQUADS_OK = {
