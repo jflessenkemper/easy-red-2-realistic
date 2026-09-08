@@ -141,3 +141,81 @@ Read out of `ME_Stonne_38n85202.mer2` (a .NET BinaryFormatter blob — **back it
 Only **7** infantry spawners currently produce the whole German force, which is why the battle
 trickles in reinforcements rather than starting at full strength. Getting "everyone at the start"
 means more spawners with `respawn_delay` disabled, not just a flag change.
+
+
+---
+
+# CONFIRMED CATALOGUE — enumerated 2026-09-08, statically
+
+**Source, and why it is trustworthy:** the game ships its own example missions at
+`Easy Red 2_Data/StreamingAssets/Missions/`, six of which are **`ME_French Ardennes_*`** — French
+1940 scenarios on the very DLC map Donchery uses. Every id below was read out of those `.mer2`
+files or out of `il2cpp_data/Metadata/global-metadata.dat`. So these are not guesses: they are ids
+the developers themselves use for this theatre and this year. No editor UI was needed.
+
+## Squads — CONFIRMED
+
+| id | Use |
+|---|---|
+| `ger_infantry_1940` | the rifle Gruppe. Used by all six Ardennes missions |
+| `ger_infantry_AT_1940`, `ger_infantry_AT_wz35` | AT squads |
+| `ger_pioneers_1940` | the Pionier squad (demolition) |
+| `ger_artilleryCrew_1940` | gun crews |
+| `ger_tankCrew_1940` | tank crews |
+| **`fr_reservist_infantry`** | **the French rifle squad — and historically exact.** III/147e RIF were reservists of a série B division, and this is the reservist squad. Used by `ME_French Ardennes_6525zf4f` |
+| **`fr_reservist_ATsquad`** | reservist AT squad |
+| `fr_ATsquad`, `fr_artilleryCrew`, `fr_tankCrew` | AT, gun crew, tank crew |
+| `fr_infantry`, `fr_chs_infantry`, `fr_chs_ATsquad` | regular and chasseur infantry, if a non-reservist unit is wanted |
+
+**This closes the open question.** `fr_reservist_infantry` replaces the `fr_ATsquad` stand-in the
+showcase was using, and it is a better historical fit than the plain `fr_infantry` the build sheet
+originally implied.
+
+## Vehicles — CONFIRMED
+
+| id | Use |
+|---|---|
+| `Panzer I A` | Panzer I |
+| `Panzer II`, `Panzer II C`, `Panzer II Ausf. B` | Panzer II |
+| `Panzer iii`, `Panzer iii F` | Panzer III (note the lower-case spelling) |
+| **`Panzer iv c`, `Panzer iv d`** | **Panzer IV — the short 7.5 cm bunker-buster, i.e. the player's lever** |
+| `Sdkfz222` | armoured car |
+| `Pak 36` | the 3.7 cm Pak 35/36 the sheet asks for |
+| `Pak 38`, `Flak 88` | heavier guns |
+| `Opel Blitz`, `Opel Blitz Cover` | trucks |
+| `Kubelwagen` | light car (Kfz.1 class) |
+| `Horch 853` | staff car (Kfz.15 class) |
+| `Citroen 23R` | French truck |
+| `Hotchkiss Stationary Ground` | **emplaced MG — exactly the "Hotchkiss teams in concrete" the sheet wants** |
+| `Char B1`, `RenaultR35` | French tanks — **the sheet says REMOVE these**, and now we know they exist to be removed |
+| `Panzer 38` | Panzer 38(t) — **the sheet says REMOVE**; 2. Pz.Div. had none |
+| `Sdkfz251 1939` | halftrack — **the sheet says REMOVE**; the battalion had zero |
+
+## Props — CONFIRMED (editor-only, no Lua API)
+
+`Bunker` / `01Bunker` / `02Bunker` / `03Bunker`, `WoodenBunker`, `Pillbox`,
+`BunkerRingStand_01`, `Sandbags`, `Sandbags_1_Emplacement`,
+`ShortCurvedSandbags_1_Emplacement` / `_2_`. So blockhouses and sandbag positions are placeable.
+
+## SUBSTITUTIONS FORCED — three sheet requirements CANNOT be met
+
+Recorded rather than quietly worked around.
+
+1. **BMW R12 motorcycle-sidecars DO NOT EXIST.** No motorcycle of any kind is in the build — the
+   only `motorcycle` string in the metadata is `MotorcycleSimulationDevice`, an input device. This
+   is awkward, because "halftracks → BMW R12" was the sheet's single largest correction: a 1940
+   Kradschützen-Bataillon had 190 sidecar combinations and zero Sd.Kfz. 251.
+   **Substitute:** `Kubelwagen` and `Horch 853` as the light soft-skin transport, `Opel Blitz` for
+   the gun tows. The battalion therefore reads as motorised rather than specifically
+   *Kradschützen*. The unit keeps its name; the briefing must not claim motorcycles are depicted.
+2. **NO ASSAULT OR RUBBER BOATS EXIST.** The only boats in the build are `Generic Fish Boat`,
+   `AsianBoat_1/2`, a `Steam Boat` and the Japanese `Type 2 Boat Tank`. Nothing European or
+   assault-pattern. This matters more than it looks: **the actual crossing was made in rubber
+   boats**, and French artillery destroying them is why the 16:00 attempt failed.
+   **Consequence:** the river assault cannot be depicted with boats. Either the Germans start
+   across, or the crossing is abstracted. The briefing must say so rather than implying boats.
+3. **NO 7.5 cm leIG 18 infantry gun.** Substitute `Pak 36` (already required) or omit the leIG
+   crew. Also **no Sd.Kfz. 231**; `Sdkfz222` is the available armoured car.
+
+Everything else the sheet asks for exists, including — importantly — the Panzer IV that carries
+the player's historical lever, and the emplaced Hotchkiss for the French blockhouses.

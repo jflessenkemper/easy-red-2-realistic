@@ -78,7 +78,7 @@ local BRAIN = "Realistic.lua"
 local GER_RIFLE = "ger_infantry_1940"          -- 1940 rifle squad, has a Support gunner
 local GER_AT    = "ger_infantry_AT_earlywar"   -- AT squad, for the armour-hunting station
 local GER_CREW  = "ger_tankCrew_1940"          -- for the bail-out station
-local FR_RIFLE  = "fr_ATsquad"                 -- see the GAP note above
+local FR_RIFLE  = "fr_reservist_infantry"      -- confirmed; see the note above
 local FR_GUNS   = "fr_artilleryCrew"           -- emplaced-crew stand-in
 
 local V_PZ2     = "Panzer II C"
