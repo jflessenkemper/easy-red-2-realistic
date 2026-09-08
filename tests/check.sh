@@ -191,6 +191,20 @@ else
 fi
 rm -f /tmp/armour.$$
 
+echo "== 4h. Donchery order of battle is coherent =="
+# The OOB is data, and every way it can be wrong is SILENT in-game: an unconfirmed id spawns
+# nothing, a numeric spawnVehicle direction throws past pcall and kills the phase script, and a
+# historically REMOVED unit creeping back (Sdkfz251, Panzer 38, Char B1, RenaultR35 - all present
+# in the game) just quietly makes the mission wrong.
+if [ -f missions/donchery_oob.lua ] && [ -n "$LUA" ] && command -v luajit >/dev/null 2>&1; then
+  if out=$(luajit tests/offline_donchery.lua 2>&1); then
+    ok "$(echo "$out" | sed -n 's/^ok    //p' | head -1)"
+  else
+    while read -r line; do bad "${line#FAIL  }"; done < <(echo "$out" | grep '^FAIL')
+    echo "$out" | grep -q '^FAIL' || bad "offline_donchery: $(echo "$out" | head -1)"
+  fi
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
