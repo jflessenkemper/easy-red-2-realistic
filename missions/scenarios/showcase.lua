@@ -23,6 +23,24 @@
 -- FIRST RUN: set ORIGIN. Open the mission in the editor, aim the camera at the middle of a large
 -- flat area, press P to copy the cursor position, and paste it below. Everything else is laid out
 -- relative to that single coordinate, so it is the only thing you have to capture by hand.
+--
+-- MEASURED RESULT, 2026-09-08 (VirtualScene, brain DEBUG on, decisions split by side).
+-- The demo (invader) squads demonstrate the feature set comprehensively:
+--   ROAD-MARCH 2567 · RALLY-on-MG 1323 · BOUND-overwatch 244 / move-cover 235 / move 119
+--   PINNED 228 · SUPPORT-hold-fire 79 · MEDIC-hold-cover 77 / sortie 35 · LEADER-cover 71
+--   DRAG-approach 40 · AT-stalk 22 / AT-hunt 5 · ROUT 22 · ASSAULT-cover 16 / ASSAULT 5
+--   RADIO-fire-mission 2 · MOUNTED-defer 2        (162 soldiers traced, ZERO Lua errors)
+-- So the range works. Read the brain trace (analyse_run.py) for proof; the in-game census below
+-- is a LIVE READOUT for a human walking the range, and its pass/fail is ADVISORY only - it
+-- samples soldiers near a station centre and therefore under-counts short-lived branches even
+-- with accumulation. Do not treat a low census score as a statement about the AI; that mistake
+-- has already been made twice here.
+--
+-- KNOWN GAP - STATION 10 CANNOT COMPLETE IN THIS FILE. The radioman DOES publish his request
+-- (RADIO-fire-mission fires), but the CONSUMER that accepts it and fires the barrage lives in
+-- RealisticEvents.lua, and this file REPLACES that as the phase script. Measured: 2 requests,
+-- 0 accepted, 0 refused, 0 rounds away - nothing answered. The barrage is proven in the T10
+-- isolation scenario instead, which runs with RealisticEvents.lua deployed.
 --============================================================================
 
 -- ORIGIN is DERIVED, not hand-set. The mission's own first objective is guaranteed to be inside
