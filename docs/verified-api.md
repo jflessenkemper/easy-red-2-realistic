@@ -520,3 +520,17 @@ does not surface a coroutine death as a Lua error, so the log could never say wh
 
 **The lesson worth keeping:** when a symptom survives a fix, the fix may have been correct and
 merely incomplete. Enumerate every exit before declaring the cause.
+
+## loadfile — EXISTS but resolves from '<mission>/globals/', and its failure is UNSURVIVABLE
+MEASURED 2026-09-08 on v2.1.0. `loadfile("missions/donchery_oob.lua")` reported:
+    Couldn't load file 'missions/donchery_oob.lua' at '<mission>/globals/'.
+    Make sure to add the subfolder in the file name (ex. 'somefolder/somefile.lua').
+So the function is bound (`loadfile_impl` appears in the stack) and the search root is
+`<mission>/globals/`. But that root could NOT be located from outside the game: the file was placed
+in both `<mission>/globals/` and `<mission>/scripts/globals/` and the engine still failed to find
+it, so the root is somewhere else (possibly inside the packed mission).
+!! **THE FAILURE ABORTS THE PHASE SCRIPT EVEN INSIDE pcall** - same unsurvivable class as
+   spawnVehicle's bad-argument throw. A guard is not protection.
+=> Do NOT load data files at runtime. Splice data in at deploy time instead; see
+   tools/gen_donchery_inline.py, which inlines missions/donchery_oob.lua into the phase script and
+   is kept in sync by check 4i.

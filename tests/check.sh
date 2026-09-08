@@ -205,6 +205,18 @@ if [ -f missions/donchery_oob.lua ] && [ -n "$LUA" ] && command -v luajit >/dev/
   fi
 fi
 
+echo "== 4i. Inlined Donchery OOB is in sync with its source =="
+# The OOB is inlined rather than loaded, because loadfile() resolves from an unlocatable
+# '<mission>/globals/' and its failure ABORTS the phase script even inside pcall. So the inlined
+# copy can silently drift from the reviewable data file that check 4h validates.
+if [ -f tools/gen_donchery_inline.py ]; then
+  if out=$(python3 tools/gen_donchery_inline.py --check 2>&1); then
+    ok "$(echo "$out" | sed -n 's/^ok    //p' | head -1)"
+  else
+    bad "$(echo "$out" | sed -n 's/^FAIL  //p' | head -1)"
+  fi
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
