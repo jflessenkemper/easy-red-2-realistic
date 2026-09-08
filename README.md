@@ -56,7 +56,7 @@ trace, gates orders by pooled speed, judges `ROAD-MARCH` on objective closure),
 `movement_audit.py` (parses `[TELEM]`, reports formation anisotropy and signed own-motion along a
 fixed away-from-enemy axis) and `watch_audit.py` (cross-tabs decisions against the engine's own
 `isOnCover` / `isMoving` / `getSuppressionValue`). Static gates are numbered checks in
-`tests/check.sh` (**PASS 37 FAIL 0**). Offline assertions name their scenario in
+`tests/check.sh` (**PASS 40 FAIL 0**). Offline assertions name their scenario in
 `tests/offline_brain.lua` (18 scenarios).
 
 ---
@@ -437,6 +437,46 @@ SENSE_RADIUS)* — with the second term growing as the **square** of the radius.
 It is not UTF-8 clean, which is why every `grep` in this file passes `-a`.
 
 ---
+
+## Deploying, and the one step that still needs a human
+
+`tools/deploy.py` is the only supported way to install. It refuses to write anything unless
+`tests/check.sh` is green first, so a red build cannot reach the game, and it verifies every
+file it wrote by hash afterwards:
+
+```bash
+python3 tools/deploy.py
+```
+
+Expected tail: `brain 4/4, phase inert 3/3, Stonne variant ok`. `--check` verifies what is
+currently deployed without writing, and check 4l gates that the deployed bytes still match the
+repo. Deployment used to be a hand-run `cp` loop, which twice left three missions running a
+stale build while the one under test was current — that is the failure this removes.
+
+Three missions get the phase script verbatim and **inert**: the rig tables are empty, so only
+the base features run. **Stonne** gets a variant with the historical Donchery order of battle
+switched on, injected at deploy time so the repo copy stays the clean shipping build:
+
+```lua
+local TEST_SPAWNS   = DONCHERY.squads
+local TEST_VEHICLES = DONCHERY.vehicles
+local TEST_MOUNTED  = DONCHERY.mounted
+```
+
+### ⚠️ Stonne needs one manual step in the mission editor
+
+The 77 script-spawned units will **double up** with the mission's own editor spawners, which also
+respawn — so the battalion-vs-battalion, no-respawns intent is not achieved until those are
+switched off. Open *[Historical] Crossing at Donchery* in the editor and, for each of its six
+phases, set every unit and vehicle spawner to disabled.
+
+This cannot be automated and was deliberately not attempted. The `.mer2` mission file is a .NET
+`BinaryFormatter` binary stream, not JSON. The spawner fields are all there — `squad_id`,
+`faction_id`, `spawnType`, `respawn_delay`, `forceFirstSpawn`, `spawnOnVehicle` — but `spawnType`
+is a C# enum serialised as a bare `value__` integer, and nothing in the file says which integer
+means "disabled". Writing the wrong value would silently change spawner semantics in your own
+mission content, so the tool was not written. Disable one spawner by hand and report the
+resulting integer and it becomes tractable.
 
 ## How this was verified
 

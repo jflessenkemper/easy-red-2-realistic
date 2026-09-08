@@ -614,65 +614,78 @@ local function spawnYield(n)
     if n % SPAWN_BATCH == 0 then pcall(function() sleep(SPAWN_PAUSE) end) end
 end
 
-if #TEST_SPAWNS > 0 then
-    for i, s in ipairs(TEST_SPAWNS) do
-        local fac = (s.side == "invader") and INV or DEF
-        dbg(string.format("test spawn %d/%d: attempting %s %s", i, #TEST_SPAWNS,
-            tostring(s.side), tostring(s.squad)))
-        local ok, sq = pcall(function()
-            return spawnSquad_script(s.pos, s.radius or 12, fac, s.squad, "Realistic.lua")
-        end)
-        if not ok or sq == nil then
-            -- fall back to a brainless spawn; auto-attach below will still catch the soldiers
-            ok = pcall(function() spawnSquad(s.pos, s.radius or 12, fac, s.squad) end)
+-- DEFERRED, DELIBERATELY. This rig used to EXECUTE HERE, before a single callback was
+-- registered - and that is why the Donchery run reported "zero errors" while doing nothing.
+-- The spawn burst died partway, and because soldier_spawned (brain auto-attach), soldier_died
+-- (kill feed, squadmate callouts, the loop-death pump) and vehicle_destroyed (crew bail-out)
+-- are all registered LATER in this file, none of them ever registered. The mod was not
+-- partly alive with 6 squads; it was entirely dead, and silent about it.
+-- So the rig is now a function, invoked immediately before the main loop once every callback is
+-- armed. A spawn death then costs the spawns and the periodic loop, but the event-driven
+-- features survive - and pumpIfLoopDead already exists to drive the periodic work from
+-- soldier_died when the loop is gone.
+local function runSpawnRig()
+    if #TEST_SPAWNS > 0 then
+        for i, s in ipairs(TEST_SPAWNS) do
+            local fac = (s.side == "invader") and INV or DEF
+            dbg(string.format("test spawn %d/%d: attempting %s %s", i, #TEST_SPAWNS,
+                tostring(s.side), tostring(s.squad)))
+            local ok, sq = pcall(function()
+                return spawnSquad_script(s.pos, s.radius or 12, fac, s.squad, "Realistic.lua")
+            end)
+            if not ok or sq == nil then
+                -- fall back to a brainless spawn; auto-attach below will still catch the soldiers
+                ok = pcall(function() spawnSquad(s.pos, s.radius or 12, fac, s.squad) end)
+            end
+            dbg(string.format("test spawn %d: %s %s -> %s", i, s.side, tostring(s.squad),
+                ok and "ok" or "FAILED (check the squad id in Id tables)"))
+            spawnYield(i)
         end
-        dbg(string.format("test spawn %d: %s %s -> %s", i, s.side, tostring(s.squad),
-            ok and "ok" or "FAILED (check the squad id in Id tables)"))
+    end
+
+    -- Vehicles for a scenario rig. Direction is a vec3; see the note on the tables above.
+    for i, v in ipairs(TEST_VEHICLES) do
+        dbg(string.format("test vehicle %d/%d: attempting %s", i, #TEST_VEHICLES, tostring(v[1])))
+        local ok = pcall(function() spawnVehicle(v[1], v[2], v[3]) end)
+        dbg(string.format("test vehicle %d: %s -> %s", i, tostring(v[1]),
+            ok and "ok" or "FAILED (check the vehicle name, and that arg 3 is a vec3)"))
         spawnYield(i)
     end
-end
 
--- Vehicles for a scenario rig. Direction is a vec3; see the note on the tables above.
-for i, v in ipairs(TEST_VEHICLES) do
-    dbg(string.format("test vehicle %d/%d: attempting %s", i, #TEST_VEHICLES, tostring(v[1])))
-    local ok = pcall(function() spawnVehicle(v[1], v[2], v[3]) end)
-    dbg(string.format("test vehicle %d: %s -> %s", i, tostring(v[1]),
-        ok and "ok" or "FAILED (check the vehicle name, and that arg 3 is a vec3)"))
-    spawnYield(i)
-end
-
--- Squads that must start MOUNTED. The vehicle handle is found by AREA SCAN, because spawnVehicle
--- returns nothing usable (it resolves to spawnVehicleWithCallback). getVehiclesInArea is
--- fill-style and must be called WITH a table.
-for i, m in ipairs(TEST_MOUNTED) do
-    -- SIDE IS m[3], AND IT MATTERS. This loop used to hardcode INV for every mounted crew. On
-    -- Donchery that put the SIX FRENCH Hotchkiss crews on the GERMAN side — enemy gunners manning
-    -- the French emplacements, firing the wrong way across the river. Nothing errored and nothing
-    -- in the log said so, because a crew spawning on the wrong faction is a perfectly successful
-    -- spawn. Defaults to invader when unspecified, which is what every rig-era entry relied on.
-    local fac = (m[3] == "defender") and DEF or INV
-    dbg(string.format("test mounted %d/%d: attempting %s (%s)", i, #TEST_MOUNTED,
-        tostring(m[1]), tostring(m[3] or "invader")))
-    local vlist, veh = {}, nil
-    pcall(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
-    for _, cand in pairs(vlist) do if cand then veh = cand break end end
-    local ok = false
-    if veh then
-        ok = pcall(function()
-            return spawnSquadOnVehicle_script(m[2], 8, fac, m[1], veh, "Realistic.lua")
-        end)
+    -- Squads that must start MOUNTED. The vehicle handle is found by AREA SCAN, because spawnVehicle
+    -- returns nothing usable (it resolves to spawnVehicleWithCallback). getVehiclesInArea is
+    -- fill-style and must be called WITH a table.
+    for i, m in ipairs(TEST_MOUNTED) do
+        -- SIDE IS m[3], AND IT MATTERS. This loop used to hardcode INV for every mounted crew. On
+        -- Donchery that put the SIX FRENCH Hotchkiss crews on the GERMAN side — enemy gunners manning
+        -- the French emplacements, firing the wrong way across the river. Nothing errored and nothing
+        -- in the log said so, because a crew spawning on the wrong faction is a perfectly successful
+        -- spawn. Defaults to invader when unspecified, which is what every rig-era entry relied on.
+        local fac = (m[3] == "defender") and DEF or INV
+        dbg(string.format("test mounted %d/%d: attempting %s (%s)", i, #TEST_MOUNTED,
+            tostring(m[1]), tostring(m[3] or "invader")))
+        local vlist, veh = {}, nil
+        pcall(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
+        for _, cand in pairs(vlist) do if cand then veh = cand break end end
+        local ok = false
+        if veh then
+            ok = pcall(function()
+                return spawnSquadOnVehicle_script(m[2], 8, fac, m[1], veh, "Realistic.lua")
+            end)
+        end
+        dbg(string.format("test mounted %d: %s -> %s", i, tostring(m[1]),
+            ok and "ok (aboard)" or "FAILED (no vehicle found in range, or the API rejected it)"))
+        spawnYield(i)
     end
-    dbg(string.format("test mounted %d: %s -> %s", i, tostring(m[1]),
-        ok and "ok (aboard)" or "FAILED (no vehicle found in range, or the API rejected it)"))
-    spawnYield(i)
+    if TEST_OBJECTIVE then
+        local ok = pcall(function()
+            local o = spawnMissionObjective(TEST_OBJECTIVE, TEST_OBJ_RADIUS, "Take the objective", 0, true)
+            if o then global.set(o.getUniqueId(), "realistic_test_obj") end
+        end)
+        dbg("test objective " .. (ok and "created" or "FAILED"))
+    end
 end
-if TEST_OBJECTIVE then
-    local ok = pcall(function()
-        local o = spawnMissionObjective(TEST_OBJECTIVE, TEST_OBJ_RADIUS, "Take the objective", 0, true)
-        if o then global.set(o.getUniqueId(), "realistic_test_obj") end
-    end)
-    dbg("test objective " .. (ok and "created" or "FAILED"))
-end
+
 
 --========================== AUTO-ATTACH THE AI BRAIN ========================
 -- The Squad Spawner's "Brain" field is trivially easy to leave empty, and when it is EVERY
@@ -1667,6 +1680,9 @@ pumpIfLoopDead = function()
     end
     pcall(loopBody)
 end
+-- Every callback is armed by this point, so a spawn failure can no longer disarm the mod.
+runSpawnRig()
+
 while true do
     -- WAIT-AND-RESUME, not break. This used to `break` the moment the phase changed, which is
     -- what a battle ending looks like. The game does NOT re-load the phase script for a second

@@ -183,7 +183,7 @@ extra top-level local breaks every brain at compile time): `AT` (target/failure/
 
 # 6. HOW THIS IS VERIFIED
 
-Four layers. `tests/check.sh` runs the static ones — **37 checks**.
+Four layers. `tests/check.sh` runs the static ones — **40 checks**.
 
 **Static.** Lua syntax · no UserData reaching a Lua global (fatal at boot) · constants declared
 once and used · banned patterns (`soldier_suppressed`, `.aiParams`, `uid % N`) · fill-style APIs

@@ -264,6 +264,89 @@ print("ok    %d mounted crews all carry an explicit side (%d defender), and the 
 PY
 if [ $? -eq 0 ]; then ok "mounted crew sides are explicit and honoured"; else bad "mounted crew side check failed"; fi
 
+echo "== 4k. The spawn rig runs AFTER every callback is registered =="
+# ORDERING IS THE WHOLE FEATURE SET HERE. When the spawn rig executed before registration, a
+# spawn death partway through Donchery's 77 calls meant soldier_spawned, soldier_died and
+# vehicle_destroyed never registered - so brain auto-attach, the kill feed and crew bail-out were
+# all dead while the log showed 6 successful spawns and ZERO errors. Three runs were spent on
+# that. If anyone moves the invocation back above the callbacks, this must go red.
+python3 - RealisticEvents.lua <<'PY'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+lines = src.split("\n")
+
+def lineno(pred):
+    return [i + 1 for i, l in enumerate(lines) if pred(l)]
+
+call = [n for n in lineno(lambda l: l.startswith("runSpawnRig()"))]
+defn = lineno(lambda l: l.startswith("local function runSpawnRig"))
+cbs = {}
+for i, l in enumerate(lines):
+    m = re.search(r'setCallback\("(\w+)"', l)
+    if m and not l.lstrip().startswith("--"):
+        cbs.setdefault(m.group(1), i + 1)
+
+fail = []
+if not defn:
+    fail.append("runSpawnRig() is not defined - the spawn rig must stay a function so it can be "
+                "deferred past callback registration.")
+if len(call) != 1:
+    fail.append("expected exactly one top-level runSpawnRig() invocation, found %d" % len(call))
+required = ("soldier_spawned", "soldier_died", "vehicle_destroyed")
+missing = [c for c in required if c not in cbs]
+if missing:
+    fail.append("could not find setCallback for: %s" % ", ".join(missing))
+if call and not missing:
+    for c in required:
+        if cbs[c] > call[0]:
+            fail.append("runSpawnRig() is invoked at line %d, BEFORE setCallback(\"%s\") at line "
+                        "%d. A spawn death would then disarm that callback entirely and the log "
+                        "would show zero errors." % (call[0], c, cbs[c]))
+
+if fail:
+    for f in fail:
+        print("FAIL  " + f)
+    sys.exit(1)
+print("ok    runSpawnRig() at line %d runs after all %d callbacks (latest at %d)"
+      % (call[0], len(required), max(cbs[c] for c in required)))
+PY
+if [ $? -eq 0 ]; then ok "spawn rig is deferred past callback registration"; else bad "spawn rig ordering check failed"; fi
+
+echo "== 4l. tools/deploy.py exists and what is deployed matches the repo build =="
+# Deployment used to be a hand-run cp loop. Twice it was pointed at only the mission under
+# test, leaving the other three missions on a stale brain - and the map you were testing
+# behaved correctly, so the build looked good until a different map contradicted it an hour
+# later. tools/deploy.py writes all four missions and hashes back what it wrote; this gate
+# makes sure it still exists and that nobody has since hand-edited a deployed file or
+# changed the repo without redeploying. deploy.py --check does NOT re-enter check.sh (that
+# would recurse), so this is safe to call from here.
+python3 - <<'PY'
+import os, subprocess, sys
+repo = os.getcwd()
+deploy = os.path.join(repo, "tools", "deploy.py")
+
+fail = []
+if not os.path.isfile(deploy):
+    fail.append("tools/deploy.py is missing - deployment is back to a hand-run cp loop, "
+                "which has already shipped three stale missions twice.")
+elif not os.access(deploy, os.X_OK):
+    fail.append("tools/deploy.py is not executable")
+else:
+    p = subprocess.run([sys.executable, deploy, "--check"], cwd=repo,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if p.returncode != 0:
+        for line in p.stdout.strip().split("\n"):
+            if line.strip():
+                fail.append("deploy.py --check: " + line.strip())
+
+if fail:
+    for f in fail:
+        print("FAIL  " + f)
+    sys.exit(1)
+print("ok    deploy.py --check agrees with all deployed files")
+PY
+if [ $? -eq 0 ]; then ok "deployed files match the repo build (deploy.py --check)"; else bad "deploy.py --check reports drift or deploy.py is missing"; fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
