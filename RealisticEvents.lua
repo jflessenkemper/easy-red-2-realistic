@@ -404,7 +404,16 @@ local T9_T6_MOUNTED = {
     { "ger_tankCrew_1940", vec3(200, 0, 200) },
 }
 
+-- FORMATION RIG. One MG-centric German squad, NO enemies, an objective 250 m away so the squad
+-- approach-marches. Spawn radius 35, deliberately wide: RALLY-on-MG only fires for a man more
+-- than MG_COHESION 25 m from the gunner, and a tight spawn puts everyone inside that so the
+-- branch never fires and they all just ROAD-MARCH.
+local FORMRIG = {
+    { pos = vec3(300, 0, 300), side = "invader", squad = "ger_infantry_1940", radius = 35 },
+}
+
 -- Ships INERT. To arm a scenario, assign the matching trio:
+--   FORMRIG -> TEST_SPAWNS = FORMRIG   (one wide-spawned MG-centric squad, no enemies)
 --   T10   -> TEST_SPAWNS = T10
 --   T9+T6 -> TEST_SPAWNS = T9_T6, TEST_VEHICLES = T9_T6_VEHICLES, TEST_MOUNTED = T9_T6_MOUNTED
 local TEST_SPAWNS = {}

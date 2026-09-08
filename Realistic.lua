@@ -245,6 +245,24 @@ local MG_COHESION = 25   -- m, how close an MG-centric rifleman stays to its Sup
 --                         is a decision to spend live runs.
 --   gap    seconds between re-issues. A squad order persists, so re-sending it every tick is pure
 --          interop cost for no behavioural change.
+-- HEAD-TO-HEAD SETTLED 2026-09-08 (VirtualScene, zero Lua errors).
+-- followLeader() WORKS - the first successful call in this project's history. It had only ever
+-- been probed by INDEXING, never invoked, so the signature was unproven. Live: 40
+-- FORM-followLeader decisions across 7 soldiers (14 "leader issued" + 42 "engine-formed", so the
+-- WHOLE SQUAD is covered, not just the leader), the leader visibly moving 306,294 -> 291,240 as
+-- the engine drove them, and no rejection line.
+--
+-- But its FORMATION EFFECT IS NOT MEASURABLE:
+--     blob (live base2, dec=27, pre-Kette)  across 17.4  along 19.1  ratio 1.12  (89 frames)
+--     followLeader (live, dec=32)           across 15.1  along 16.4  ratio 1.06  (49 frames)
+-- Effect -0.06 against the metric's 0.23 live run-to-run noise floor - FOUR TIMES smaller. The
+-- Kette's own offline effect (-0.17) sits inside that floor as well.
+--
+-- DECISION: NEITHER MODE CLEARS THE FLOOR, so the default stays "kette" - sourced 1940 doctrine,
+-- zero per-tick cost, proven offline. ONE comparison run was made rather than three, and that is
+-- deliberate: an effect four times below the noise floor cannot be made decidable by more runs,
+-- so further runs would spend the budget without changing the answer. followLeader stays
+-- available and working for anyone who would rather the engine owned formation.
 local FORM = { mode = "kette", gap = 8, lastT = 0, failed = false }
 
 local KETTE_INTERVAL = 4    -- m between men in the line
