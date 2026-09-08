@@ -218,6 +218,17 @@ def build_plan():
     for mission in MISSIONS:
         dst_dir = os.path.join(MISSION_ROOT, mission, "scripts", "mission")
         plan.append((mission, os.path.join(dst_dir, BRAIN_DST_NAME), brain, "brain"))
+        # THE BRAIN LIVES IN TWO PLACES AND BOTH MATTER. scripts/AI/ is what the mission editor's
+        # Squad Spawner "Brain" dropdown enumerates (er2-plugin/docs/ui-map.md:179), so a brain
+        # selected in the editor is loaded from THERE, not from scripts/mission/. This tool
+        # originally wrote only scripts/mission/, which meant the two copies silently diverged the
+        # moment Realistic.lua was edited - and the game would keep running the OLD brain from
+        # scripts/AI/ while every check, hash and cmp in this repo confirmed the NEW one was
+        # "deployed". That is precisely the stale-build failure this tool exists to prevent, one
+        # directory over. They happened to still match when this was found, only because
+        # Realistic.lua had not changed since the plugin's own deploy last wrote both.
+        ai_dir = os.path.join(MISSION_ROOT, mission, "scripts", "AI")
+        plan.append((mission, os.path.join(ai_dir, BRAIN_DST_NAME), brain, "brain (AI dir)"))
         if mission in variants:
             label = "phase (%s)" % VARIANTS[mission][0]
             plan.append(
@@ -347,7 +358,7 @@ def main():
         # so the generated Stonne variant is covered too.
         got = read(dst)
         same = got == expected
-        if label == "brain":
+        if label.startswith("brain"):
             same = same and filecmp.cmp(BRAIN_SRC, dst, shallow=False)
         rows.append((mission, label, "PASS" if same else "FAIL", sha(got)[:12]))
         if not same:
@@ -362,9 +373,11 @@ def main():
     # SUMMARY. Every count here is derived from the rows actually written and re-read, not from
     # the plan, so it cannot claim a variant shipped that did not.
     brain_ok = sum(1 for _, l, v, _ in rows if l == "brain" and v == "PASS")
+    brain_ai_ok = sum(1 for _, l, v, _ in rows if l == "brain (AI dir)" and v == "PASS")
     inert_ok = sum(1 for _, l, v, _ in rows if l == "phase (inert)" and v == "PASS")
     n_inert = len(MISSIONS) - len(VARIANTS)
     parts = ["brain %d/%d" % (brain_ok, len(MISSIONS)),
+             "brain AI-dir %d/%d" % (brain_ai_ok, len(MISSIONS)),
              "phase inert %d/%d" % (inert_ok, n_inert)]
     for mission in MISSIONS:
         if mission not in VARIANTS:
