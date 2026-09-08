@@ -217,6 +217,53 @@ if [ -f tools/gen_donchery_inline.py ]; then
   fi
 fi
 
+echo "== 4j. Mounted crews spawn on the correct side =="
+# A crew spawned on the wrong faction is a perfectly SUCCESSFUL spawn: no error, no failed line,
+# nothing in the log to show for it. The mounted loop hardcoded INV, which put Donchery's six
+# French Hotchkiss crews on the German side, manning the French emplacements and firing the wrong
+# way across the river. Only a static check catches this class.
+python3 - RealisticEvents.lua missions/donchery_oob.lua <<'PY'
+import re, sys
+phase, oob = (open(p, encoding="utf-8").read() for p in sys.argv[1:3])
+
+fail = []
+loop = re.search(r"for i, m in ipairs\(TEST_MOUNTED\) do.*?\nend", phase, re.S)
+if not loop:
+    fail.append("could not find the TEST_MOUNTED loop in RealisticEvents.lua")
+else:
+    body = loop.group(0)
+    if "m[3]" not in body:
+        fail.append("the TEST_MOUNTED loop ignores m[3] (the side). It will spawn every mounted "
+                    "crew as the invader, which puts the French Hotchkiss crews on the German "
+                    "side - a silent, error-free wrong-faction spawn.")
+    if not re.search(r"spawnSquadOnVehicle_script\([^)]*\bfac\b", body):
+        fail.append("spawnSquadOnVehicle_script is not being passed the resolved `fac`; a "
+                    "hardcoded INV/DEF there defeats the m[3] side entirely.")
+
+entries = re.findall(r"DONCHERY\.mounted\[#DONCHERY\.mounted \+ 1\] = \{(.*?)\}", oob)
+if not entries:
+    fail.append("no DONCHERY.mounted entries found - has the OOB table been renamed?")
+sides = []
+for e in entries:
+    m = re.search(r'"(invader|defender)"', e)
+    if not m:
+        fail.append("a DONCHERY.mounted entry has no explicit side: {%s}" % e.strip())
+    else:
+        sides.append(m.group(1))
+# The assertion that actually catches the original bug: the French crews must be defenders.
+if sides and "defender" not in sides:
+    fail.append("every mounted crew in the OOB is an invader. The six French Hotchkiss crews "
+                "must be 'defender' or they man the French guns for the Germans.")
+
+if fail:
+    for f in fail:
+        print("FAIL  " + f)
+    sys.exit(1)
+print("ok    %d mounted crews all carry an explicit side (%d defender), and the loop honours it"
+      % (len(entries), sides.count("defender")))
+PY
+if [ $? -eq 0 ]; then ok "mounted crew sides are explicit and honoured"; else bad "mounted crew side check failed"; fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then

@@ -437,6 +437,8 @@ local FORMRIG = {
 -- The full catalogue and every forced substitution is in docs/donchery-build-sheet.md.
 --
 -- DEPLOY: consumed by RealisticEvents.lua's TEST_SPAWNS hook. Assign the trio:
+-- Mounted entries are { squadId, pos, side }. THE SIDE IS NOT OPTIONAL HERE: the phase
+-- script used to hardcode invader, which spawned the French Hotchkiss crews as Germans.
 --     TEST_SPAWNS = DONCHERY.squads, TEST_VEHICLES = DONCHERY.vehicles,
 --     TEST_MOUNTED = DONCHERY.mounted
 -- and DISABLE the mission's own editor unit spawners (spawn type "Disabled") so nothing doubles up.
@@ -532,7 +534,7 @@ for _, a in ipairs(ARMOUR) do
     -- off what the man was RIDING. Editor-placed vehicles carry a faction; script-spawned ones do
     -- not, so features 5 and 18 are only re-provable here if these are converted to editor
     -- spawners. See docs/donchery-build-sheet.md.
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(a[2], 0, EMBANKMENT) }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(a[2], 0, EMBANKMENT), "invader" }
 end
 
 -- Soft-skin transport. NOT motorcycles - see the note at the top.
@@ -560,7 +562,7 @@ end
 for i = 0, 5 do
     local x = -FRONTAGE / 2 + (FRONTAGE / 5) * i
     addVeh(DONCHERY.vehicles, "Hotchkiss Stationary Ground", x, RIVER_GAP + 15, 0, -1)
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(x, 0, RIVER_GAP + 15) }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(x, 0, RIVER_GAP + 15), "defender" }
 end
 
 -- Three 25 mm SA-L Mle 1934 AT positions, emplaced.
@@ -592,9 +594,31 @@ local TEST_MOUNTED  = {}
 local TEST_OBJECTIVE = nil     -- e.g. vec3(0,0,60); nil = don't create one
 local TEST_OBJ_RADIUS = 40
 
+-- SPAWN PACING. A batch this size CANNOT be issued in one frame. The Donchery order of battle
+-- (31 squads, 28 vehicles, 18 crews = 77 engine spawn calls) stopped dead at squad 6 of 31 with
+-- ZERO failures and ZERO Lua errors — the script simply ceased, which is the documented
+-- phase-loop-death signature and is indistinguishable from success in the log. Two causes are
+-- consistent with that evidence and this handles both:
+--   * the engine needs FRAMES to instantiate what it has been asked for, and a synchronous burst
+--     either exhausts a per-frame budget or outruns the instantiation queue;
+--   * an engine-side throw on one item ESCAPES pcall (proven twice already — spawnVehicle's
+--     bad-argument throw and loadfile's failure both kill the script from inside a pcall).
+-- So: yield every SPAWN_BATCH items, and LOG BEFORE EACH ATTEMPT rather than only after it.
+-- The pre-log is the diagnosis that was missing: "6 ok lines" cannot distinguish "item 7 failed"
+-- from "item 7 killed the script before it could report", because the only dbg() call came AFTER
+-- the pcall. An "attempting" line with no matching result names the fatal item exactly.
+local SPAWN_BATCH = 4          -- items per frame-yield; 77 calls / 4 ~= 20 sleeps ~= 2 s of setup
+local SPAWN_PAUSE = 0.1
+
+local function spawnYield(n)
+    if n % SPAWN_BATCH == 0 then pcall(function() sleep(SPAWN_PAUSE) end) end
+end
+
 if #TEST_SPAWNS > 0 then
     for i, s in ipairs(TEST_SPAWNS) do
         local fac = (s.side == "invader") and INV or DEF
+        dbg(string.format("test spawn %d/%d: attempting %s %s", i, #TEST_SPAWNS,
+            tostring(s.side), tostring(s.squad)))
         local ok, sq = pcall(function()
             return spawnSquad_script(s.pos, s.radius or 12, fac, s.squad, "Realistic.lua")
         end)
@@ -604,31 +628,43 @@ if #TEST_SPAWNS > 0 then
         end
         dbg(string.format("test spawn %d: %s %s -> %s", i, s.side, tostring(s.squad),
             ok and "ok" or "FAILED (check the squad id in Id tables)"))
+        spawnYield(i)
     end
 end
 
 -- Vehicles for a scenario rig. Direction is a vec3; see the note on the tables above.
 for i, v in ipairs(TEST_VEHICLES) do
+    dbg(string.format("test vehicle %d/%d: attempting %s", i, #TEST_VEHICLES, tostring(v[1])))
     local ok = pcall(function() spawnVehicle(v[1], v[2], v[3]) end)
     dbg(string.format("test vehicle %d: %s -> %s", i, tostring(v[1]),
         ok and "ok" or "FAILED (check the vehicle name, and that arg 3 is a vec3)"))
+    spawnYield(i)
 end
 
 -- Squads that must start MOUNTED. The vehicle handle is found by AREA SCAN, because spawnVehicle
 -- returns nothing usable (it resolves to spawnVehicleWithCallback). getVehiclesInArea is
 -- fill-style and must be called WITH a table.
 for i, m in ipairs(TEST_MOUNTED) do
+    -- SIDE IS m[3], AND IT MATTERS. This loop used to hardcode INV for every mounted crew. On
+    -- Donchery that put the SIX FRENCH Hotchkiss crews on the GERMAN side — enemy gunners manning
+    -- the French emplacements, firing the wrong way across the river. Nothing errored and nothing
+    -- in the log said so, because a crew spawning on the wrong faction is a perfectly successful
+    -- spawn. Defaults to invader when unspecified, which is what every rig-era entry relied on.
+    local fac = (m[3] == "defender") and DEF or INV
+    dbg(string.format("test mounted %d/%d: attempting %s (%s)", i, #TEST_MOUNTED,
+        tostring(m[1]), tostring(m[3] or "invader")))
     local vlist, veh = {}, nil
     pcall(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
     for _, cand in pairs(vlist) do if cand then veh = cand break end end
     local ok = false
     if veh then
         ok = pcall(function()
-            return spawnSquadOnVehicle_script(m[2], 8, INV, m[1], veh, "Realistic.lua")
+            return spawnSquadOnVehicle_script(m[2], 8, fac, m[1], veh, "Realistic.lua")
         end)
     end
     dbg(string.format("test mounted %d: %s -> %s", i, tostring(m[1]),
         ok and "ok (aboard)" or "FAILED (no vehicle found in range, or the API rejected it)"))
+    spawnYield(i)
 end
 if TEST_OBJECTIVE then
     local ok = pcall(function()

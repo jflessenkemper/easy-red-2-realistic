@@ -16,6 +16,8 @@
 -- The full catalogue and every forced substitution is in docs/donchery-build-sheet.md.
 --
 -- DEPLOY: consumed by RealisticEvents.lua's TEST_SPAWNS hook. Assign the trio:
+-- Mounted entries are { squadId, pos, side }. THE SIDE IS NOT OPTIONAL HERE: the phase
+-- script used to hardcode invader, which spawned the French Hotchkiss crews as Germans.
 --     TEST_SPAWNS = DONCHERY.squads, TEST_VEHICLES = DONCHERY.vehicles,
 --     TEST_MOUNTED = DONCHERY.mounted
 -- and DISABLE the mission's own editor unit spawners (spawn type "Disabled") so nothing doubles up.
@@ -111,7 +113,7 @@ for _, a in ipairs(ARMOUR) do
     -- off what the man was RIDING. Editor-placed vehicles carry a faction; script-spawned ones do
     -- not, so features 5 and 18 are only re-provable here if these are converted to editor
     -- spawners. See docs/donchery-build-sheet.md.
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(a[2], 0, EMBANKMENT) }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(a[2], 0, EMBANKMENT), "invader" }
 end
 
 -- Soft-skin transport. NOT motorcycles - see the note at the top.
@@ -139,7 +141,7 @@ end
 for i = 0, 5 do
     local x = -FRONTAGE / 2 + (FRONTAGE / 5) * i
     addVeh(DONCHERY.vehicles, "Hotchkiss Stationary Ground", x, RIVER_GAP + 15, 0, -1)
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(x, 0, RIVER_GAP + 15) }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(x, 0, RIVER_GAP + 15), "defender" }
 end
 
 -- Three 25 mm SA-L Mle 1934 AT positions, emplaced.
