@@ -234,6 +234,19 @@ local MG_COHESION = 25   -- m, how close an MG-centric rifleman stays to its Sup
 -- distance of each other"). Both pressures are real and documented: "bunching around the machine
 -- gun must be avoided under all circumstances", and "cohesion within the squad must be maintained
 -- at all costs". No beaten-zone derivation exists in any manual searched - do not invent one.
+-- FORMATION MODE, grouped in a table because this file is AT the Lua 200-local ceiling and a
+-- single extra top-level local breaks every brain at compile time.
+--   mode   "kette"        per-soldier slots. Default. Proven offline (tests/offline_formation.lua)
+--                         to widen the squad across the axis 17.4 -> 21.9 m and move the
+--                         along/across ratio 0.95 -> 0.78, but that -0.17 is inside the 0.23 live
+--                         noise floor, so it can never be attributed in a battle.
+--          "followleader" the engine's own squad order, issued by the LEADER only. Its geometry
+--                         cannot be measured offline (no moveTo is produced), so switching to it
+--                         is a decision to spend live runs.
+--   gap    seconds between re-issues. A squad order persists, so re-sending it every tick is pure
+--          interop cost for no behavioural change.
+local FORM = { mode = "kette", gap = 8, lastT = 0, failed = false }
+
 local KETTE_INTERVAL = 4    -- m between men in the line
 local KETTE_FRONT    = 36   -- m, total frontage cap (~40 yards, the voice-control limit)
 
@@ -526,6 +539,7 @@ local DEC = {
         ["BOUND-overwatch"]=23, ["FIGHT-from-cover"]=24, ["DEFEND-hold"]=25,
         ["CONSOLIDATE"]=26, ["RALLY-on-MG"]=27, ["ROAD-MARCH"]=28, ["ADVANCE-baseAI"]=29,
         ["RETURN-to-transport"]=30, ["REBOARD-transport"]=31,
+        ["FORM-followLeader"]=32,
     },
 }
 -- TWO CACHES for the sense() hot loop. Measured live: the sweep returns ~70 soldiers, each
@@ -1559,9 +1573,54 @@ while true do
                     local fx, fz
                     if ec then fx, fz = ec.x - mgPos.x, ec.z - mgPos.z
                     elseif obj then fx, fz = obj.x - mgPos.x, obj.z - mgPos.z end
-                    local slot = (fx and ketteSlot(mgPos, fx, fz, pos)) or mgPos
-                    orderMove(slot, now)
-                    decision, detail = "RALLY-on-MG", "d="..string.format("%.0f", distance(pos, mgPos))
+
+                    -- FORMATION MODE. Two implementations of the same intent, switchable so they
+                    -- can be compared instead of argued about:
+                    --   "kette"        per-soldier slots (ketteSlot). Proven OFFLINE to widen the
+                    --                  squad across the axis 17.4 -> 21.9 m, ratio 0.95 -> 0.78 -
+                    --                  but that -0.17 sits inside the 0.23 live noise floor, so it
+                    --                  can never be attributed in a battle.
+                    --   "followleader" the ENGINE's own squad order. Issued ONCE by the squad
+                    --                  LEADER only: it is a squad-level command, so if every man
+                    --                  issued it there would be one call per man per tick for the
+                    --                  same effect. Unlike the Kette its geometry CANNOT be
+                    --                  measured offline, because the engine moves the men itself
+                    --                  and no moveTo is produced for the harness to capture.
+                    --
+                    -- followLeader is confirmed PRESENT but was probed by indexing only and has
+                    -- NEVER been called (docs/verified-api.md:341-350 - "Mutators never called"),
+                    -- so its signature is unproven. It is guarded, logged once on rejection, and
+                    -- falls through to the Kette so a wrong signature cannot regress behaviour.
+                    local formed = false
+                    if FORM.mode == "followleader" and not FORM.failed then
+                        if isLeader and mySquad then
+                            if (now - FORM.lastT) >= FORM.gap then
+                                FORM.lastT = now
+                                if safe(function() mySquad.followLeader() end) then
+                                    formed = true
+                                else
+                                    FORM.failed = true
+                                    dbg("followLeader() rejected - reverting to per-soldier slots")
+                                end
+                            else
+                                formed = true          -- already ordered; do not re-spam
+                            end
+                        elseif not isLeader then
+                            -- Non-leaders contribute nothing to a squad order. Defer to the engine
+                            -- rather than issuing a competing moveTo, which would fight the very
+                            -- formation the leader just asked for.
+                            formed = true
+                        end
+                    end
+
+                    if formed then
+                        decision, detail = "FORM-followLeader",
+                            (isLeader and "leader issued" or "engine-formed")
+                    else
+                        local slot = (fx and ketteSlot(mgPos, fx, fz, pos)) or mgPos
+                        orderMove(slot, now)
+                        decision, detail = "RALLY-on-MG", "d="..string.format("%.0f", distance(pos, mgPos))
+                    end
                 elseif ROAD_FOLLOW and obj then
                     orderMove(staggerAcross(roadStepToward(pos, obj), pos), now)
                     decision, detail = "ROAD-MARCH", "obj d="..string.format("%.0f", distance(pos, obj))

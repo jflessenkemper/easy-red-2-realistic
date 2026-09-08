@@ -74,6 +74,12 @@ local function mkSquad(members)
             return tbl
         end,
         isPlayerInSquad = function() return false end,
+        -- Squad tactical orders. Confirmed present on v2.0.9 but probed by INDEXING only and
+        -- never called, so the stub RECORDS calls: the thing that goes wrong with a squad-level
+        -- order in a per-soldier brain is every man issuing it every tick.
+        followLeader    = function() S.sqOrders = (S.sqOrders or 0) + 1 end,
+        attackFromPoint = function() S.sqOrders = (S.sqOrders or 0) + 1 end,
+        coverArea       = function() S.sqOrders = (S.sqOrders or 0) + 1 end,
     }
 end
 
@@ -145,9 +151,20 @@ local function run(scn)
     -- uid happens not to be in the sample emits nothing and every scenario looks broken.
     -- VERBOSE bypasses both, which is what a deterministic test wants. Neither flag is written
     -- back to disk; the shipped file keeps both false.
+    -- A scenario may supply a real squad roster (so rosterIndex/isSquadLeader resolve) and may
+    -- switch the brain's FORMATION MODE, which is how the followLeader path is reached at all.
+    if scn.squadMembers and scn.me then
+        local sq = mkSquad(scn.squadMembers)
+        scn.me.getSquad = function() return sq end
+    end
     local src = assert(io.open(SRC)):read("*a")
         :gsub("local DEBUG%s*=%s*false", "local DEBUG = true", 1)
         :gsub("local VERBOSE%s*=%s*false", "local VERBOSE = true", 1)
+    if scn.mode then
+        local n
+        src, n = src:gsub('mode = "kette"', 'mode = "' .. scn.mode .. '"', 1)
+        assert(n == 1, "FORM.mode substitution missed - the FORM table changed")
+    end
     local chunk, err = load(src, "@" .. SRC)
     if not chunk then return nil, "compile: " .. tostring(err) end
     local ok, e = pcall(chunk)
@@ -354,6 +371,48 @@ local TESTS = {
     -- assault AND the whole formation branch, and the MG gunner - the formation ANCHOR - was found
     -- by the single English substring "support".
 
+    -- FORMATION MODE: followLeader. Its GEOMETRY cannot be tested offline - it is a squad-level
+    -- engine order, so the engine moves the men itself and no moveTo is produced for the harness
+    -- to capture. What CAN be tested, and is the thing that goes catastrophically wrong with a
+    -- squad order inside a PER-SOLDIER brain, is the issuing discipline: one call per squad per
+    -- FORM.gap, from the LEADER only. Ten men x every tick would be ~175 redundant engine calls a
+    -- second across a battalion for no behavioural change.
+    { name = "followLeader mode: the LEADER issues, and does not spam",
+      expect = "FORM%-followLeader",
+      mode = "followleader",
+      build = function()
+          local me = soldierAt(0, 0, { uid = 1000, leader = true })
+          local mates = { me }
+          for i = 1, 8 do mates[#mates + 1] = soldierAt(2 * i, 0, { uid = 1000 + i * 262 }) end
+          local gun = soldierAt(60, 0, { uid = 5000, class = "Support Gunner" })
+          mates[#mates + 1] = gun
+          return { me = me, ticks = 8, tickSeconds = 2.0,
+                   objective = v3(400, 0, 0), nearby = mates, squadMembers = mates }
+      end,
+      check = function(scn)
+          local n = scn.sqOrders or 0
+          -- 8 ticks x 2.0 s = 16 s of mission clock, FORM.gap is 8 s => at most 2 issues.
+          if n == 0 then return false, "followLeader was never called" end
+          if n > 3 then return false, "followLeader called " .. n .. " times - it is spamming" end
+          return true, n .. " squad order(s) over 16 s (gap 8 s)"
+      end },
+
+    { name = "followLeader mode: a NON-leader never issues the squad order",
+      expect = "FORM%-followLeader",
+      mode = "followleader",
+      build = function()
+          local me = soldierAt(0, 0, { uid = 1002, leader = false })
+          local mates = { me, soldierAt(60, 0, { uid = 5000, class = "Support Gunner" }) }
+          for i = 1, 7 do mates[#mates + 1] = soldierAt(2 * i, 0, { uid = 2000 + i * 262 }) end
+          return { me = me, ticks = 8, tickSeconds = 2.0,
+                   objective = v3(400, 0, 0), nearby = mates, squadMembers = mates }
+      end,
+      check = function(scn)
+          local n = scn.sqOrders or 0
+          if n > 0 then return false, "a non-leader issued " .. n .. " squad order(s)" end
+          return true, "no squad order issued by a non-leader, as designed"
+      end },
+
     { name = "UNMODELLED nation still reaches ASSAULT (DOCTRINE_DEFAULT)",
       expect = "ASSAULT",
       build = function()
@@ -409,6 +468,10 @@ local TESTS = {
 local pass, fail = 0, 0
 for _, t in ipairs(TESTS) do
     local scn = t.build()
+    -- The FORMATION MODE lives on the TEST descriptor, not on the scenario build() returns, so it
+    -- has to be copied across. Missing this made the mode substitution silently no-op: scn.mode
+    -- was nil, so the `assert(n == 1)` guarding it never even ran.
+    scn.mode = t.mode
     local got, err = run(scn)
     if err then
         print(string.format("  \27[31mFAIL\27[0m  %s\n         ERROR: %s", t.name, err))
