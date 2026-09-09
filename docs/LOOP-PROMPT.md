@@ -68,12 +68,23 @@ important — an explicit DO-NOT-BUILD list (`readOnlyHint`/`destructiveHint`/`i
 safety mechanism, use hooks). It also fixes two of our own wrong claims: there are **13** registered
 MCP tools, not 14 (`er2_silence` is a helper), and the docs have moved to `code.claude.com/docs/en/*`.
 
-**`/var/home/jflessenkemper/er2-realistic/artifacts/research/er2-api.md` may NOT exist yet** — that
-second brief (official ER2 modding/Lua docs, the 2.1.0 changelog, documented engine spawn limits,
-the `.mer2` `spawnType` enum, community tooling) was still running when this prompt was written. If
-the file is absent, run that research and WRITE IT THERE BEFORE acting on it. Mark every finding
-OFFICIAL / community / unconfirmed. Never adopt an API signature that is not confirmed; an honest
-"no official reference exists" is a valid and useful result.
+**`/var/home/jflessenkemper/er2-realistic/artifacts/research/er2-api.md` EXISTS.** Its headline:
+**Easy Red 2 HAS an official Lua reference and this project never used it** —
+https://easyred2.com/wiki/scripting (per-function pages at `scripting.php?id=<name>`) and
+https://easyred2.com/wiki/scripting_callbacks.php, stated as **2.1.0+**, i.e. current. Read the
+wiki BEFORE probing anything in-game, ever again.
+
+Already acted on: `spawnVehicle` arg 3 is a vec3 of **Euler DEGREES**, not a direction vector —
+our code and our own doc both had it wrong, all 28 Donchery vehicles sat at default yaw, now fixed
+to `YAW_SOUTH`/`YAW_NORTH` and gated. All seven callback names we register are confirmed correct.
+`phase_changed(current, nextId)` and `battle_ended(faction, forced)` exist and are UNUSED.
+
+Still open from that research, and worth doing: read the per-function pages for
+`spawnSquad_script`, `spawnSquadOnVehicle_script` and `spawnMissionObjective` and reconcile them
+against our reverse-engineered signatures; there is **no documented spawn cap**, so the Donchery
+ceiling is not explained by any published limit; and the `.mer2` `spawnType` "disabled" integer is
+still unknown (a sub-agent claimed "the official SDK ships 259 engine C# sources" before dying on
+the spend limit — UNVERIFIED, and no SDK or `.cs` file exists in the local install).
 
 ## QUEUE — priority order
 
@@ -105,6 +116,14 @@ OFFICIAL / community / unconfirmed. Never adopt an API signature that is not con
 research first; then, for anything still unconfirmed, probe in-game with `bench_probe.lua` and
 record signature + version + date + evidence per entry. Prefer statically diagnosing before
 spending a battle.
+
+**2b. Use `phase_changed` instead of polling.** The phase script polls `getCurrentPhaseId()` and
+BREAKS its main loop at a battle boundary; the game then never reloads it, so objective attraction,
+bail-out drain and fire-mission consumption all go dead while the callbacks still look alive.
+`phase_changed(current, nextId)` is a documented first-class callback — subscribe to it and RESUME
+rather than breaking. This is a behaviour change: assert it offline in `tests/offline_phase.lua`
+first (that harness already drives the loop across a battle boundary), and keep the
+`pumpIfLoopDead` fallback.
 
 **3. Close what is closable of the six unproven features.** Cover (feature 2) is the best
 candidate: `isOnCover()` exists, `tools/watch_audit.py` already cross-tabulates decisions against
