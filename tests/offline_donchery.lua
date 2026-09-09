@@ -29,6 +29,33 @@ _G.er2 = {
 
 local OOB = assert(loadfile("missions/donchery_oob.lua"))()
 
+-- ROTATIONS MUST BE EULER DEGREES, NOT DIRECTION VECTORS. spawnVehicle's third argument is a
+-- vec3 of Euler angles in degrees, per the OFFICIAL reference
+-- (easyred2.com/wiki/scripting.php?id=spawnvehicle, "Euler rotation of the vehicle", e.g.
+-- vec3(0, 90, 0)). This file used to pass vec3(0,0,1) meaning "face +Z", which as an Euler
+-- rotation is ~1 degree of ROLL - so every vehicle sat at default yaw and no intended facing was
+-- ever applied. It threw no error and looked fine in the log, so only a check catches it.
+-- A direction vector is recognisable by a NON-ZERO x or z with a ZERO y; a yaw is the opposite.
+do
+    local bad = 0
+    for _, v in ipairs(OOB.vehicles) do
+        local r = v[3]
+        if r == nil then
+            print("FAIL  a vehicle has no rotation at all: " .. tostring(v[1]))
+            os.exit(1)
+        end
+        -- any non-zero x or z component means somebody passed a direction again
+        if (r.x ~= 0 or r.z ~= 0) then bad = bad + 1 end
+    end
+    if bad > 0 then
+        print(string.format("FAIL  %d of %d vehicle rotations have a non-zero x or z component. "
+              .. "spawnVehicle takes EULER DEGREES; only the y (yaw) component should be set. A "
+              .. "direction vector like vec3(0,0,1) silently means ~1 degree of roll.",
+              bad, #OOB.vehicles))
+        os.exit(1)
+    end
+end
+
 -- The layout must have MOVED with the origin. A squad still sitting near (0,0) means the
 -- derivation was dropped and the loop will die partway through again.
 do

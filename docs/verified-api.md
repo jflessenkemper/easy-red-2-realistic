@@ -9,6 +9,73 @@ hub UI also changed layout in 2.1.0, so er2-plugin/docs/ui-map.md coordinates ar
 
 
 
+
+## OFFICIAL DOCUMENTATION EXISTS — read it before probing anything
+
+**https://easyred2.com/wiki/scripting** (per-function pages at `scripting.php?id=<name>`) and
+**https://easyred2.com/wiki/scripting_callbacks.php**. The callbacks page states its content is
+**2.1.0+**, i.e. current for this install. Guide: https://easyred2.com/wiki/guide.html
+
+Everything else in this file was reverse-engineered in-game by trial and error. That was
+avoidable, and it produced at least one wrong conclusion (below). **Check the wiki first.**
+
+### CORRECTED: spawnVehicle's third argument is EULER DEGREES, not a direction vector
+
+Official signature: `Vehicle spawnVehicle(string id, vec3 location, vec3 eulerRotation)` — arg 3 is
+documented verbatim as "Euler rotation of the vehicle", example `vec3(0, 90, 0)`.
+
+This file previously said "arg 3 is a vec3 DIRECTION, NOT degrees". That was **half right, and the
+wrong half mattered**:
+* Right: it IS a `vec3`, so passing a bare number throws inside the engine's argument marshalling
+  and the throw ESCAPES `pcall`, killing the phase script. That measurement stands.
+* Wrong: the components are **degrees**, not a direction. `missions/donchery_oob.lua` was passing
+  `vec3(0, 0, 1)` to mean "face +Z across the river"; as an Euler rotation that is ~1 degree of
+  **roll**, so all 28 vehicles sat at default yaw and not one intended facing was ever applied.
+  Nothing errored and nothing in the log said so.
+Fixed to yaw degrees (`YAW_SOUTH = 0`, `YAW_NORTH = 180`) and gated in
+`tests/offline_donchery.lua`, which now fails any rotation with a non-zero x or z component.
+
+### Callbacks — the official list (2.1.0+), via `er2.setCallback`
+
+| name | args |
+|---|---|
+| `soldier_spawned` | Soldier |
+| `soldier_died` | Soldier |
+| `soldier_suppressed` | Soldier (suppressed), Soldier (shooter) |
+| `vehicle_destroyed` | Vehicle |
+| `vehicle_disabled` | Vehicle |
+| `vehicle_damaged_fueltank` | Vehicle, Number (damage) |
+| `phase_changed` | Number (current phase), Number (next phase id) |
+| `battle_ended` | string (winning faction), boolean (forced) |
+
+`Soldier.setCallback` / `Vehicle.setCallback` provide per-instance equivalents.
+**All names this mod registers are confirmed correct.**
+
+**KEEP OUR BAN ON `soldier_suppressed` ANYWAY.** It is documented and not flagged unsafe, but we
+measured it NRE-ing inside the engine's own dispatch, uncatchable by `pcall`, and `check 4` refuses
+to ship a subscription to it. A measured crash outranks silence in the docs. Re-test before lifting.
+
+**`loadfile()` is not documented at all**, consistent with our finding that it resolves from an
+unlocatable `<mission>/globals/` and its failure aborts the script even inside `pcall`.
+
+### AVAILABLE AND UNUSED: `phase_changed` is the fix for the phase-loop death
+
+The phase script polls `getCurrentPhaseId()` and BREAKS at a battle boundary, after which the game
+does not reload it — objective attraction, bail-out drain and fire-mission consumption go dead
+while the callbacks still look alive. `phase_changed(current, nextId)` is a first-class callback:
+subscribing to it to RESUME, instead of polling to break, is the documented fix. Not yet
+implemented — it is a behaviour change and needs a live test.
+
+### NOT answered by the official docs
+* **No documented spawn cap.** Nothing on max concurrent soldiers/squads or per-mission unit
+  budgets, so the Donchery ceiling (8 of 31 on one mission, 29 of 29 on another) is not explained
+  by any published limit.
+* Exact parameter lists for `spawnSquad_script`, `spawnSquadOnVehicle_script` and
+  `spawnMissionObjective` — the per-function pages exist and should be read before trusting the
+  reverse-engineered signatures in this file.
+* The `.mer2` `spawnType` "disabled" integer.
+
+
 ## The Donchery spawn ceiling is the MISSION's own spawners, not the rig (isolated 2026-09-09)
 
 Three runs on Stonne/Donchery, DLC entitlement via Steam, v2.1.0. The spawn loop stops partway

@@ -118,12 +118,25 @@ local function add(t, squadId, side, x, z, radius)
     t[#t + 1] = { squad = squadId, side = side,
                   pos = vec3(DY_ORIGIN.x + x, DY_ORIGIN.y, DY_ORIGIN.z + z), radius = radius or 12 }
 end
-local function addVeh(t, name, x, z, dirx, dirz)
-    -- ARG 3 OF spawnVehicle IS A vec3 DIRECTION, NOT DEGREES. A number throws inside the engine's
-    -- own argument marshalling and the throw ESCAPES pcall, killing the phase script outright.
+local function addVeh(t, name, x, z, yaw)
+    -- ARG 3 OF spawnVehicle IS A vec3 OF EULER ANGLES IN DEGREES. Confirmed against the OFFICIAL
+    -- reference (easyred2.com/wiki/scripting.php?id=spawnvehicle): "vec3 - Euler rotation of the
+    -- vehicle", example vec3(0, 90, 0).
+    --
+    -- THIS FILE HAD IT WRONG, and so did our own docs. The old note read "a vec3 DIRECTION, NOT
+    -- degrees" - half right, and the wrong half mattered. It IS a vec3, so passing a bare number
+    -- still throws inside the engine's argument marshalling and that throw still ESCAPES pcall and
+    -- kills the phase script. But the components are DEGREES, not a direction. Passing vec3(0,0,1)
+    -- to mean "face +Z" is ~1 degree of ROLL, so every vehicle sat at default yaw and not one of
+    -- the intended facings was ever applied. Yaw is the Y component: 0 faces +Z, 180 faces -Z.
     t[#t + 1] = { name, vec3(DY_ORIGIN.x + x, DY_ORIGIN.y, DY_ORIGIN.z + z),
-                  vec3(dirx or 0, 0, dirz or 1) }
+                  vec3(0, yaw or 0, 0) }
 end
+
+-- Yaw in DEGREES. The Germans are on the north bank firing south across the Meuse; the French
+-- emplacements face back north at the crossing.
+local YAW_SOUTH = 0     -- +Z, across the river: the German attack
+local YAW_NORTH = 180   -- -Z, back at the crossing: the French defence
 
 --========================= GERMAN — 2. Panzer-Division, north bank ==========
 -- 12 rifle Gruppen across the frontage. These are the Kradschuetzen/Schuetzen sections; each
@@ -162,7 +175,7 @@ local ARMOUR = {
     { "Sdkfz222",     -230 }, { "Sdkfz222",      230 },   -- flank screen
 }
 for _, a in ipairs(ARMOUR) do
-    addVeh(DONCHERY.vehicles, a[1], a[2], EMBANKMENT, 0, 1)   -- facing +Z, across the river
+    addVeh(DONCHERY.vehicles, a[1], a[2], EMBANKMENT, YAW_SOUTH)   -- facing +Z, across the river
     -- Crews spawn ABOARD, which is the only way the crew bail-out branch is reachable: it keys
     -- off what the man was RIDING. Editor-placed vehicles carry a faction; script-spawned ones do
     -- not, so features 5 and 18 are only re-provable here if these are converted to editor
@@ -171,12 +184,12 @@ for _, a in ipairs(ARMOUR) do
 end
 
 -- Soft-skin transport. NOT motorcycles - see the note at the top.
-addVeh(DONCHERY.vehicles, "Horch 853",  -60, EMBANKMENT - 40, 0, 1)
-addVeh(DONCHERY.vehicles, "Horch 853",   60, EMBANKMENT - 40, 0, 1)
-addVeh(DONCHERY.vehicles, "Kubelwagen", -20, EMBANKMENT - 40, 0, 1)
-addVeh(DONCHERY.vehicles, "Kubelwagen",  20, EMBANKMENT - 40, 0, 1)
+addVeh(DONCHERY.vehicles, "Horch 853",  -60, EMBANKMENT - 40, YAW_SOUTH)
+addVeh(DONCHERY.vehicles, "Horch 853",   60, EMBANKMENT - 40, YAW_SOUTH)
+addVeh(DONCHERY.vehicles, "Kubelwagen", -20, EMBANKMENT - 40, YAW_SOUTH)
+addVeh(DONCHERY.vehicles, "Kubelwagen",  20, EMBANKMENT - 40, YAW_SOUTH)
 for i = 0, 2 do
-    addVeh(DONCHERY.vehicles, "Opel Blitz", -80 + i * 80, EMBANKMENT - 60, 0, 1)
+    addVeh(DONCHERY.vehicles, "Opel Blitz", -80 + i * 80, EMBANKMENT - 60, YAW_SOUTH)
 end
 
 --========================= FRENCH — III/147e RIF + 1 Cie/11e BM, south bank ==
@@ -194,7 +207,7 @@ end
 -- stationary/emplac/static hard exclusion, so riflemen never treat it as cover to advance behind.
 for i = 0, 5 do
     local x = -FRONTAGE / 2 + (FRONTAGE / 5) * i
-    addVeh(DONCHERY.vehicles, "Hotchkiss Stationary Ground", x, RIVER_GAP + 15, 0, -1)
+    addVeh(DONCHERY.vehicles, "Hotchkiss Stationary Ground", x, RIVER_GAP + 15, YAW_NORTH)
     DONCHERY.mounted[#DONCHERY.mounted + 1] = { "fr_artilleryCrew", vec3(DY_ORIGIN.x + x, DY_ORIGIN.y, DY_ORIGIN.z + RIVER_GAP + 15), "defender" }
 end
 
@@ -202,7 +215,7 @@ end
 for i = 0, 2 do
     local x = -140 + i * 140
     add(DONCHERY.squads, "fr_reservist_ATsquad", "defender", x, RIVER_GAP + 35, 8)
-    addVeh(DONCHERY.vehicles, "Pak 36", x, RIVER_GAP + 40, 0, -1)   -- stands in for the 25 mm
+    addVeh(DONCHERY.vehicles, "Pak 36", x, RIVER_GAP + 40, YAW_NORTH)   -- stands in for the 25 mm
 end
 
 -- Mortars: one 81 mm Mle 27/31 and one 60 mm Mle 1935.
