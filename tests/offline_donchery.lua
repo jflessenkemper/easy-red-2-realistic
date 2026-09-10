@@ -29,6 +29,29 @@ _G.er2 = {
 
 local OOB = assert(loadfile("missions/donchery_oob.lua"))()
 
+-- The OOB now ships a SUBSET that fits the engine's measured 8-squad budget, and keeps the full
+-- researched force under .researched. The historical assertions below must run against the
+-- RESEARCH - otherwise trimming the force to fit would silently also delete the historical audit
+-- this file exists to perform. The budget assertion runs against what actually ships.
+local RESEARCHED = OOB.researched or { squads = OOB.squads, mounted = OOB.mounted }
+local SHIPPED = { squads = OOB.squads, vehicles = OOB.vehicles, mounted = OOB.mounted }
+
+do
+    local BUDGET = 8
+    local n = #SHIPPED.squads + #SHIPPED.mounted
+    if n > BUDGET then
+        print(string.format("FAIL  the SHIPPED force is %d spawn-squads (%d infantry + %d mounted) "
+              .. "against a measured budget of %d. Mounted crews are squads too. The rig will die "
+              .. "mid-item with no error and no failed line.", n, #SHIPPED.squads,
+              #SHIPPED.mounted, BUDGET))
+        os.exit(1)
+    end
+    if #SHIPPED.squads == 0 then
+        print("FAIL  the shipped force has no infantry at all")
+        os.exit(1)
+    end
+end
+
 -- ROTATIONS MUST BE EULER DEGREES, NOT DIRECTION VECTORS. spawnVehicle's third argument is a
 -- vec3 of Euler angles in degrees, per the OFFICIAL reference
 -- (easyred2.com/wiki/scripting.php?id=spawnvehicle, "Euler rotation of the vehicle", e.g.
@@ -38,7 +61,7 @@ local OOB = assert(loadfile("missions/donchery_oob.lua"))()
 -- A direction vector is recognisable by a NON-ZERO x or z with a ZERO y; a yaw is the opposite.
 do
     local bad = 0
-    for _, v in ipairs(OOB.vehicles) do
+    for _, v in ipairs(SHIPPED.vehicles) do
         local r = v[3]
         if r == nil then
             print("FAIL  a vehicle has no rotation at all: " .. tostring(v[1]))
@@ -60,14 +83,14 @@ end
 -- derivation was dropped and the loop will die partway through again.
 do
     local near_zero = 0
-    for _, sq in ipairs(OOB.squads) do
+    for _, sq in ipairs(RESEARCHED.squads) do
         if math.abs(sq.pos.x) < 500 and math.abs(sq.pos.z) < 500 then near_zero = near_zero + 1 end
     end
     if near_zero > 0 then
         print(string.format("FAIL  %d of %d squads are still within 500 m of (0,0) despite the "
               .. "origin stub at (%d,%d) - the origin derivation is not being applied, and the "
               .. "spawn loop will die partway with no error",
-              near_zero, #OOB.squads, DY_ORIGIN_STUB.x, DY_ORIGIN_STUB.z))
+              near_zero, #RESEARCHED.squads, DY_ORIGIN_STUB.x, DY_ORIGIN_STUB.z))
         os.exit(1)
     end
 end
@@ -109,7 +132,7 @@ local fail = 0
 local function bad(m) print("FAIL  " .. m); fail = fail + 1 end
 
 local ger, fre = 0, 0
-for _, s in ipairs(OOB.squads) do
+for _, s in ipairs(RESEARCHED.squads) do
     if not SQUADS_OK[s.squad] then bad("unconfirmed squad id '" .. tostring(s.squad) .. "'") end
     if s.side ~= "invader" and s.side ~= "defender" then
         bad("squad '" .. tostring(s.squad) .. "' has side '" .. tostring(s.side) .. "'")
@@ -117,7 +140,7 @@ for _, s in ipairs(OOB.squads) do
     if not (s.pos and s.pos.x) then bad("squad '" .. tostring(s.squad) .. "' has no vec3 pos") end
     if s.side == "invader" then ger = ger + 1 else fre = fre + 1 end
 end
-for _, v in ipairs(OOB.vehicles) do
+for _, v in ipairs(SHIPPED.vehicles) do
     local nm, pos, dir = v[1], v[2], v[3]
     if BANNED[nm] then bad("REMOVED unit '" .. nm .. "' is back: " .. BANNED[nm]) end
     if VEH_FATAL[nm] then
@@ -132,7 +155,7 @@ for _, v in ipairs(OOB.vehicles) do
             .. ", must be a vec3 DIRECTION - a number throws past pcall and kills the script")
     end
 end
-for _, m in ipairs(OOB.mounted) do
+for _, m in ipairs(RESEARCHED.mounted) do
     if not SQUADS_OK[m[1]] then bad("unconfirmed mounted squad id '" .. tostring(m[1]) .. "'") end
     if not (m[2] and m[2].x) then bad("mounted '" .. tostring(m[1]) .. "' has no vec3 pos") end
 end
@@ -144,7 +167,7 @@ if ger < 15 or ger > 24 then bad("German squads " .. ger .. ", want 15-24 for ~2
 if fre < 10 or fre > 18 then bad("French squads " .. fre .. ", want 10-18 for ~135 men") end
 if #OOB.vehicles < 25 then bad("only " .. #OOB.vehicles .. " vehicles; want 25+") end
 -- Every tank must have a crew aboard, or the bail-out branch is unreachable.
-if #OOB.mounted < 12 then bad("only " .. #OOB.mounted .. " mounted crews; the 12 AFVs plus the "
+if #RESEARCHED.mounted < 12 then bad("only " .. #RESEARCHED.mounted .. " mounted crews; the 12 AFVs plus the "
     .. "6 Hotchkiss emplacements all need crews aboard") end
 
 if fail > 0 then
@@ -153,4 +176,4 @@ if fail > 0 then
 end
 print(string.format("ok    Donchery OOB coherent: %d German + %d French squads, %d vehicles, "
       .. "%d crews aboard, no banned units, every id confirmed",
-      ger, fre, #OOB.vehicles, #OOB.mounted))
+      ger, fre, #OOB.vehicles, #RESEARCHED.mounted))

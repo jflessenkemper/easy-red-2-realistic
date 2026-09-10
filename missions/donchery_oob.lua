@@ -240,4 +240,93 @@ add(DONCHERY.squads, "fr_mortarCrew", "defender",  50, RIVER_GAP + 70, 8)
 -- NO FRENCH TANKS. Char B1 and RenaultR35 both exist in the game and are deliberately ABSENT:
 -- 4e and 7e BCC did not arrive until 14 May, the day after this action.
 
+--============================ FITTING THE ENGINE'S BUDGET ===================
+-- Everything above is the RESEARCHED order of battle and it stays exactly as researched: it is the
+-- record of what was at Donchery at 16:00 on 13 May 1940, and the build sheet is auditable against
+-- it. What follows selects the subset the engine will actually accept, and LOGS WHAT IT DROPPED.
+--
+-- WHY A BUDGET EXISTS. Measured across four in-game runs (2026-09-09, Steam mode with DLC, v2.1.0):
+--   run A  no pacing, no origin      6 squads placed, then the rig died mid-item, silently
+--   run B  + frame pacing + pre-log  7 placed, died attempting 8
+--   run C  + derived origin          8 placed, died attempting 9
+--   run D  order REVERSED            8 placed, died attempting 9 - different squad, other side
+-- Run D is the important one: reversing the list moved a completely different squad into slot 9
+-- and it died there anyway, so this is a COUNT, not a bad unit and not a bad position. With correct
+-- positions the ceiling is 8. No engine error is raised and no failure is logged, which is why it
+-- took four runs and a pre-attempt log line to see at all. Nothing in the official documentation
+-- describes a spawn cap, and the mission binary carries only `invadersTickets` and
+-- `addTicketsOnConquer` - no concurrency field - so the cause remains UNEXPLAINED.
+--
+-- MOUNTED CREWS COUNT AGAINST THE SAME BUDGET. spawnSquadOnVehicle_script spawns a SQUAD, so the
+-- 18 tank and gun crews above are 18 squads. The full force is 31 + 18 = 49 squads against a
+-- budget of 8: it was never going to fit, and no amount of pacing would have made it.
+--
+-- VEHICLES ARE CHEAP AND SEPARATE. Run C placed 25 vehicles behind 4 squads without complaint, so
+-- the armour and the emplacements all survive the cut. Empty armour is still cover to advance
+-- behind, and still the player's lever - the short 7.5 cm Panzer IV is in the list.
+-- SCOPED IN A do...end BLOCK ON PURPOSE. The Lua main chunk has a hard ceiling of 200 locals, and
+-- BOTH this file and missions/scenarios/showcase.lua are inlined into RealisticEvents.lua's single
+-- main chunk - so the phase script now sits near that ceiling too, not just the brain. Declaring
+-- these seven at file scope pushed it over and every brain and phase script failed to compile
+-- ("main function has more than 200 local variables"), which check 1 and the offline phase harness
+-- caught immediately. Inside do...end the locals leave scope at `end` and free their slots; only
+-- the DONCHERY table fields survive, and table fields cost nothing.
+do
+    local SQUAD_BUDGET = 8      -- measured, not guessed; raise it only with a run that proves it
+
+    -- Priority: what has to be present for this to read as the historical action at all. A German
+    -- assault needs riflemen, the Pioniere are the men who actually got across, the tank crew is the
+    -- player's lever, and the French need reservists in the line plus one crewed Hotchkiss - the
+    -- emplaced MG is the whole reason the 16:00 attempt failed.
+    local PRIORITY = {
+        { side = "invader",  squad = "ger_infantry_1940"   },
+        { side = "invader",  squad = "ger_infantry_1940"   },
+        { side = "invader",  squad = "ger_infantry_1940"   },
+        { side = "invader",  squad = "ger_pioneers_1940"   },
+        { side = "defender", squad = "fr_reservist_infantry" },
+        { side = "defender", squad = "fr_reservist_infantry" },
+        { side = "defender", squad = "fr_reservist_infantry" },
+    }
+
+    local function takeSquads()
+        local kept, used = {}, {}
+        for _, want in ipairs(PRIORITY) do
+            if #kept >= SQUAD_BUDGET - 1 then break end   -- leave one slot for a mounted crew
+            for i, sq in ipairs(DONCHERY.squads) do
+                if not used[i] and sq.squad == want.squad and sq.side == want.side then
+                    used[i] = true
+                    kept[#kept + 1] = sq
+                    break
+                end
+            end
+        end
+        return kept
+    end
+
+    local fullSquads, fullMounted = #DONCHERY.squads, #DONCHERY.mounted
+    local keptSquads = takeSquads()
+    -- ONE mounted crew, and it is the Panzer IV's: crew bail-out keys off what the man was RIDING, so
+    -- this is the only slot from which that branch is reachable at all.
+    local keptMounted = {}
+    if #keptSquads < SQUAD_BUDGET and fullMounted > 0 then
+        keptMounted[1] = DONCHERY.mounted[1]
+    end
+
+    -- KEEP THE RESEARCHED FORCE REACHABLE. tests/offline_donchery.lua asserts the historical scale
+    -- (~205 German v ~135 French, every AFV and emplacement crewed) and that assertion must keep
+    -- biting on the RESEARCH, or trimming the force to fit the engine would quietly also delete the
+    -- historical audit. So the full lists survive under .researched and the gate checks both: the
+    -- research against the build sheet, and the shipped force against the budget.
+    DONCHERY.researched = { squads = DONCHERY.squads, mounted = DONCHERY.mounted }
+    DONCHERY.squads  = keptSquads
+    DONCHERY.mounted = keptMounted
+
+    -- NO SILENT CAPS. If this trims the force it says so, with the numbers, every time it loads.
+    dyLog(string.format("force TRIMMED to the engine's measured budget: %d of %d squads and %d of %d "
+          .. "mounted crews kept (budget %d, mounted count against it too). The full researched order "
+          .. "of battle is in this file and in docs/donchery-build-sheet.md; it does NOT fit and the "
+          .. "cause is unexplained - see the note above.",
+          #DONCHERY.squads, fullSquads, #DONCHERY.mounted, fullMounted, SQUAD_BUDGET))
+end
+
 return DONCHERY
