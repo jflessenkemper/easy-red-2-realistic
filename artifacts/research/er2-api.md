@@ -59,13 +59,17 @@ per-instance events exist, so treat it as unlisted rather than invalid.
 2. `loadfile()` is NOT documented at all, consistent with our finding that it resolves from an
    unlocatable `<mission>/globals/` and its failure aborts the script even inside pcall.
 
-## ACTIONABLE, not yet implemented: `phase_changed` solves the phase-loop death
+## `phase_changed` is available and unused — but it fixes NOTHING (my claim was wrong)
 
-Our phase script polls `getCurrentPhaseId()` and BREAKS its main loop at a battle boundary, after
-which the game does not reload the script — objective attraction, bail-out drain and fire-mission
-consumption all go dead while callbacks still look alive. `phase_changed(current, nextId)` and
-`battle_ended(faction, forced)` are first-class callbacks. Subscribing to `phase_changed` to
-RESUME (rather than polling to break) is the documented fix. Needs testing; behaviour change.
+**RETRACTED the same day.** I wrote that the phase script "polls `getCurrentPhaseId()` and BREAKS"
+at a battle boundary and that `phase_changed` was the fix. The loop has **no exit**: it idles and
+resumes (`RealisticEvents.lua:2205-2247`), and `tests/offline_phase.lua` already asserts it with a
+scenario literally named "survives a battle boundary and RESUMES". The defect I described had been
+fixed in an earlier session, by three separate bug-fixes.
+
+`phase_changed(current, nextId)` and `battle_ended(faction, forced)` are still real, documented and
+unused. Adopting the former would replace a 1 s poll with an event and fix no known bug, so it is
+not worth touching a loop that was that hard to get right.
 
 ## Still NOT answered by the docs
 * **No documented spawn limit.** Nothing about max concurrent soldiers/squads, per-mission unit

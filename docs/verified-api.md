@@ -58,13 +58,30 @@ to ship a subscription to it. A measured crash outranks silence in the docs. Re-
 **`loadfile()` is not documented at all**, consistent with our finding that it resolves from an
 unlocatable `<mission>/globals/` and its failure aborts the script even inside `pcall`.
 
-### AVAILABLE AND UNUSED: `phase_changed` is the fix for the phase-loop death
+### `phase_changed` exists and is unused — but it fixes NOTHING, and I claimed otherwise
 
-The phase script polls `getCurrentPhaseId()` and BREAKS at a battle boundary, after which the game
-does not reload it — objective attraction, bail-out drain and fire-mission consumption go dead
-while the callbacks still look alive. `phase_changed(current, nextId)` is a first-class callback:
-subscribing to it to RESUME, instead of polling to break, is the documented fix. Not yet
-implemented — it is a behaviour change and needs a live test.
+**RETRACTED 2026-09-09, same day it was written.** This section previously said the phase script
+"polls `getCurrentPhaseId()` and BREAKS at a battle boundary", leaving objective attraction,
+bail-out drain and fire-mission consumption dead, and that subscribing to `phase_changed` was the
+documented fix. **That was wrong, and it described a defect that had already been repaired.**
+
+The main loop has **no exit**. It idles on a phase change and RESUMES when its phase returns
+(`RealisticEvents.lua:2205-2247`), it clears `battleOver` in the idle branch specifically to avoid
+the deadlock where the trapping flag could only be cleared by the code it prevented from running,
+and it re-queries objectives immediately on resume rather than waiting up to 40 s for the next
+refresh tick. `tests/offline_phase.lua` has asserted this the whole time — the scenario is named
+"survives a battle boundary and RESUMES" and reports "idled 1, resumed 1, 3 attraction lines after
+resume".
+
+So `phase_changed(current, nextId)` and `battle_ended(faction, forced)` remain genuinely available
+and unused, and adopting `phase_changed` would only replace a 1-second poll with an event. There is
+**no known defect for it to fix**, so it is not worth the risk of touching a loop that took three
+separate bug-fixes to get right. Recorded as available, NOT as pending work.
+
+I wrote the wrong version into this file, into `artifacts/research/er2-api.md`, into
+`docs/LOOP-PROMPT.md` and into a commit message, and then asked the user to decide whether to adopt
+it on that false basis. The lesson is the project's own standing rule, applied to my own claims:
+check the code before asserting it is broken.
 
 ### NOT answered by the official docs
 * **No documented spawn cap.** Nothing on max concurrent soldiers/squads or per-mission unit

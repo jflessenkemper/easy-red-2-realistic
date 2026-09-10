@@ -77,7 +77,7 @@ wiki BEFORE probing anything in-game, ever again.
 Already acted on: `spawnVehicle` arg 3 is a vec3 of **Euler DEGREES**, not a direction vector —
 our code and our own doc both had it wrong, all 28 Donchery vehicles sat at default yaw, now fixed
 to `YAW_SOUTH`/`YAW_NORTH` and gated. All seven callback names we register are confirmed correct.
-`phase_changed(current, nextId)` and `battle_ended(faction, forced)` exist and are UNUSED.
+`phase_changed`/`battle_ended` exist and are UNUSED, but fix nothing known - the wait-and-resume loop already survives battle boundaries and is gated offline.
 
 Still open from that research, and worth doing: read the per-function pages for
 `spawnSquad_script`, `spawnSquadOnVehicle_script` and `spawnMissionObjective` and reconcile them
@@ -117,13 +117,11 @@ research first; then, for anything still unconfirmed, probe in-game with `bench_
 record signature + version + date + evidence per entry. Prefer statically diagnosing before
 spending a battle.
 
-**2b. Use `phase_changed` instead of polling.** The phase script polls `getCurrentPhaseId()` and
-BREAKS its main loop at a battle boundary; the game then never reloads it, so objective attraction,
-bail-out drain and fire-mission consumption all go dead while the callbacks still look alive.
-`phase_changed(current, nextId)` is a documented first-class callback — subscribe to it and RESUME
-rather than breaking. This is a behaviour change: assert it offline in `tests/offline_phase.lua`
-first (that harness already drives the loop across a battle boundary), and keep the
-`pumpIfLoopDead` fallback.
+**2b. DELETED — the premise was false.** An earlier version of this prompt said the phase script
+polls and BREAKS at a battle boundary and that `phase_changed` was the fix. The loop has NO exit: it
+idles and resumes, and `tests/offline_phase.lua` asserts it ("survives a battle boundary and
+RESUMES"). `phase_changed` is available and unused but fixes nothing known. Do NOT rewrite that
+loop — it took three separate bug-fixes to get right.
 
 **3. Close what is closable of the six unproven features.** Cover (feature 2) is the best
 candidate: `isOnCover()` exists, `tools/watch_audit.py` already cross-tabulates decisions against
