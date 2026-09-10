@@ -597,11 +597,12 @@ local ARMOUR = {
 }
 for _, a in ipairs(ARMOUR) do
     addVeh(DONCHERY.vehicles, a[1], a[2], EMBANKMENT, YAW_SOUTH)   -- facing +Z, across the river
+    local vIdx = #DONCHERY.vehicles   -- this crew's own vehicle, by index, for the rig
     -- Crews spawn ABOARD, which is the only way the crew bail-out branch is reachable: it keys
     -- off what the man was RIDING. Editor-placed vehicles carry a faction; script-spawned ones do
     -- not, so features 5 and 18 are only re-provable here if these are converted to editor
     -- spawners. See docs/donchery-build-sheet.md.
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(DY_ORIGIN.x + a[2], DY_ORIGIN.y, DY_ORIGIN.z + EMBANKMENT), "invader" }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(DY_ORIGIN.x + a[2], DY_ORIGIN.y, DY_ORIGIN.z + EMBANKMENT), "invader", vIdx }
 end
 
 -- Soft-skin transport. NOT motorcycles - see the note at the top.
@@ -1247,11 +1248,20 @@ local function runSpawnRig()
     end
 
     -- Vehicles for a scenario rig. Direction is a vec3; see the note on the tables above.
+    -- HANDLES ARE KEPT, not re-discovered later. The OFFICIAL reference says spawnVehicle
+    -- RETURNS a Vehicle (easyred2.com/wiki/scripting.php?id=spawnvehicle), which
+    -- contradicts this project's own note that it "returns nothing usable". That note is
+    -- why mounted crews were located by an AREA SCAN, and why the first fully-successful
+    -- rig run still reported `test mounted 1: ger_tankCrew_1940 -> FAILED (no vehicle
+    -- found in range)` with all 25 vehicles placed. Keeping the handle removes the guess.
+    local vehHandles = {}
     for i, v in ipairs(TEST_VEHICLES) do
         dbg(string.format("test vehicle %d/%d: attempting %s", i, #TEST_VEHICLES, tostring(v[1])))
-        local ok = pcall(function() spawnVehicle(v[1], v[2], v[3]) end)
+        local ok, h = pcall(function() return spawnVehicle(v[1], v[2], v[3]) end)
+        if ok and h then vehHandles[i] = h end
         dbg(string.format("test vehicle %d: %s -> %s", i, tostring(v[1]),
-            ok and "ok" or "FAILED (check the vehicle name, and that arg 3 is a vec3)"))
+            ok and ((h and "ok (handle kept)") or "ok (NO handle returned)")
+                or "FAILED (check the vehicle name, and that arg 3 is a vec3)"))
         spawnYield(i)
     end
 
@@ -1267,17 +1277,23 @@ local function runSpawnRig()
         local fac = (m[3] == "defender") and DEF or INV
         dbg(string.format("test mounted %d/%d: attempting %s (%s)", i, #TEST_MOUNTED,
             tostring(m[1]), tostring(m[3] or "invader")))
-        local vlist, veh = {}, nil
-        pcall(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
-        for _, cand in pairs(vlist) do if cand then veh = cand break end end
+        -- m[4], when present, is the INDEX into TEST_VEHICLES of this crew's vehicle.
+        -- Exact, and immune to the vehicle not being discoverable by a scan yet.
+        local veh = m[4] and vehHandles[m[4]] or nil
+        local how = veh and "handle" or "area-scan"
+        if not veh then
+            local vlist = {}
+            pcall(function() er2.getVehiclesInArea(m[2], 40, vlist) end)
+            for _, cand in pairs(vlist) do if cand then veh = cand break end end
+        end
         local ok = false
         if veh then
             ok = pcall(function()
                 return spawnSquadOnVehicle_script(m[2], 8, fac, m[1], veh, "Realistic.lua")
             end)
         end
-        dbg(string.format("test mounted %d: %s -> %s", i, tostring(m[1]),
-            ok and "ok (aboard)" or "FAILED (no vehicle found in range, or the API rejected it)"))
+        dbg(string.format("test mounted %d: %s via %s -> %s", i, tostring(m[1]), how,
+            ok and "ok (aboard)" or "FAILED (no vehicle found, or the API rejected it)"))
         spawnYield(i)
     end
     if TEST_OBJECTIVE then

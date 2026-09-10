@@ -35,6 +35,15 @@ wrong half mattered**:
 Fixed to yaw degrees (`YAW_SOUTH = 0`, `YAW_NORTH = 180`) and gated in
 `tests/offline_donchery.lua`, which now fails any rotation with a non-zero x or z component.
 
+### CORRECTED: spawnVehicle DOES return a usable Vehicle handle
+
+Our note said it "returns nothing usable (it resolves to spawnVehicleWithCallback)". **Measured
+2026-09-09: all 25 vehicles in a Donchery run returned a handle** ("handle kept" x25). That wrong
+note is the only reason mounted crews were ever located by `getVehiclesInArea` proximity scan -
+which is exactly why the crew failed with "no vehicle found in range" while all 25 vehicles stood
+there. The rig now keeps the handle and the crew boards: `test mounted 1: ger_tankCrew_1940 via
+handle -> ok (aboard)`.
+
 ### Callbacks — the official list (2.1.0+), via `er2.setCallback`
 
 | name | args |

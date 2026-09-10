@@ -176,11 +176,12 @@ local ARMOUR = {
 }
 for _, a in ipairs(ARMOUR) do
     addVeh(DONCHERY.vehicles, a[1], a[2], EMBANKMENT, YAW_SOUTH)   -- facing +Z, across the river
+    local vIdx = #DONCHERY.vehicles   -- this crew's own vehicle, by index, for the rig
     -- Crews spawn ABOARD, which is the only way the crew bail-out branch is reachable: it keys
     -- off what the man was RIDING. Editor-placed vehicles carry a faction; script-spawned ones do
     -- not, so features 5 and 18 are only re-provable here if these are converted to editor
     -- spawners. See docs/donchery-build-sheet.md.
-    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(DY_ORIGIN.x + a[2], DY_ORIGIN.y, DY_ORIGIN.z + EMBANKMENT), "invader" }
+    DONCHERY.mounted[#DONCHERY.mounted + 1] = { "ger_tankCrew_1940", vec3(DY_ORIGIN.x + a[2], DY_ORIGIN.y, DY_ORIGIN.z + EMBANKMENT), "invader", vIdx }
 end
 
 -- Soft-skin transport. NOT motorcycles - see the note at the top.
