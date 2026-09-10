@@ -740,7 +740,20 @@ local function roadStepToward(pos, target)
         local cs, sn = math.cos(r), math.sin(r)
         local rx, rz = ux * cs - uz * sn, ux * sn + uz * cs
         local nx, nz = pos.x + rx * ROAD_STEP, pos.z + rz * ROAD_STEP
-        local score = segFlatness(pos.x, pos.z, nx, nz) + math.abs(off) * 0.02  -- small straightness bias
+        -- FLAT IS NOT THE SAME AS ROAD, and near a river it is actively wrong. The flattest
+        -- corridor out of a slope is the VALLEY FLOOR, so on Donchery this herded the whole
+        -- German assault down onto the Meuse bank and bunched it there - reported from play and
+        -- reproduced in the spawn geometry. A road proxy has to prefer flat ground WITHOUT
+        -- preferring downhill: real roads run along contours, they do not dive into rivers.
+        -- So descending candidates are penalised in proportion to how far they drop. Climbing is
+        -- left unpenalised: attacking uphill is a legitimate choice and the cover logic handles it.
+        local score = segFlatness(pos.x, pos.z, nx, nz) + math.abs(off) * 0.02  -- straightness bias
+        -- 1.5 m deadband ignores ordinary undulation; 1.2 score-per-metre beyond it means a ~6 m
+        -- descent outweighs any flatness advantage a valley floor can offer. NUMBERS ARE INLINE
+        -- ON PURPOSE: this file is AT the Lua 200-local ceiling and adding two named constants
+        -- broke every brain with "main function has more than 200 local variables".
+        local drop = pos.y - (terrainY(nx, nz) or pos.y)
+        if drop > 1.5 then score = score + drop * 1.2 end
         if score < bestScore then
             best, bestScore = vec3(nx, terrainY(nx, nz) or pos.y, nz), score
         end

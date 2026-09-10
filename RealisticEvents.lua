@@ -722,6 +722,24 @@ do
                 end
             end
         end
+        -- RE-SPACE ACROSS THE FRONTAGE. Selecting the first N matching entries pulls the whole
+        -- assault onto one flank: the researched line puts 12 Gruppen across 420 m, so the first
+        -- three sat at x = -210, -172, -134 - the entire attack crammed into 76 m of the left
+        -- bank. Reported from play as "the Germans clump along the river". Selection is by TYPE,
+        -- so positions must be redistributed afterwards or trimming silently changes the frontage
+        -- as well as the force size.
+        local inv = 0
+        for _, sq in ipairs(kept) do if sq.side == "invader" then inv = inv + 1 end end
+        if inv > 1 then
+            local k = 0
+            for _, sq in ipairs(kept) do
+                if sq.side == "invader" then
+                    sq.pos = vec3(DY_ORIGIN.x - FRONTAGE / 2 + (FRONTAGE / (inv - 1)) * k,
+                                  sq.pos.y, sq.pos.z)
+                    k = k + 1
+                end
+            end
+        end
         return kept
     end
 
