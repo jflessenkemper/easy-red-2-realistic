@@ -633,10 +633,25 @@ for i = 0, 5 do
 end
 
 -- Three 25 mm SA-L Mle 1934 AT positions, emplaced.
+-- 4. NO GUN EXISTS FOR THE 25 mm SA-L Mle 1934, and "Pak 36" IS NOT A VALID VEHICLE ID.
+-- MEASURED IN-GAME 2026-09-09: spawnVehicle("Pak 36", ...) raises a NullReferenceException
+-- INSIDE THE ENGINE, and that NRE escapes pcall and kills the phase script outright. The run
+-- placed vehicles 1-25 successfully - including Panzer I A, Panzer iii F, Panzer iv c/d and
+-- Horch 853 - and died on item 26, the first Pak 36:
+--     test vehicle 25: Hotchkiss Stationary Ground -> ok
+--     test vehicle 26/28: attempting Pak 36
+--     NullReferenceException: Object reference not set to an instance of an object.
+-- "Pak 36" also appears NOWHERE in the mission's own vehicle strings. It came from the build
+-- sheet, and the offline id gate was validating against that sheet rather than against the game,
+-- so it passed a name that crashes. A bad vehicle name is not a soft failure here: it is fatal.
+--
+-- The AT crews STAY - they are the men of the three 25 mm positions - but there is no gun model to
+-- put in front of them. Recorded as a fourth engine-impossible requirement alongside the
+-- motorcycles, the assault boats and the dedicated HMG teams. Not faked with a Bofors 40mm, which
+-- does exist but is a Swedish AA piece and would be wrong in both nation and role.
 for i = 0, 2 do
     local x = -140 + i * 140
     add(DONCHERY.squads, "fr_reservist_ATsquad", "defender", x, RIVER_GAP + 35, 8)
-    addVeh(DONCHERY.vehicles, "Pak 36", x, RIVER_GAP + 40, YAW_NORTH)   -- stands in for the 25 mm
 end
 
 -- Mortars: one 81 mm Mle 27/31 and one 60 mm Mle 1935.

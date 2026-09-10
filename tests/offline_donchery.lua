@@ -82,8 +82,20 @@ local SQUADS_OK = {
 local VEH_OK = {
     ["Panzer I A"] = true, ["Panzer II"] = true, ["Panzer iii F"] = true,
     ["Panzer iv c"] = true, ["Panzer iv d"] = true, ["Sdkfz222"] = true,
-    ["Pak 36"] = true, ["Opel Blitz"] = true, ["Kubelwagen"] = true, ["Horch 853"] = true,
+    ["Opel Blitz"] = true, ["Kubelwagen"] = true, ["Horch 853"] = true,
     ["Hotchkiss Stationary Ground"] = true,
+}
+-- NAMES PROVEN FATAL IN-GAME, kept as a separate list so they can never be re-allowed by someone
+-- copying an entry back out of the build sheet. A bad vehicle name does NOT fail softly:
+-- spawnVehicle raises a NullReferenceException inside the engine and it ESCAPES pcall, killing the
+-- phase script. VEH_OK above was built from docs/donchery-build-sheet.md, a RESEARCH document and
+-- not an inventory of what the game contains - which is exactly how "Pak 36" came to sit on an
+-- allowlist while crashing every run that reached it. This check reported "every id confirmed"
+-- with that name present: an id gate that passed a name that kills the engine.
+local VEH_FATAL = {
+    ["Pak 36"] = "NullReferenceException in-game 2026-09-09, killed the rig at vehicle 26 of 28 "
+              .. "(vehicles 1-25 all spawned, including Panzer I A / iii F / iv c / iv d and "
+              .. "Horch 853); also absent from the mission's own vehicle strings",
 }
 -- Historically wrong for this action, and all of them EXIST, so they can creep back in.
 local BANNED = {
@@ -108,7 +120,11 @@ end
 for _, v in ipairs(OOB.vehicles) do
     local nm, pos, dir = v[1], v[2], v[3]
     if BANNED[nm] then bad("REMOVED unit '" .. nm .. "' is back: " .. BANNED[nm]) end
-    if not VEH_OK[nm] then bad("unconfirmed vehicle id '" .. tostring(nm) .. "'") end
+    if VEH_FATAL[nm] then
+        bad("vehicle id '" .. tostring(nm) .. "' is PROVEN FATAL: " .. VEH_FATAL[nm])
+    elseif not VEH_OK[nm] then
+        bad("unconfirmed vehicle id '" .. tostring(nm) .. "'")
+    end
     if not (pos and pos.x) then bad("vehicle '" .. tostring(nm) .. "' has no vec3 pos") end
     -- The one that kills the phase script if wrong.
     if type(dir) ~= "table" or dir.x == nil then
