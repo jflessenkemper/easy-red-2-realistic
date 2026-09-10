@@ -136,7 +136,16 @@ local function install(scn)
             if not S.objective then return nil end
             return { getPosition = function() return S.objective end }
         end,
-        getTerrainHeight    = function() return 0 end,
+        -- TERRAIN IS NOW MODELLABLE, and this was the single biggest blind spot in the harness.
+        -- It used to return a flat 0 for every point, which makes the approach march's whole
+        -- road-proxy heuristic MATHEMATICALLY INVISIBLE: on flat ground every candidate waypoint
+        -- has identical flatness and zero drop, so no test could distinguish a sane march from one
+        -- that walks an attack into a river. That is exactly the bug that reached play on Donchery
+        -- ("the germans clump along the river"), and the flat test map could not show it either.
+        getTerrainHeight    = function(p)
+            if S.terrain then return S.terrain(p) end
+            return 0
+        end,
         getSoldiersInArea   = function(_, _, out)
             for i, s in ipairs(S.nearby or {}) do out[i] = s end
             return out
@@ -204,6 +213,43 @@ local function concat(...)
 end
 
 local TESTS = {
+    { name = "in a river valley -> approach march CROSSES it, does not slide along it",
+      expect = "ROAD%-MARCH",
+      build = function()
+          -- The soldier stands ON the valley floor with his objective across it. This is the case
+          -- that actually reached play, and the arithmetic is why: flatness is max-min elevation
+          -- along the candidate segment, so a sideways step ALONG the flat floor scores 0 while
+          -- the step toward the objective scores ~2.5 for starting up the far bank. With the old
+          -- 0.02/degree straightness bias the sideways step won, so the squad slid along the river
+          -- and bunched instead of crossing - "the germans clump along the river".
+          -- NOTE: descending was never the problem. Dropping into a valley has a LARGE max-min and
+          -- was always scored badly; the bug was refusing to climb out again.
+          local terrain = function(p)
+              local az = math.abs(p.z)
+              if az <= 20 then return 0 end
+              return math.min(20, (az - 20) * 0.5)
+          end
+          local me = soldierAt(0, 0, { uid = 1000 })
+          return { me = me, objective = v3(0, 0, 400), nearby = { me }, clock = 100,
+                   terrain = terrain }
+      end,
+      check = function(scn)
+          local d = scn.me and scn.me.state and scn.me.state.dest
+          if not d then return false, "no moveTo was issued at all" end
+          -- Progress is toward +z. A sideways slide keeps z near 0 and spends the step on x.
+          -- Assert on the LATERAL deviation, not just forward progress. A 40-degree detour still
+          -- makes some forward progress (z=17.5 of a 25 m step) and slipped past an earlier,
+          -- laxer version of this check - so the threshold has to bite on how far SIDEWAYS the
+          -- step goes. Correct behaviour is nearly straight: x=2.5. The bug produced x=18.0.
+          if d.z < 20 or math.abs(d.x) > 8 then
+              return false, string.format("slid ALONG the valley instead of crossing it: dest "
+                    .. "z=%.1f x=%.1f (%.0f degrees off-axis) - a %dm step should go almost "
+                    .. "straight at the objective", d.z, d.x,
+                    math.deg(math.atan2(math.abs(d.x), math.max(d.z, 0.01))), 25)
+          end
+          return true, string.format("crossed toward the objective: z=%.1f x=%.1f", d.z, d.x)
+      end },
+
     { name = "attacker, no contact, objective far -> ROAD-MARCH",
       expect = "ROAD%-MARCH",
       build = function()

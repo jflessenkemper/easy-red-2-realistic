@@ -747,7 +747,14 @@ local function roadStepToward(pos, target)
         -- preferring downhill: real roads run along contours, they do not dive into rivers.
         -- So descending candidates are penalised in proportion to how far they drop. Climbing is
         -- left unpenalised: attacking uphill is a legitimate choice and the cover logic handles it.
-        local score = segFlatness(pos.x, pos.z, nx, nz) + math.abs(off) * 0.02  -- straightness bias
+        -- PROGRESS MUST OUTWEIGH SMALL FLATNESS DIFFERENCES, or the road proxy stops being a road
+        -- proxy and becomes a valley-follower. Worked through for a soldier standing on a valley
+        -- floor with his objective across it: a sideways step ALONG the floor scores flatness 0,
+        -- while the step toward the objective scores 2.5 for climbing the far bank. At the old
+        -- 0.02/degree the sideways step won by 1.3 - so the squad slid along the river instead of
+        -- crossing it and bunched there, which is what reached play on Donchery. At 0.15/degree a
+        -- 60-degree detour costs 9.0 and only a genuine ridge can justify it.
+        local score = segFlatness(pos.x, pos.z, nx, nz) + math.abs(off) * 0.15
         -- 1.5 m deadband ignores ordinary undulation; 1.2 score-per-metre beyond it means a ~6 m
         -- descent outweighs any flatness advantage a valley floor can offer. NUMBERS ARE INLINE
         -- ON PURPOSE: this file is AT the Lua 200-local ceiling and adding two named constants
