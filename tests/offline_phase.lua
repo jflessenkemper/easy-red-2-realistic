@@ -317,7 +317,10 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- here - my first attempt at this test passed with the bug reintroduced. The aliveness guard
       -- lives in CYC.hurt, so BOTH invaders must be the nil-aliveness case for `down` below to
       -- discriminate.
-      local down   = ger1._inc + ger2._inc
+      -- COUNT EVERY INVADER, including the stray. CYC.hurt wounds the first attacker in the
+      -- grouped streamed set, and that can legitimately be the man who drifted - summing only
+      -- ger1+ger2 made this assertion miss a real casualty and report a working build as broken.
+      local down   = ger1._inc + ger2._inc + stray._inc
       if healed == 0 then
           return false, "the heal tick never ran - the cast would die off and the exhibit empties"
       end

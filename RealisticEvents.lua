@@ -2123,9 +2123,18 @@ local CYC = {
     -- 113 beyond 220 m. So the old window expired long before anyone got back, the next act phase
     -- began from wherever they happened to be, and the drift ACCUMULATED every round instead of
     -- being cleared. 75 s covers ~225 m, which matches the 220 m station radius.
-    reset  = 75,
+    -- 90 s, raised in step with the radius. The gate in tests/offline_phase.lua caught this
+    -- immediately: at ~3 m/s a 75 s window covers 225 m, which is less than the 240 m station
+    -- radius, so a man at the edge could not reach his mark before the next round began. Tuning
+    -- one number without the other is exactly what that gate exists to refuse.
+    reset  = 90,
     heal   = 4,     -- s between heal ticks that keep the cast alive
-    radius = 160,   -- m around a station centre counted as "at" that station
+    -- 240 m, NOT 160. Stations sit 500 m apart, so anything under half that gap is unambiguous,
+    -- and 160 was simply too tight for where the men actually stand: the query immediately before
+    -- a casualty attempt returned THREE streamed soldiers at station 1 and the 160 m horizontal
+    -- filter rejected all three, so `hurt` reported "0 seen" and did nothing. Drift puts men tens
+    -- of metres past their marks routinely; the station is a patch of ground, not a pinpoint.
+    radius = 240,
     t0     = nil,
     phase  = "act",
     lastHeal = 0,
@@ -2141,130 +2150,95 @@ local CYC = {
 -- together. The station centre is now terrain-height, which fixes the cause; this helper is the
 -- belt and braces - it queries a deliberately generous sphere and then filters on HORIZONTAL
 -- distance, so no future Y discrepancy can empty a station again.
-CYC.menAt = function(stn)
+-- THE ENGINE DECIDES WHO WE CAN SEE, SO WORK FROM THAT SET. getSoldiersInArea only returns
+-- soldiers STREAMED IN near the viewer, and the camera sits at the mission's own spawn area - not
+-- at any station. Measured: "raw=5 kept=0" at station 1, i.e. five streamed men all more than
+-- 240 m from that station centre, while 106 soldiers were alive across the grid. A per-station
+-- query therefore finds nobody while nobody is standing there, which is what made heal, reset,
+-- casualty and signage all appear broken for a dozen runs.
+--
+-- So the diorama stops asking "who is at station N" and instead asks "who can I see", then groups
+-- them BY NEAREST STATION. The practical effect is the one the range wants: whatever station you
+-- walk up to becomes the live one, because your presence is what streams it in.
+CYC.streamed = function()
+    local stns = SHOWCASE.stations or {}
+    if #stns == 0 then return {}, {} end
+    local minx, minz, maxx, maxz = 1e9, 1e9, -1e9, -1e9
+    for _, stn in ipairs(stns) do
+        if stn.cx < minx then minx = stn.cx end
+        if stn.cx > maxx then maxx = stn.cx end
+        if stn.cz < minz then minz = stn.cz end
+        if stn.cz > maxz then maxz = stn.cz end
+    end
     local raw = {}
-    -- FRESH vec3, EVERY CALL. The stored centre is three numbers precisely so no engine handle is
-    -- persisted; a vec3 kept in a table went stale and every query returned nothing.
-    local c = vec3(stn.cx, stn.cy or 0, stn.cz)
-    -- CAPTURE THE ERROR. safe() swallows it, and five hypotheses in a row died because the log
-    -- only ever said "0 seen" and never WHY. If this call is throwing, the message names the
-    -- reason; if it returns cleanly with an empty table, that is a different and equally useful
-    -- fact. Logged once per station per call, only while the diorama is on.
-    local qok, qerr = pcall(function() er2.getSoldiersInArea(c, CYC.radius * 4, raw) end)
-    local qn = 0
-    for _ in pairs(raw) do qn = qn + 1 end
-    dbg(string.format("DIORAMA query st%d: ok=%s n=%d err=%s centre=(%.0f,%.0f,%.0f) r=%d",
-        stn.n or -1, tostring(qok), qn, tostring(qerr), stn.cx or -1, stn.cy or -1, stn.cz or -1,
-        CYC.radius * 4))
-    local out, n = {}, 0
+    local c = vec3((minx + maxx) / 2, stns[1].cy or 0, (minz + maxz) / 2)
+    local span = math.max(maxx - minx, maxz - minz)
+    local ok = pcall(function() er2.getSoldiersInArea(c, span + 3000, raw) end)
+
+    local men, byStn, n = {}, {}, 0
     for _, m in pairs(raw) do
-        if m then
+        if m and safeGet(function() return m.isAlive() end) ~= false then
             local p = safeGet(function() return m.getPosition() end)
+            local best = nil
             if p then
-                local dx = (p.x or 0) - (stn.cx or 0)
-                local dz = (p.z or 0) - (stn.cz or 0)
-                if math.sqrt(dx * dx + dz * dz) <= CYC.radius then n = n + 1; out[n] = m end
-            else
-                n = n + 1; out[n] = m      -- no position available: do not silently drop him
+                local bd = 1e18
+                for _, stn in ipairs(stns) do
+                    local dx, dz = (p.x or 0) - stn.cx, (p.z or 0) - stn.cz
+                    local d = dx * dx + dz * dz
+                    if d < bd then best, bd = stn, d end
+                end
+            end
+            n = n + 1
+            men[n] = m
+            if best then
+                byStn[best.n] = byStn[best.n] or {}
+                table.insert(byStn[best.n], m)
             end
         end
     end
-    return out
+    dbg(string.format("DIORAMA streamed: ok=%s seen=%d grouped over %d stations",
+        tostring(ok), n, #stns))
+    return men, byStn
 end
 
 CYC.doHeal = function()
-    for _, stn in ipairs(SHOWCASE.stations or {}) do
-        local men = CYC.menAt(stn)
-        -- SKIP THE SCRIPTED CASUALTY. On a station that needs a man down, healing him every 4 s
-        -- would cancel the very thing the station demonstrates - the medic would have nobody to
-        -- treat and the drag branch nobody to carry. He is revived by the reset instead.
-        local spare = CYC.casualty[stn.n]
-        for _, m in pairs(men) do
-            if m then
-                local uid = safeGet(function() return m.getUniqueId() end)
-                if not (spare and uid and uid == spare) then
-                    safe(function() m.stopIncapacitate() end)
-                    safe(function() m.healSoldier(100) end)
-                end
-            end
+    local men = CYC.streamed()
+    for _, m in pairs(men) do
+        local uid = safeGet(function() return m.getUniqueId() end)
+        local spared = false
+        for _, cu in pairs(CYC.casualty) do if uid and cu == uid then spared = true end end
+        if not spared then
+            safe(function() m.stopIncapacitate() end)
+            safe(function() m.healSoldier(100) end)
         end
     end
 end
 
--- Order everyone back to their recorded mark, matched by SIDE and spread across that side's marks
--- by index so a squad does not pile onto one spot.
--- Put ONE man down at every station that needs a casualty, and remember who, so the heal tick
--- leaves him alone. incapacitate() is the documented way to do this (Soldier.incapacitate /
--- stopIncapacitate), and it is reversible - unlike killSoldier, which would empty the range.
+-- Wound ONE visible attacker, at whatever station he belongs to. Pinning this to station 8 was
+-- pointless once the streamed set turned out to follow the player: the medic demo should happen
+-- wherever you are standing, which is also where you can watch it.
 CYC.hurt = function()
-    -- INSTRUMENTED ON PURPOSE. Three separate fixes for this function passed an offline test and
-    -- then failed in-game, because each fix was a HYPOTHESIS about which guard was rejecting every
-    -- soldier and nothing in the log could confirm or refute it. Counting what each guard actually
-    -- rejects turns the next run from "did it work?" into "which guard said no", which is the
-    -- question I should have been asking two runs ago.
-    local seen, alive, invaders, withUid = 0, 0, 0, 0
-    local stations, flagged = 0, 0
-    for _, stn in ipairs(SHOWCASE.stations or {}) do
-        stations = stations + 1
-        if stn.needsCasualty and not CYC.casualty[stn.n] then
-            flagged = flagged + 1
-            local men = CYC.menAt(stn)
-            for _, m in pairs(men) do
-                seen = seen + 1
-                -- `~= false` IS THE CONVENTION, and writing a bare truthiness test here broke two features at
-                -- once. safeGet returns NIL when the interop call fails, and every other
-                -- aliveness check in both files reads `~= false` precisely so a failed check
-                -- does not silently exclude a live soldier. My version treated nil as DEAD, so
-                -- it rejected EVERY man: the scripted casualty never fired in three in-game
-                -- runs and the station signs counted zero men, which is why neither ever showed
-                -- any evidence.
-                if m and safeGet(function() return m.isAlive() end) ~= false then
-                    alive = alive + 1
-                    -- USE THE CACHED INV AND COMPARE `== true`, which is what sideOf() at the
-                    -- top of this file does. Two reasons, both learned the hard way here:
-                    -- calling er2.getInvadersFaction() per soldier inside the guarded closure
-                    -- means one failed interop call silently rejects that man, and isSameFaction
-                    -- is compared `== true` everywhere else precisely because a non-boolean or
-                    -- nil result must not be read as a match. This is the SECOND convention I
-                    -- broke in this function - the aliveness test was the first - and each one
-                    -- disabled the casualty completely while logging nothing.
-                    local inv = (INV ~= nil) and
-                        (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
-                    -- an ATTACKER casualty: the medic and the dragger are on his own side
-                    if inv then
-                        invaders = invaders + 1
-                        local uid = safeGet(function() return m.getUniqueId() end)
-                        if uid then
-                            withUid = withUid + 1
-                            CYC.casualty[stn.n] = uid
-                            safe(function() m.incapacitate() end)
-                            announce(string.format("DIORAMA: station %d - a man is down, watch the "
-                                     .. "medic and the stretcher party", stn.n))
-                            break
-                        end
+    local _, byStn = CYC.streamed()
+    for n, group in pairs(byStn) do
+        if not CYC.casualty[n] then
+            for _, m in pairs(group) do
+                local inv = (INV ~= nil) and
+                    (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
+                if inv then
+                    local uid = safeGet(function() return m.getUniqueId() end)
+                    if uid then
+                        CYC.casualty[n] = uid
+                        safe(function() m.incapacitate() end)
+                        announce(string.format("DIORAMA: station %d - a man is down, watch the "
+                                 .. "medic and the stretcher party", n))
+                        return
                     end
                 end
             end
         end
     end
-    dbg(string.format("DIORAMA hurt: %d stations, %d flagged, %d seen, %d alive, %d invaders, "
-        .. "%d with uid, casualty=%s", stations, flagged, seen, alive, invaders, withUid,
-        tostring(CYC.casualty[8])))
 end
 
--- RESET WITH A GLOBAL SWEEP, not a per-station query. This is the difference between a reset that
--- recovers the range and one that cannot.
---
--- MEASURED: the per-station query works perfectly - "query st1: ok=true n=6", "st2 n=5" - but
--- stations 3, 4, 6 and 8 returned n=0 because their cast had WANDERED OFF. And once a squad drifts
--- beyond the query radius it is invisible to a station-local sweep, so it is never ordered home
--- and drifts further: a runaway with no recovery. That is why station 8 had nobody to wound
--- ("0 seen") and why raising the reset window never fixed the drift. Five separate hypotheses
--- about broken guards and stale handles were all wrong; the stations were simply empty.
---
--- So the reset sweeps the WHOLE range from its centre, assigns every soldier to his NEAREST
--- station by horizontal distance, and orders him to that station's mark for his own side. A man
--- 600 m adrift is therefore still recovered, because nothing depends on him already being home.
 CYC.doReset = function()
     local stns = SHOWCASE.stations or {}
     if #stns == 0 then return end
