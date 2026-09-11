@@ -2230,6 +2230,21 @@ CYC.step = function(now)
         pcall(CYC.doHeal)
         pcall(CYC.sign)
     end
+    -- RE-ISSUE THE RESET EVERY TICK WHILE RESETTING. This is the whole reason the reset appeared
+    -- to do nothing in-game: the diorama ordered everyone home ONCE per 75-second window, while
+    -- each soldier's BRAIN re-issues its own moveTo every MOVE_REISSUE seconds toward its
+    -- objective. One order against thirty-odd - the brain simply overrode it within two seconds
+    -- and marched everyone off again.
+    --
+    -- It is invisible offline, because the stub has no brain competing for the same soldier: the
+    -- offline test passed "3/3 ordered home" while the real range drifted exactly as before
+    -- (median 61 m, max 663 m, unchanged by raising the window). Symptoms that all looked
+    -- separate - drift, an empty station 8 when the casualty fires, and every station reporting
+    -- ROAD-MARCH - were this one cause.
+    --
+    -- So during a reset the diorama competes on frequency and wins.
+    if CYC.phase == "reset" then pcall(CYC.doReset) end
+
     local elapsed = now - CYC.t0
     if CYC.phase == "act" and elapsed >= CYC.act then
         CYC.phase, CYC.t0 = "reset", now
