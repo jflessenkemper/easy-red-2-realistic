@@ -1178,6 +1178,12 @@ for _, s in ipairs(STATIONS) do
         return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
     end)
     if o then labels[#labels + 1] = s.name else failed = failed + 1 end
+    -- KEEP THE HANDLE. The Objective class exposes setText ("Update the text of a Scripted
+    -- Mission Objective"), so this label can be rewritten every few seconds with what the actors
+    -- at this station are ACTUALLY doing. That is the difference between a range you have to
+    -- read a log to understand and one you can walk up to and read off the sign - which is the
+    -- whole point of a station you can stand next to.
+    stn.label = o
     -- TAG THE NON-ATTRACTING LABELS so RealisticEvents.lua's attraction manager leaves them alone.
     -- That manager does `for _, o in ipairs(objList) do setAttract(o, true, true) end` at load
     -- (RealisticEvents.lua:1082) and re-asserts attraction every ATTRACT_EVERY seconds in
@@ -2128,6 +2134,36 @@ CYC.doReset = function()
     end
 end
 
+-- LIVE SIGNAGE. Rewrites each station's label with what its actors are doing right now, read
+-- from the ENGINE rather than inferred from a decision label: how many men are present, how many
+-- are in cover, how many are moving, how many are suppressed. Those are the direct reads
+-- (isOnCover / isMoving / getSuppressionValue) that this project added precisely because a
+-- decision in a log is not proof of behaviour - and here they double as the exhibit's own caption.
+CYC.sign = function()
+    for _, stn in ipairs(SHOWCASE.stations or {}) do
+        if stn.label then
+            local men = {}
+            safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+            local n, cover, moving, supp = 0, 0, 0, 0
+            for _, m in pairs(men) do
+                if m and safeGet(function() return m.isAlive() end) then
+                    n = n + 1
+                    if safeGet(function() return m.isOnCover() end) then cover = cover + 1 end
+                    if safeGet(function() return m.isMoving end) then moving = moving + 1 end
+                    local sv = safeGet(function() return m.getSuppressionValue() end) or 0
+                    if sv > 0.2 then supp = supp + 1 end
+                end
+            end
+            safe(function()
+                stn.label.setText(string.format("%s  |  %d men: %d in cover, %d moving, %d "
+                    .. "suppressed  |  round %d %s", stn.name or "station", n, cover, moving,
+                    supp, CYC.round + 1,
+                    CYC.phase == "act" and "PERFORMING" or "RESETTING"))
+            end)
+        end
+    end
+end
+
 CYC.step = function(now)
     if not CYC.on then return end
     if not CYC.t0 then
@@ -2138,6 +2174,7 @@ CYC.step = function(now)
     if (now - CYC.lastHeal) >= CYC.heal then
         CYC.lastHeal = now
         pcall(CYC.doHeal)
+        pcall(CYC.sign)
     end
     local elapsed = now - CYC.t0
     if CYC.phase == "act" and elapsed >= CYC.act then

@@ -393,6 +393,12 @@ for _, s in ipairs(STATIONS) do
         return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
     end)
     if o then labels[#labels + 1] = s.name else failed = failed + 1 end
+    -- KEEP THE HANDLE. The Objective class exposes setText ("Update the text of a Scripted
+    -- Mission Objective"), so this label can be rewritten every few seconds with what the actors
+    -- at this station are ACTUALLY doing. That is the difference between a range you have to
+    -- read a log to understand and one you can walk up to and read off the sign - which is the
+    -- whole point of a station you can stand next to.
+    stn.label = o
     -- TAG THE NON-ATTRACTING LABELS so RealisticEvents.lua's attraction manager leaves them alone.
     -- That manager does `for _, o in ipairs(objList) do setAttract(o, true, true) end` at load
     -- (RealisticEvents.lua:1082) and re-asserts attraction every ATTRACT_EVERY seconds in

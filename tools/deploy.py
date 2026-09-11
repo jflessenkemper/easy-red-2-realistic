@@ -155,6 +155,29 @@ def luajit_ok(text, label):
         os.unlink(tmp)
 
 
+def full_logging(src):
+    """Sample EVERY soldier on the test map, not one in six.
+
+    The shipping default DBG_SAMPLE = 6 exists to keep Player.log manageable in a real battle. On
+    the demonstration range it makes the range unverifiable: a 25-minute run over 11 diorama
+    rounds produced FORTY-ONE brain state lines across thirteen stations - about three per station
+    - and most of them were defender-side squads correctly holding, which says nothing about what
+    any station demonstrates. The test map exists to be measured, so it samples everyone.
+
+    DEBUG itself is deliberately NOT forced on here: that stays a conscious choice, because the
+    per-line cost is ~1.1 KB plus a stack walk and the Stop hook refuses to end a session with a
+    diagnostic build deployed.
+    """
+    m = re.search(r"^local DBG_SAMPLE\s*=\s*(\d+)", src, re.M)
+    if not m:
+        raise SystemExit(
+            "REFUSING TO DEPLOY: no `local DBG_SAMPLE = <n>` found in Realistic.lua, so the test "
+            "map cannot be switched to full sampling and the range would stay unverifiable. "
+            "NOTE: DBG_SAMPLE is declared in the BRAIN, not the phase script."
+        )
+    return src[:m.start()] + "local DBG_SAMPLE = 1" + src[m.end():]
+
+
 def build_variant(src, table, what, tool):
     """Return (variant_source, injected_lines).
 
@@ -253,6 +276,10 @@ def build_plan():
     on disk.
     """
     brain = read(BRAIN_SRC)
+    # THE TEST MAP GETS A BRAIN VARIANT: DBG_SAMPLE = 1 so every soldier is sampled. At the
+    # shipping default of 6, an 11-round diorama produced 41 state lines across 13 stations - about
+    # three each - which cannot verify anything. The range exists to be measured.
+    brain_testmap = full_logging(brain.decode("utf-8")).encode("utf-8")
     phase_inert_text = open(PHASE_SRC, encoding="utf-8").read()
     phase_inert = phase_inert_text.encode("utf-8")
 
@@ -276,7 +303,11 @@ def build_plan():
     plan = []
     for mission in MISSIONS:
         dst_dir = os.path.join(MISSION_ROOT, mission, "scripts", "mission")
-        plan.append((mission, os.path.join(dst_dir, BRAIN_DST_NAME), brain, "brain"))
+        if mission == TESTMAP:
+            plan.append((mission, os.path.join(dst_dir, BRAIN_DST_NAME), brain_testmap,
+                         "brain (sampled 1:1)"))
+        else:
+            plan.append((mission, os.path.join(dst_dir, BRAIN_DST_NAME), brain, "brain"))
         # THE BRAIN LIVES IN TWO PLACES AND BOTH MATTER. scripts/AI/ is what the mission editor's
         # Squad Spawner "Brain" dropdown enumerates (er2-plugin/docs/ui-map.md:179), so a brain
         # selected in the editor is loaded from THERE, not from scripts/mission/. This tool
@@ -287,7 +318,11 @@ def build_plan():
         # directory over. They happened to still match when this was found, only because
         # Realistic.lua had not changed since the plugin's own deploy last wrote both.
         ai_dir = os.path.join(MISSION_ROOT, mission, "scripts", "AI")
-        plan.append((mission, os.path.join(ai_dir, BRAIN_DST_NAME), brain, "brain (AI dir)"))
+        if mission == TESTMAP:
+            plan.append((mission, os.path.join(ai_dir, BRAIN_DST_NAME), brain_testmap,
+                         "brain (sampled 1:1, AI dir)"))
+        else:
+            plan.append((mission, os.path.join(ai_dir, BRAIN_DST_NAME), brain, "brain (AI dir)"))
         if mission in variants:
             label = "phase (%s)" % VARIANTS[mission][0]
             plan.append(
@@ -417,7 +452,10 @@ def main():
         # so the generated Stonne variant is covered too.
         got = read(dst)
         same = got == expected
-        if label.startswith("brain"):
+        # filecmp only for the VERBATIM brains. The test map's brain is deliberately different
+        # (DBG_SAMPLE = 1), so comparing it to the source would fail by design; it is verified by
+        # hashing the exact expected bytes, same as the phase variants.
+        if label in ("brain", "brain (AI dir)"):
             same = same and filecmp.cmp(BRAIN_SRC, dst, shallow=False)
         rows.append((mission, label, "PASS" if same else "FAIL", sha(got)[:12]))
         if not same:
