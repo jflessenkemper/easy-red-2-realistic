@@ -230,6 +230,34 @@ local function mkActor(uid, faction, pos)
     return a
 end
 
+-- NO PERSISTED vec3 IN THE STATION TABLE. A vec3 is engine UserData; this project already bans
+-- storing one in a global because that is fatal, and keeping one in a TABLE for minutes proved
+-- just as broken - a 640 m getSoldiersInArea sphere returned "0 seen" while the brain logged seven
+-- men at that station, and moveTo on reset did nothing, which is why the drift never fell. The
+-- brain's identical query works because it rebuilds its vec3 every tick. This check reads the
+-- SOURCE so the pattern cannot creep back in.
+do
+    local src = assert(io.open(SRC)):read("*a")
+    local bad = {}
+    -- the station table must carry numbers, not a vec3
+    if src:match("stn%s*=%s*{[^}]-centre%s*=%s*centre") then
+        bad[#bad + 1] = "the station table stores `centre = centre` (a vec3); store cx/cy/cz numbers"
+    end
+    if src:match("getSoldiersInArea%(stn%.centre") then
+        bad[#bad + 1] = "a query passes stn.centre directly; build a fresh vec3 from the numbers"
+    end
+    if src:match("m%.moveTo%(marks%[idx%]%)") then
+        bad[#bad + 1] = "moveTo is handed a stored mark; build a fresh vec3 from its numbers"
+    end
+    if #bad > 0 then
+        for _, b in ipairs(bad) do
+            out("  \27[31mFAIL\27[0m  persisted vec3: " .. b)
+        end
+        os.exit(1)
+    end
+    out("  \27[32mPASS\27[0m  no persisted vec3 handles in the diorama's positions")
+end
+
 local T, pass, fail = {}, 0, 0
 
 T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty station",

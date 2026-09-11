@@ -339,14 +339,24 @@ for _, s in ipairs(STATIONS) do
     -- a DESTROYED vehicle, and destroying one triggers an engine bug - Vehicle:OnDestroy ->
     -- ForceExitAllVehicle -> a missing 'er2animations' bundle -> a storm of 126 NullReferenceExceptions
     -- (measured 2026-09-09). Triggering that on purpose would drown the range's own log in noise.
-    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {},
-                  needsCasualty = (s.n == 8) }
+    -- POSITIONS ARE STORED AS PLAIN NUMBERS, never as a persisted vec3. A vec3 is engine
+    -- UserData, and this project already bans putting one in a global because that is fatal
+    -- (docs/verified-api.md:255). Keeping one in a TABLE for minutes and then handing it to
+    -- getSoldiersInArea turns out to be just as useless: the diagnostic said "0 seen" from a
+    -- 640 m sphere while the brain logged seven men at that very station - and the brain's
+    -- identical query works precisely because it builds its vec3 FRESH every tick from
+    -- getPosition(). Same reason moveTo did nothing on reset, which is why the drift never
+    -- improved. Numbers survive; handles do not.
+    local stn = { n = s.n, name = s.name,
+                  cx = centre.x, cy = centre.y, cz = centre.z,
+                  inv = {}, def = {}, needsCasualty = (s.n == 8) }
     SHOWCASE.stations[#SHOWCASE.stations + 1] = stn
 
     -- German side
     for i, sid in ipairs(s.ger or {}) do
         addSquad(sid, at(dx + (i - 1) * 20, dz), "invader", 12)
-        stn.inv[#stn.inv + 1] = at(dx + (i - 1) * 20, dz)
+        do local m = at(dx + (i - 1) * 20, dz)
+           stn.inv[#stn.inv + 1] = { x = m.x, y = m.y, z = m.z } end
     end
     -- A squad that must spawn ON a vehicle, which is the only way the transport-reuse branch is
     -- reachable: it keys off myTransportId, remembered while MOUNTED, so a squad that never rode
@@ -361,7 +371,8 @@ for _, s in ipairs(STATIONS) do
     local ed = s.enemyD or 100
     for i, sid in ipairs(s.enemy or {}) do
         addSquad(sid, at(dx + ed, dz + (i - 1) * 25), "defender", 10)
-        stn.def[#stn.def + 1] = at(dx + ed, dz + (i - 1) * 25)
+        do local m = at(dx + ed, dz + (i - 1) * 25)
+           stn.def[#stn.def + 1] = { x = m.x, y = m.y, z = m.z } end
     end
 
     -- Vehicles: { name, offsetX, offsetZ }
