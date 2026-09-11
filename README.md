@@ -489,6 +489,20 @@ local TEST_VEHICLES = DONCHERY.vehicles
 local TEST_MOUNTED  = DONCHERY.mounted
 ```
 
+### How the demonstration range actually behaves — walk the line
+
+Each station comes alive **as you approach it**, and only then. That is an engine constraint, not a
+choice: `getSoldiersInArea` returns only soldiers currently streamed in near the viewer, so the
+mission script cannot heal, reset or annotate a station on the far side of the map. Measured — a
+query centred anywhere returns the same ~15 soldiers while 106 are alive and running brains.
+
+So the range is used the way a firing range is used: stand at a station, watch it perform, and it
+will reset and repeat while you are there. Do not expect all thirteen to be cycling at once.
+
+Station 9 (crew bail-out) is deliberately inert: it needs a DESTROYED vehicle, and destroying one
+triggers an engine bug (`Vehicle:OnDestroy` -> `ForceExitAllVehicle` -> a missing `er2animations`
+bundle -> a storm of NullReferenceExceptions).
+
 ### ⚠️ Stonne needs one manual step in the mission editor — and it is a correctness fix
 
 Open *[Historical] Crossing at Donchery* in the editor and, for each of its six phases, set every

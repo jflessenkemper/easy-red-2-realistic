@@ -10,6 +10,42 @@ hub UI also changed layout in 2.1.0, so er2-plugin/docs/ui-map.md coordinates ar
 
 
 
+
+## getSoldiersInArea ONLY SEES STREAMED SOLDIERS — it is viewer-relative, not world-wide
+
+**Measured 2026-09-12 with a single sweep that queried four centres at five radii in one run.** This
+resolves a blocking unknown that five separate hypotheses had failed to explain.
+
+```
+PROBE origin r=640  n=8     PROBE st8  r=640  n=0     PROBE st13 r=640  n=0
+PROBE origin r=6000 n=15    PROBE st8  r=6000 n=15    PROBE st13 r=6000 n=15
+PROBE player at unknown
+```
+
+Every large query returns the SAME ~15 soldiers regardless of where it is centred, while **106
+distinct soldiers were simultaneously running brains and logging positions** spanning x -42..1996,
+z -78..1972. The engine is not answering a world-space question: it returns only soldiers that are
+currently STREAMED IN near the viewer. Brains keep ticking for distant AI because they are scripts;
+the soldiers themselves are not in the queryable set.
+
+**Consequences, and they are design-level rather than bugs:**
+* A phase script CANNOT manage units the player is nowhere near. Any "sweep all stations" or
+  "global reset" design is impossible - `CYC.doReset`'s global sweep included.
+* It CAN manage whatever the player is standing next to, which is the case that matters for a
+  walk-the-line exhibit: each station comes alive as you approach it.
+* Unattended headless verification of far-away units is impossible through this API. During
+  automated runs the camera sits on the deploy screen near station 1, so only station 1 ever
+  answered - which is exactly the pattern observed across four runs and wrongly attributed, in
+  turn, to an aliveness convention, a cached faction, a station-centre height, a persisted vec3 and
+  the brain out-competing the diorama. All five were real code issues; none was this.
+* The brain is unaffected: it queries around ITSELF, and a soldier is always streamed relative to
+  his own position.
+
+**Not fully proven:** that the criterion is specifically viewer distance rather than some other
+streaming rule. What IS established is that the result set is small, identical from every centre,
+and unrelated to the queried radius once it exceeds the streamed cluster.
+
+
 ## OFFICIAL DOCUMENTATION EXISTS — read it before probing anything
 
 **https://easyred2.com/wiki/scripting** (per-function pages at `scripting.php?id=<name>`) and

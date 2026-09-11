@@ -2315,12 +2315,51 @@ CYC.doReset = function()
     end
 end
 
+-- ONE-SHOT DIAGNOSTIC SWEEP. getSoldiersInArea answers for the three stations nearest the world
+-- origin and returns n=0 for the other ten, with ok=true and no error, while the soldiers' own
+-- logged positions prove they are standing there. Five hypotheses died guessing at that; this
+-- measures it instead. In a single run it queries FOUR centres at FIVE radii and logs every count,
+-- which separates the candidate explanations:
+--   * if n grows with radius at a far centre -> the radius is effectively clamped
+--   * if only centres near (0,0) ever answer -> the query is world-origin relative
+--   * if a huge radius from st1 finds the far men -> the CENTRE is the problem, not the men
+--   * if nothing ever exceeds ~10 -> there is a cap on the returned count
+CYC.probe = function()
+    if CYC.probed then return end
+    CYC.probed = true
+    local stns = SHOWCASE.stations or {}
+    if #stns < 13 then return end
+    local pts = {
+        { "origin", 0, 0 },
+        { "st1", stns[1].cx, stns[1].cz },
+        { "st8", stns[8].cx, stns[8].cz },
+        { "st13", stns[13].cx, stns[13].cz },
+    }
+    local radii = { 50, 160, 640, 2000, 6000 }
+    for _, pt in ipairs(pts) do
+        for _, r in ipairs(radii) do
+            local t = {}
+            local c = vec3(pt[2], stns[1].cy or 0, pt[3])
+            local ok, err = pcall(function() er2.getSoldiersInArea(c, r, t) end)
+            local n = 0
+            for _ in pairs(t) do n = n + 1 end
+            dbg(string.format("PROBE %-7s r=%-5d n=%-4d ok=%s err=%s at (%.0f,%.0f)",
+                pt[1], r, n, tostring(ok), tostring(err), pt[2], pt[3]))
+        end
+    end
+    -- Does a PLAYER-relative rule explain it? Log where the engine thinks the player is.
+    local pp = safeGet(function() return er2.getPlayerSoldier().getPosition() end)
+    dbg(string.format("PROBE player at %s",
+        pp and string.format("(%.0f,%.0f,%.0f)", pp.x, pp.y, pp.z) or "unknown"))
+end
+
 CYC.step = function(now)
     if not CYC.on then return end
     if not CYC.t0 then
         CYC.t0 = now
         announce("DIORAMA: stations performing. Round 1 - walk the line; each resets every "
                  .. CYC.act .. "s")
+        pcall(CYC.probe)
     end
     if (now - CYC.lastHeal) >= CYC.heal then
         CYC.lastHeal = now
