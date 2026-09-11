@@ -320,7 +320,17 @@ SHOWCASE.stations = {}
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
     local centre = at(dx, dz)
-    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {} }
+    -- STATIONS THAT NEED A CASUALTY. The medic and the stretcher-drag branches only exist when
+    -- somebody is DOWN, and the diorama's heal tick makes everyone effectively immortal so a
+    -- casualty never occurs naturally. Rather than weaken the immortality - which is what keeps
+    -- the exhibit from emptying out - these stations get a SCRIPTED casualty each round:
+    -- incapacitate() puts one man down, and he is exempt from healing until the reset revives him.
+    -- Station 8 is MEDIC-sortie / DRAG-approach. Station 9 (crew bail-out) is NOT listed: it needs
+    -- a DESTROYED vehicle, and destroying one triggers an engine bug - Vehicle:OnDestroy ->
+    -- ForceExitAllVehicle -> a missing 'er2animations' bundle -> a storm of 126 NullReferenceExceptions
+    -- (measured 2026-09-09). Triggering that on purpose would drown the range's own log in noise.
+    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {},
+                  needsCasualty = (s.n == 8) }
     SHOWCASE.stations[#SHOWCASE.stations + 1] = stn
 
     -- German side

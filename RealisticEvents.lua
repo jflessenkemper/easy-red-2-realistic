@@ -1105,7 +1105,17 @@ SHOWCASE.stations = {}
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
     local centre = at(dx, dz)
-    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {} }
+    -- STATIONS THAT NEED A CASUALTY. The medic and the stretcher-drag branches only exist when
+    -- somebody is DOWN, and the diorama's heal tick makes everyone effectively immortal so a
+    -- casualty never occurs naturally. Rather than weaken the immortality - which is what keeps
+    -- the exhibit from emptying out - these stations get a SCRIPTED casualty each round:
+    -- incapacitate() puts one man down, and he is exempt from healing until the reset revives him.
+    -- Station 8 is MEDIC-sortie / DRAG-approach. Station 9 (crew bail-out) is NOT listed: it needs
+    -- a DESTROYED vehicle, and destroying one triggers an engine bug - Vehicle:OnDestroy ->
+    -- ForceExitAllVehicle -> a missing 'er2animations' bundle -> a storm of 126 NullReferenceExceptions
+    -- (measured 2026-09-09). Triggering that on purpose would drown the range's own log in noise.
+    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {},
+                  needsCasualty = (s.n == 8) }
     SHOWCASE.stations[#SHOWCASE.stations + 1] = stn
 
     -- German side
@@ -2099,6 +2109,7 @@ local CYC = {
     phase  = "act",
     lastHeal = 0,
     round  = 0,
+    casualty = {},   -- station n -> uid of the man deliberately put down this round
 }
 
 -- Heal and revive every actor at every station: the only thing between a looping exhibit and a
@@ -2107,10 +2118,17 @@ CYC.doHeal = function()
     for _, stn in ipairs(SHOWCASE.stations or {}) do
         local men = {}
         safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+        -- SKIP THE SCRIPTED CASUALTY. On a station that needs a man down, healing him every 4 s
+        -- would cancel the very thing the station demonstrates - the medic would have nobody to
+        -- treat and the drag branch nobody to carry. He is revived by the reset instead.
+        local spare = CYC.casualty[stn.n]
         for _, m in pairs(men) do
             if m then
-                safe(function() m.stopIncapacitate() end)
-                safe(function() m.healSoldier(100) end)
+                local uid = safeGet(function() return m.getUniqueId() end)
+                if not (spare and uid and uid == spare) then
+                    safe(function() m.stopIncapacitate() end)
+                    safe(function() m.healSoldier(100) end)
+                end
             end
         end
     end
@@ -2118,6 +2136,36 @@ end
 
 -- Order everyone back to their recorded mark, matched by SIDE and spread across that side's marks
 -- by index so a squad does not pile onto one spot.
+-- Put ONE man down at every station that needs a casualty, and remember who, so the heal tick
+-- leaves him alone. incapacitate() is the documented way to do this (Soldier.incapacitate /
+-- stopIncapacitate), and it is reversible - unlike killSoldier, which would empty the range.
+CYC.hurt = function()
+    for _, stn in ipairs(SHOWCASE.stations or {}) do
+        if stn.needsCasualty and not CYC.casualty[stn.n] then
+            local men = {}
+            safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+            for _, m in pairs(men) do
+                if m and safeGet(function() return m.isAlive() end) then
+                    local inv = safeGet(function()
+                        return er2.isSameFaction(m.getFaction(), er2.getInvadersFaction())
+                    end)
+                    -- an ATTACKER casualty: the medic and the dragger are on his own side
+                    if inv then
+                        local uid = safeGet(function() return m.getUniqueId() end)
+                        if uid then
+                            CYC.casualty[stn.n] = uid
+                            safe(function() m.incapacitate() end)
+                            announce(string.format("DIORAMA: station %d - a man is down, watch the "
+                                     .. "medic and the stretcher party", stn.n))
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 CYC.doReset = function()
     for _, stn in ipairs(SHOWCASE.stations or {}) do
         local men = {}
@@ -2186,12 +2234,14 @@ CYC.step = function(now)
     if CYC.phase == "act" and elapsed >= CYC.act then
         CYC.phase, CYC.t0 = "reset", now
         CYC.round = CYC.round + 1
+        CYC.casualty = {}      -- revive last round's casualties; a new one is chosen next round
         announce(string.format("DIORAMA: round %d over - all stations resetting, actors walking "
                  .. "back to their marks (%ds)", CYC.round, CYC.reset))
         pcall(CYC.doReset)
     elseif CYC.phase == "reset" and elapsed >= CYC.reset then
         CYC.phase, CYC.t0 = "act", now
         announce(string.format("DIORAMA: round %d - stations performing again", CYC.round + 1))
+        pcall(CYC.hurt)
     end
 end
 
