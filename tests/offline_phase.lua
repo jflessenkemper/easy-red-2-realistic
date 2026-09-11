@@ -91,7 +91,12 @@ local function install(scn)
         isMasterClient      = function() return true end,
         time                = function() return 100 + (S.clock or 0) end,
         getCurrentPhaseId   = function() return S.phase end,
-        getInvadersFaction  = function() return "Germany_axis" end,
+        getInvadersFaction  = function()
+            -- After the script has captured INV at load, a scenario can make later calls fail, so
+            -- a re-query per soldier is punished while the cached value keeps working.
+            if S.breakInvadersFaction and S.clock and S.clock > 2 then error("interop failed") end
+            return "Germany_axis"
+        end,
         getDefendersFaction = function() return "France_allies" end,
         isSameFaction       = function(a, b) return a == b end,
         getPlayer           = function() return S.player end,
@@ -238,6 +243,12 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
           actors = { ger1, ger2, fr1 },
       }
       scn.onTick = function(n) scn.clock = n end
+      -- BREAK THE PER-SOLDIER FACTION LOOKUP, keeping the cached one intact. This reproduces the
+      -- in-game shape: INV is captured once at script load and is fine, while calling
+      -- er2.getInvadersFaction() again per soldier can fail - and a guarded failure then rejects
+      -- that man silently. Anything reading the cached INV still works; anything re-querying does
+      -- not. The casualty must still fire.
+      scn.breakInvadersFaction = true
       local ls, err = run(scn)
       if err then return false, "ERROR: " .. err end
 

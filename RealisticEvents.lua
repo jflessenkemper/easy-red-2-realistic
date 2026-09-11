@@ -2153,9 +2153,16 @@ CYC.hurt = function()
                 -- runs and the station signs counted zero men, which is why neither ever showed
                 -- any evidence.
                 if m and safeGet(function() return m.isAlive() end) ~= false then
-                    local inv = safeGet(function()
-                        return er2.isSameFaction(m.getFaction(), er2.getInvadersFaction())
-                    end)
+                    -- USE THE CACHED INV AND COMPARE `== true`, which is what sideOf() at the
+                    -- top of this file does. Two reasons, both learned the hard way here:
+                    -- calling er2.getInvadersFaction() per soldier inside the guarded closure
+                    -- means one failed interop call silently rejects that man, and isSameFaction
+                    -- is compared `== true` everywhere else precisely because a non-boolean or
+                    -- nil result must not be read as a match. This is the SECOND convention I
+                    -- broke in this function - the aliveness test was the first - and each one
+                    -- disabled the casualty completely while logging nothing.
+                    local inv = (INV ~= nil) and
+                        (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
                     -- an ATTACKER casualty: the medic and the dragger are on his own side
                     if inv then
                         local uid = safeGet(function() return m.getUniqueId() end)
@@ -2180,9 +2187,11 @@ CYC.doReset = function()
         local ni, nd = 0, 0
         for _, m in pairs(men) do
             if m then
-                local inv = safeGet(function()
-                    return er2.isSameFaction(m.getFaction(), er2.getInvadersFaction())
-                end)
+                -- Same convention as CYC.hurt: cached INV, compared `== true`. A per-soldier
+                -- getInvadersFaction() call that fails would send an attacker to the DEFENDER's
+                -- mark, quietly swapping the two sides of a station every reset.
+                local inv = (INV ~= nil) and
+                    (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
                 local marks = inv and stn.inv or stn.def
                 if marks and #marks > 0 then
                     local idx
