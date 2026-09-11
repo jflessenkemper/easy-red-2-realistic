@@ -2086,7 +2086,13 @@ end
 local CYC = {
     on     = false,
     act    = 90,    -- s the stations are left alone to perform
-    reset  = 30,    -- s allowed for the walk home (no teleport exists, so be generous)
+    -- RESET MUST COVER THE WALK HOME, and 30 s did not. There is no teleport for soldiers, so a
+    -- reset is a MARCH: at roughly 3 m/s, 30 s moves a man about 90 m. The station objective sits
+    -- 180 m out and men were measured up to 658 m from their nearest station centre, with 20 of
+    -- 113 beyond 220 m. So the old window expired long before anyone got back, the next act phase
+    -- began from wherever they happened to be, and the drift ACCUMULATED every round instead of
+    -- being cleared. 75 s covers ~225 m, which matches the 220 m station radius.
+    reset  = 75,
     heal   = 4,     -- s between heal ticks that keep the cast alive
     radius = 160,   -- m around a station centre counted as "at" that station
     t0     = nil,

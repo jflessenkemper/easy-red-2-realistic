@@ -138,6 +138,42 @@ local function count(ls, pat)
 end
 
 --========================= scenarios ========================================
+-- THE RESET WINDOW MUST COVER THE WALK HOME. There is no teleport for soldiers, so a reset is a
+-- MARCH: at roughly 3 m/s a 30 s window moved a man only ~90 m, while the station radius is 160 m
+-- and each station's objective sits 180 m out. Measured in-game: 20 of 113 soldiers ended beyond
+-- 220 m of their nearest station, one at 658 m. The window expired long before anyone got back, so
+-- the next round began from wherever they stood and the drift ACCUMULATED every cycle. Both
+-- numbers are read out of the source, so tuning one without the other cannot pass.
+do
+    local src = assert(io.open("RealisticEvents.lua")):read("*a")
+    -- SCOPED TO THE CYC TABLE. A bare `radius%s*=%s*(%d+)` matched `radius = 10` from the
+    -- inlined station data hundreds of lines earlier, so this compared 90 m against 10 m and
+    -- passed while the real window was far too short. That is a test that cannot fail, and it is
+    -- the eleventh found on this project - the file now contains two inlined data sets, so any
+    -- unanchored pattern is a trap.
+    local cyc = src:match("local CYC = %{(.-)\n%}")
+    if not cyc then
+        out("  \27[31mFAIL\27[0m  could not find the `local CYC = { ... }` table in " .. SRC)
+        os.exit(1)
+    end
+    local reset  = tonumber(cyc:match("reset%s*=%s*(%d+)"))
+    local radius = tonumber(cyc:match("radius%s*=%s*(%d+)"))
+    local SPEED  = 3.0
+    if not reset or not radius then
+        out("  \27[31mFAIL\27[0m  could not read CYC.reset / CYC.radius out of " .. SRC)
+        os.exit(1)
+    end
+    if reset * SPEED < radius then
+        out(string.format("  \27[31mFAIL\27[0m  diorama reset window is %ds -> covers only %.0f m "
+            .. "at %.1f m/s, less than the %dm station radius. Actors cannot reach their marks "
+            .. "before the next round, so drift accumulates instead of clearing.",
+            reset, reset * SPEED, SPEED, radius))
+        os.exit(1)
+    end
+    out(string.format("  \27[32mPASS\27[0m  diorama reset window %ds covers %.0fm >= station "
+        .. "radius %dm", reset, reset * SPEED, radius))
+end
+
 local T, pass, fail = {}, 0, 0
 
 -- 1. The loop runs at all and emits attraction lines.
