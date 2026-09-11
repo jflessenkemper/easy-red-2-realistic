@@ -1104,7 +1104,17 @@ SHOWCASE.stations = {}
 
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
+    -- THE STATION CENTRE MUST SIT ON THE GROUND, not at the objective's height. at() carries
+    -- ORIGIN.y, and ORIGIN is derived from the mission's first OBJECTIVE - which is not at ground
+    -- level. Every diorama query is a 3D sphere around this point, so an objective even 200 m up
+    -- empties a 160 m query: measured in-game as "13 stations, 1 flagged, 0 SEEN", which silently
+    -- disabled the heal tick, the reset, the casualty and the station signs all at once, across
+    -- four runs. Terrain height puts the centre where the men actually are.
     local centre = at(dx, dz)
+    do
+        local gy = scSafeGet(function() return er2.getTerrainHeight(centre) end)
+        centre = vec3(centre.x, gy or 0, centre.z)
+    end
     -- STATIONS THAT NEED A CASUALTY. The medic and the stretcher-drag branches only exist when
     -- somebody is DOWN, and the diorama's heal tick makes everyone effectively immortal so a
     -- casualty never occurs naturally. Rather than weaken the immortality - which is what keeps
@@ -2114,10 +2124,34 @@ local CYC = {
 
 -- Heal and revive every actor at every station: the only thing between a looping exhibit and a
 -- field of bodies.
+-- ONE QUERY HELPER FOR THE WHOLE DIORAMA. getSoldiersInArea is a 3D sphere, but a station is a
+-- 2D patch of ground: a centre whose Y is off by more than the radius returns NOTHING, which is
+-- exactly what happened in-game ("0 seen") and silently disabled heal, reset, casualty and signage
+-- together. The station centre is now terrain-height, which fixes the cause; this helper is the
+-- belt and braces - it queries a deliberately generous sphere and then filters on HORIZONTAL
+-- distance, so no future Y discrepancy can empty a station again.
+CYC.menAt = function(stn)
+    local raw = {}
+    safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius * 4, raw) end)
+    local out, n = {}, 0
+    for _, m in pairs(raw) do
+        if m then
+            local p = safeGet(function() return m.getPosition() end)
+            if p then
+                local dx = (p.x or 0) - (stn.centre.x or 0)
+                local dz = (p.z or 0) - (stn.centre.z or 0)
+                if math.sqrt(dx * dx + dz * dz) <= CYC.radius then n = n + 1; out[n] = m end
+            else
+                n = n + 1; out[n] = m      -- no position available: do not silently drop him
+            end
+        end
+    end
+    return out
+end
+
 CYC.doHeal = function()
     for _, stn in ipairs(SHOWCASE.stations or {}) do
-        local men = {}
-        safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+        local men = CYC.menAt(stn)
         -- SKIP THE SCRIPTED CASUALTY. On a station that needs a man down, healing him every 4 s
         -- would cancel the very thing the station demonstrates - the medic would have nobody to
         -- treat and the drag branch nobody to carry. He is revived by the reset instead.
@@ -2140,11 +2174,20 @@ end
 -- leaves him alone. incapacitate() is the documented way to do this (Soldier.incapacitate /
 -- stopIncapacitate), and it is reversible - unlike killSoldier, which would empty the range.
 CYC.hurt = function()
+    -- INSTRUMENTED ON PURPOSE. Three separate fixes for this function passed an offline test and
+    -- then failed in-game, because each fix was a HYPOTHESIS about which guard was rejecting every
+    -- soldier and nothing in the log could confirm or refute it. Counting what each guard actually
+    -- rejects turns the next run from "did it work?" into "which guard said no", which is the
+    -- question I should have been asking two runs ago.
+    local seen, alive, invaders, withUid = 0, 0, 0, 0
+    local stations, flagged = 0, 0
     for _, stn in ipairs(SHOWCASE.stations or {}) do
+        stations = stations + 1
         if stn.needsCasualty and not CYC.casualty[stn.n] then
-            local men = {}
-            safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+            flagged = flagged + 1
+            local men = CYC.menAt(stn)
             for _, m in pairs(men) do
+                seen = seen + 1
                 -- `~= false` IS THE CONVENTION, and writing a bare truthiness test here broke two features at
                 -- once. safeGet returns NIL when the interop call fails, and every other
                 -- aliveness check in both files reads `~= false` precisely so a failed check
@@ -2153,6 +2196,7 @@ CYC.hurt = function()
                 -- runs and the station signs counted zero men, which is why neither ever showed
                 -- any evidence.
                 if m and safeGet(function() return m.isAlive() end) ~= false then
+                    alive = alive + 1
                     -- USE THE CACHED INV AND COMPARE `== true`, which is what sideOf() at the
                     -- top of this file does. Two reasons, both learned the hard way here:
                     -- calling er2.getInvadersFaction() per soldier inside the guarded closure
@@ -2165,8 +2209,10 @@ CYC.hurt = function()
                         (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
                     -- an ATTACKER casualty: the medic and the dragger are on his own side
                     if inv then
+                        invaders = invaders + 1
                         local uid = safeGet(function() return m.getUniqueId() end)
                         if uid then
+                            withUid = withUid + 1
                             CYC.casualty[stn.n] = uid
                             safe(function() m.incapacitate() end)
                             announce(string.format("DIORAMA: station %d - a man is down, watch the "
@@ -2178,12 +2224,14 @@ CYC.hurt = function()
             end
         end
     end
+    dbg(string.format("DIORAMA hurt: %d stations, %d flagged, %d seen, %d alive, %d invaders, "
+        .. "%d with uid, casualty=%s", stations, flagged, seen, alive, invaders, withUid,
+        tostring(CYC.casualty[8])))
 end
 
 CYC.doReset = function()
     for _, stn in ipairs(SHOWCASE.stations or {}) do
-        local men = {}
-        safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+        local men = CYC.menAt(stn)
         local ni, nd = 0, 0
         for _, m in pairs(men) do
             if m then
@@ -2212,8 +2260,7 @@ end
 CYC.sign = function()
     for _, stn in ipairs(SHOWCASE.stations or {}) do
         if stn.label then
-            local men = {}
-            safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+            local men = CYC.menAt(stn)
             local n, cover, moving, supp = 0, 0, 0, 0
             for _, m in pairs(men) do
                 -- `~= false` IS THE CONVENTION, and writing a bare truthiness test here broke two features at

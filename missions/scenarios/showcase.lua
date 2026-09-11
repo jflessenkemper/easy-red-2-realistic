@@ -319,7 +319,17 @@ SHOWCASE.stations = {}
 
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
+    -- THE STATION CENTRE MUST SIT ON THE GROUND, not at the objective's height. at() carries
+    -- ORIGIN.y, and ORIGIN is derived from the mission's first OBJECTIVE - which is not at ground
+    -- level. Every diorama query is a 3D sphere around this point, so an objective even 200 m up
+    -- empties a 160 m query: measured in-game as "13 stations, 1 flagged, 0 SEEN", which silently
+    -- disabled the heal tick, the reset, the casualty and the station signs all at once, across
+    -- four runs. Terrain height puts the centre where the men actually are.
     local centre = at(dx, dz)
+    do
+        local gy = scSafeGet(function() return er2.getTerrainHeight(centre) end)
+        centre = vec3(centre.x, gy or 0, centre.z)
+    end
     -- STATIONS THAT NEED A CASUALTY. The medic and the stretcher-drag branches only exist when
     -- somebody is DOWN, and the diorama's heal tick makes everyone effectively immortal so a
     -- casualty never occurs naturally. Rather than weaken the immortality - which is what keeps

@@ -50,10 +50,13 @@ local function mkSoldier(uid, faction, pos)
     }
 end
 
-local function mkObjective(x, z)
+local function mkObjective(x, z, y)
+    -- y IS SETTABLE because the real thing is not at ground level, and that mattered: the showcase
+    -- derives its ORIGIN from the first objective, so every station centre inherits this Y while
+    -- the cast stands on the terrain. A stub pinned to y=0 hid a bug for four in-game runs.
     local attract = false
     return {
-        getPosition  = function() return v3(x, 0, z) end,
+        getPosition  = function() return v3(x, y or 0, z) end,
         isAttractor  = function() return attract end,
         setAttractor = function(_, v) attract = v end,
         getName      = function() return "obj" end,
@@ -108,11 +111,26 @@ local function install(scn)
             for i, s in ipairs(S.soldiers or {}) do out[i] = s end
             return out
         end,
-        getSoldiersInArea   = function(_, _, out)
-            -- S.actors is for the diorama scenarios: the cycle queries an area per STATION, and a
-            -- stub that answers every query with the same cast is enough to exercise heal, reset
-            -- and the scripted casualty without modelling 13 station positions.
-            for i, s in ipairs(S.actors or S.soldiers or {}) do out[i] = s end
+        getSoldiersInArea   = function(centre, radius, out)
+            -- THE RADIUS IS NOW HONOURED, IN 3D, and that is not a detail. The old stub returned
+            -- every actor for every query regardless of position, so it could not see the bug that
+            -- cost four in-game runs: the diorama queries a station centre whose Y comes from the
+            -- mission OBJECTIVE, while soldiers stand on the terrain. If those differ by more than
+            -- the radius, a 3D sphere query returns NOTHING - measured in-game as
+            -- "13 stations, 1 flagged, 0 seen". A stub that ignores geometry cannot fail this way,
+            -- so it reported success three times while the real range found nobody.
+            local n = 0
+            for _, sol in ipairs(S.actors or S.soldiers or {}) do
+                local p = sol.getPosition and sol.getPosition() or nil
+                local keep = true
+                if p and centre and radius then
+                    local dx = (p.x or 0) - (centre.x or 0)
+                    local dy = (p.y or 0) - (centre.y or 0)
+                    local dz = (p.z or 0) - (centre.z or 0)
+                    keep = math.sqrt(dx * dx + dy * dy + dz * dz) <= radius
+                end
+                if keep then n = n + 1; out[n] = sol end
+            end
             return out
         end,
         getVehiclesInArea   = function(_, _, out) return out end,
@@ -219,8 +237,15 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- Actors are returned for EVERY area query, so whichever station the cycle inspects sees
       -- them. Both sides are present because the casualty must come from the INVADERS: the medic
       -- and the stretcher party are on the casualty's own side.
-      local ger1 = mkActor(101, "Germany_axis", v3(0, 0, 0))
-      local ger2 = mkActor(102, "Germany_axis", v3(10, 0, 0))
+      -- PLACE THE CAST AT STATION 8, derived exactly as the range derives it. The harness now
+      -- honours the query radius, so actors parked at the world origin are nowhere near a
+      -- station and would be correctly rejected. showcase.lua: ORIGIN = objective + (400,0,400);
+      -- cell(i) = ((i-1)%4 * GAP, floor((i-1)/4) * GAP), GAP = 500. Station 8 = ORIGIN + (1500,500).
+      local GAP = 500
+      local ox, oz = 0 + 400, 100 + 400
+      local s8x, s8z = ox + 3 * GAP, oz + 1 * GAP
+      local ger1 = mkActor(101, "Germany_axis", v3(s8x, 0, s8z))
+      local ger2 = mkActor(102, "Germany_axis", v3(s8x + 10, 0, s8z))
       -- NIL ALIVENESS IS THE REAL CASE, not an edge case. safeGet returns nil whenever the interop
       -- call fails, and the whole codebase treats `~= false` as alive for that reason. A bare
       -- truthiness test in CYC.hurt/CYC.sign rejected every such soldier, which is why the
@@ -228,7 +253,7 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- men. This actor reproduces it: he must still be healed, counted and eligible.
       ger1.isAlive = function() return nil end
       ger2.isAlive = function() return nil end
-      local fr1  = mkActor(201, "France_allies", v3(60, 0, 0))
+      local fr1  = mkActor(201, "France_allies", v3(s8x + 60, 0, s8z))
       -- `diorama = true` makes run() deploy the flipped build, exactly as tools/deploy.py does for
       -- the test map. ticks must exceed act(90) + reset(75) so a full cycle completes and the
       -- reset -> act transition that creates the casualty actually happens.
@@ -237,9 +262,12 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- untestable here by construction - the diorama's act/reset transitions could never fire,
       -- which is why this scenario failed for a reason that had nothing to do with the code under
       -- test. One tick = one second, matching the loop's own sleep(1).
+      -- THE OBJECTIVE SITS WELL ABOVE THE GROUND, which is the real in-game geometry: the
+      -- station centre inherits the objective's Y while the cast stands on the terrain at y=0.
+      -- With a 3D query and a 160 m radius that difference alone empties every station.
       local scn = {
           phase = 0, ticks = 200, diorama = true,
-          objectives = { mkObjective(0, 100) },
+          objectives = { mkObjective(0, 100, 400) },
           actors = { ger1, ger2, fr1 },
       }
       scn.onTick = function(n) scn.clock = n end
