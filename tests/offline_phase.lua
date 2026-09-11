@@ -282,6 +282,10 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       ger1.isAlive = function() return nil end
       ger2.isAlive = function() return nil end
       local fr1  = mkActor(201, "France_allies", v3(s8x + 60, 0, s8z))
+      -- A MAN 600 m ADRIFT, which is the case that broke the range. A station-local query never
+      -- sees him, so he is never ordered home and drifts further - measured in-game as stations
+      -- 3, 4, 6 and 8 reporting n=0 while 1, 2 and 5 were fine. The global sweep must recover him.
+      local stray = mkActor(103, "Germany_axis", v3(s8x + 600, 0, s8z + 400))
       -- `diorama = true` makes run() deploy the flipped build, exactly as tools/deploy.py does for
       -- the test map. ticks must exceed act(90) + reset(75) so a full cycle completes and the
       -- reset -> act transition that creates the casualty actually happens.
@@ -296,7 +300,7 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       local scn = {
           phase = 0, ticks = 200, diorama = true,
           objectives = { mkObjective(0, 100, 400) },
-          actors = { ger1, ger2, fr1 },
+          actors = { ger1, ger2, fr1, stray },
       }
       scn.onTick = function(n) scn.clock = n end
       -- BREAK THE PER-SOLDIER FACTION LOOKUP, keeping the cached one intact. This reproduces the
@@ -331,8 +335,13 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- reset issuing no orders at all rather than at the window being too short. If nobody is
       -- ordered home then at the start of each act phase the station centre is empty - which also
       -- explains why the casualty never fired in-game while working here.
+      if stray._moves == 0 then
+          return false, "the man 600 m adrift was never ordered home - a station-local sweep "
+                .. "cannot see him, so the drift is a RUNAWAY with no recovery (this is what "
+                .. "emptied stations 3, 4, 6 and 8 in-game)"
+      end
       local moved = 0
-      for _, a in ipairs({ ger1, ger2, fr1 }) do
+      for _, a in ipairs({ ger1, ger2, fr1, stray }) do
           if a._moved then moved = moved + 1 end
       end
       if moved == 0 then

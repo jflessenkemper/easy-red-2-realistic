@@ -2146,7 +2146,16 @@ CYC.menAt = function(stn)
     -- FRESH vec3, EVERY CALL. The stored centre is three numbers precisely so no engine handle is
     -- persisted; a vec3 kept in a table went stale and every query returned nothing.
     local c = vec3(stn.cx, stn.cy or 0, stn.cz)
-    safe(function() er2.getSoldiersInArea(c, CYC.radius * 4, raw) end)
+    -- CAPTURE THE ERROR. safe() swallows it, and five hypotheses in a row died because the log
+    -- only ever said "0 seen" and never WHY. If this call is throwing, the message names the
+    -- reason; if it returns cleanly with an empty table, that is a different and equally useful
+    -- fact. Logged once per station per call, only while the diorama is on.
+    local qok, qerr = pcall(function() er2.getSoldiersInArea(c, CYC.radius * 4, raw) end)
+    local qn = 0
+    for _ in pairs(raw) do qn = qn + 1 end
+    dbg(string.format("DIORAMA query st%d: ok=%s n=%d err=%s centre=(%.0f,%.0f,%.0f) r=%d",
+        stn.n or -1, tostring(qok), qn, tostring(qerr), stn.cx or -1, stn.cy or -1, stn.cz or -1,
+        CYC.radius * 4))
     local out, n = {}, 0
     for _, m in pairs(raw) do
         if m then
@@ -2243,64 +2252,65 @@ CYC.hurt = function()
         tostring(CYC.casualty[8])))
 end
 
+-- RESET WITH A GLOBAL SWEEP, not a per-station query. This is the difference between a reset that
+-- recovers the range and one that cannot.
+--
+-- MEASURED: the per-station query works perfectly - "query st1: ok=true n=6", "st2 n=5" - but
+-- stations 3, 4, 6 and 8 returned n=0 because their cast had WANDERED OFF. And once a squad drifts
+-- beyond the query radius it is invisible to a station-local sweep, so it is never ordered home
+-- and drifts further: a runaway with no recovery. That is why station 8 had nobody to wound
+-- ("0 seen") and why raising the reset window never fixed the drift. Five separate hypotheses
+-- about broken guards and stale handles were all wrong; the stations were simply empty.
+--
+-- So the reset sweeps the WHOLE range from its centre, assigns every soldier to his NEAREST
+-- station by horizontal distance, and orders him to that station's mark for his own side. A man
+-- 600 m adrift is therefore still recovered, because nothing depends on him already being home.
 CYC.doReset = function()
-    for _, stn in ipairs(SHOWCASE.stations or {}) do
-        local men = CYC.menAt(stn)
-        local ni, nd = 0, 0
-        for _, m in pairs(men) do
-            if m then
-                -- Same convention as CYC.hurt: cached INV, compared `== true`. A per-soldier
-                -- getInvadersFaction() call that fails would send an attacker to the DEFENDER's
-                -- mark, quietly swapping the two sides of a station every reset.
-                local inv = (INV ~= nil) and
-                    (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
-                local marks = inv and stn.inv or stn.def
-                if marks and #marks > 0 then
-                    local idx
-                    if inv then ni = ni + 1; idx = ((ni - 1) % #marks) + 1
-                    else        nd = nd + 1; idx = ((nd - 1) % #marks) + 1 end
-                    -- FRESH vec3 from stored numbers: a persisted one made moveTo a no-op, which
-                    -- is why raising the reset window never reduced the drift.
-                    local mk = marks[idx]
-                    safe(function() m.moveTo(vec3(mk.x, mk.y or 0, mk.z)) end)
-                end
-            end
-        end
-    end
-end
+    local stns = SHOWCASE.stations or {}
+    if #stns == 0 then return end
 
--- LIVE SIGNAGE. Rewrites each station's label with what its actors are doing right now, read
--- from the ENGINE rather than inferred from a decision label: how many men are present, how many
--- are in cover, how many are moving, how many are suppressed. Those are the direct reads
--- (isOnCover / isMoving / getSuppressionValue) that this project added precisely because a
--- decision in a log is not proof of behaviour - and here they double as the exhibit's own caption.
-CYC.sign = function()
-    for _, stn in ipairs(SHOWCASE.stations or {}) do
-        if stn.label then
-            local men = CYC.menAt(stn)
-            local n, cover, moving, supp = 0, 0, 0, 0
-            for _, m in pairs(men) do
-                -- `~= false` IS THE CONVENTION, and writing a bare truthiness test here broke two features at
-                -- once. safeGet returns NIL when the interop call fails, and every other
-                -- aliveness check in both files reads `~= false` precisely so a failed check
-                -- does not silently exclude a live soldier. My version treated nil as DEAD, so
-                -- it rejected EVERY man: the scripted casualty never fired in three in-game
-                -- runs and the station signs counted zero men, which is why neither ever showed
-                -- any evidence.
-                if m and safeGet(function() return m.isAlive() end) ~= false then
-                    n = n + 1
-                    if safeGet(function() return m.isOnCover() end) then cover = cover + 1 end
-                    if safeGet(function() return m.isMoving end) then moving = moving + 1 end
-                    local sv = safeGet(function() return m.getSuppressionValue() end) or 0
-                    if sv > 0.2 then supp = supp + 1 end
+    -- Range centre and a radius that comfortably contains the whole 4x4 grid of 500 m cells.
+    local minx, minz, maxx, maxz = 1e9, 1e9, -1e9, -1e9
+    for _, stn in ipairs(stns) do
+        if stn.cx < minx then minx = stn.cx end
+        if stn.cx > maxx then maxx = stn.cx end
+        if stn.cz < minz then minz = stn.cz end
+        if stn.cz > maxz then maxz = stn.cz end
+    end
+    local cx, cz = (minx + maxx) / 2, (minz + maxz) / 2
+    local span = math.max(maxx - minx, maxz - minz)
+    local all = {}
+    local c = vec3(cx, stns[1].cy or 0, cz)          -- FRESH vec3, never a stored handle
+    safe(function() er2.getSoldiersInArea(c, span + 1200, all) end)
+
+    local ni, nd = {}, {}
+    for _, m in pairs(all) do
+        if m and safeGet(function() return m.isAlive() end) ~= false then
+            local p = safeGet(function() return m.getPosition() end)
+            if p then
+                -- nearest station by HORIZONTAL distance; y is irrelevant and has burned us once
+                local best, bd = nil, 1e18
+                for _, stn in ipairs(stns) do
+                    local dx, dz = (p.x or 0) - stn.cx, (p.z or 0) - stn.cz
+                    local d = dx * dx + dz * dz
+                    if d < bd then best, bd = stn, d end
+                end
+                if best then
+                    local inv = (INV ~= nil) and
+                        (safeGet(function() return er2.isSameFaction(m.getFaction(), INV) end) == true)
+                    local marks = inv and best.inv or best.def
+                    if marks and #marks > 0 then
+                        local k
+                        if inv then
+                            ni[best.n] = (ni[best.n] or 0) + 1; k = ((ni[best.n] - 1) % #marks) + 1
+                        else
+                            nd[best.n] = (nd[best.n] or 0) + 1; k = ((nd[best.n] - 1) % #marks) + 1
+                        end
+                        local mk = marks[k]
+                        safe(function() m.moveTo(vec3(mk.x, mk.y or 0, mk.z)) end)
+                    end
                 end
             end
-            safe(function()
-                stn.label.setText(string.format("%s  |  %d men: %d in cover, %d moving, %d "
-                    .. "suppressed  |  round %d %s", stn.name or "station", n, cover, moving,
-                    supp, CYC.round + 1,
-                    CYC.phase == "act" and "PERFORMING" or "RESETTING"))
-            end)
         end
     end
 end
