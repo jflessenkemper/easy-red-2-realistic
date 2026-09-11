@@ -310,13 +310,23 @@ else
 scLog("building the demonstration range, " .. #STATIONS .. " stations, "
       .. STATION_GAP .. " m apart (SENSE_RADIUS is 90, layout validated)")
 
+-- STATION HOMES, for the repeating diorama. There is NO teleport for soldiers in this engine -
+-- the Soldier class exposes moveTo, killSoldier, healSoldier, incapacitate/stopIncapacitate and
+-- setInVehicle, and nothing that sets a position directly (checked against the official class
+-- reference, easyred2.com/wiki/scripting.php?type_id=8). So a reset cannot snap anyone back: the
+-- actors have to WALK home, which is why each one's start position is recorded here.
+SHOWCASE.stations = {}
+
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
     local centre = at(dx, dz)
+    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {} }
+    SHOWCASE.stations[#SHOWCASE.stations + 1] = stn
 
     -- German side
     for i, sid in ipairs(s.ger or {}) do
         addSquad(sid, at(dx + (i - 1) * 20, dz), "invader", 12)
+        stn.inv[#stn.inv + 1] = at(dx + (i - 1) * 20, dz)
     end
     -- A squad that must spawn ON a vehicle, which is the only way the transport-reuse branch is
     -- reachable: it keys off myTransportId, remembered while MOUNTED, so a squad that never rode
@@ -331,15 +341,16 @@ for _, s in ipairs(STATIONS) do
     local ed = s.enemyD or 100
     for i, sid in ipairs(s.enemy or {}) do
         addSquad(sid, at(dx + ed, dz + (i - 1) * 25), "defender", 10)
+        stn.def[#stn.def + 1] = at(dx + ed, dz + (i - 1) * 25)
     end
 
     -- Vehicles: { name, offsetX, offsetZ }
     for _, v in ipairs(s.vehicles or {}) do
-        addVeh(v[1], at(dx + v[2], dz + v[3]), vec3(1, 0, 0))
+        addVeh(v[1], at(dx + v[2], dz + v[3]), vec3(0, 90, 0))   -- yaw +X: Euler DEGREES
     end
     -- Emplacements face back down -X toward the German squads, who sit at the station centre.
     for i, e in ipairs(s.emplace or {}) do
-        addVeh(e, at(dx + ed, dz + (i - 1) * 30), vec3(-1, 0, 0))
+        addVeh(e, at(dx + ed, dz + (i - 1) * 30), vec3(0, 270, 0))  -- yaw -X: Euler DEGREES
     end
 
     -- STATION LABEL. attractor = FALSE for every label except the two stations that need a real

@@ -105,6 +105,56 @@ VARIANTS = {
 }
 
 
+DIORAMA_OFF = "    on     = false,"
+DIORAMA_ON  = "    on     = true,    -- injected by tools/deploy.py: the test map runs the diorama"
+
+
+def enable_diorama(src):
+    """Switch CYC.on true. Test map only.
+
+    The diorama heals its actors every few seconds to keep them alive for repeat performances,
+    which would be absurd in a real battle - so this must never reach Stonne or a shipping build.
+    Asserted rather than trusted: if the flag is not found exactly once, deployment stops instead
+    of silently shipping a range that never resets (or a battle where nobody can die).
+    """
+    if src.count(DIORAMA_OFF) != 1:
+        raise SystemExit(
+            "REFUSING TO DEPLOY: expected exactly one %r in RealisticEvents.lua, found %d. The "
+            "diorama flag was renamed or duplicated; the test map would either never reset or the "
+            "healing tick could reach a mission where it makes no sense."
+            % (DIORAMA_OFF.strip(), src.count(DIORAMA_OFF))
+        )
+    return src.replace(DIORAMA_OFF, DIORAMA_ON, 1)
+
+
+def luajit_ok(text, label):
+    """Syntax-check generated Lua before it can reach the game.
+
+    THIS CHECK EXISTS BECAUSE ITS ABSENCE SHIPPED A DEAD TEST MAP. The diorama flag was injected
+    with a `#` comment - Python's comment marker, not Lua's, where `#` is the LENGTH OPERATOR - so
+    the generated file could not parse. deploy.py wrote it, hashed it, reported PASS, and
+    tests/check.sh reported 41/41, because check 1 only ever syntax-checked the REPO sources and
+    nothing checked the VARIANTS this script generates. The variants are the only thing the game
+    actually loads.
+    """
+    lj = shutil.which("luajit")
+    if not lj:
+        return None      # cannot check; caller decides whether that is acceptable
+    with tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False) as fh:
+        fh.write(text)
+        tmp = fh.name
+    try:
+        r = subprocess.run([lj, "-bl", tmp], capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            raise SystemExit(
+                "REFUSING TO DEPLOY: the generated %s variant is not valid Lua.\n%s"
+                % (label, (r.stderr or r.stdout).strip()[:500])
+            )
+        return True
+    finally:
+        os.unlink(tmp)
+
+
 def build_variant(src, table, what, tool):
     """Return (variant_source, injected_lines).
 
@@ -211,6 +261,15 @@ def build_plan():
     variants, injected = {}, {}
     for mission, (table, what, tool) in VARIANTS.items():
         text, lines = build_variant(phase_inert_text, table, what, tool)
+        if table == "SHOWCASE":
+            text = enable_diorama(text)
+        checked = luajit_ok(text, table)
+        if checked is None:
+            raise SystemExit(
+                "REFUSING TO DEPLOY: luajit is not on PATH, so the generated %s variant cannot be "
+                "syntax-checked. Deploying an unparseable variant is silent in-game - the mission "
+                "simply does nothing - so this is a hard stop, not a skip." % table
+            )
         variants[mission] = text.encode("utf-8")
         injected[mission] = (table, lines)
 

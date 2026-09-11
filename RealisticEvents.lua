@@ -1095,13 +1095,23 @@ else
 scLog("building the demonstration range, " .. #STATIONS .. " stations, "
       .. STATION_GAP .. " m apart (SENSE_RADIUS is 90, layout validated)")
 
+-- STATION HOMES, for the repeating diorama. There is NO teleport for soldiers in this engine -
+-- the Soldier class exposes moveTo, killSoldier, healSoldier, incapacitate/stopIncapacitate and
+-- setInVehicle, and nothing that sets a position directly (checked against the official class
+-- reference, easyred2.com/wiki/scripting.php?type_id=8). So a reset cannot snap anyone back: the
+-- actors have to WALK home, which is why each one's start position is recorded here.
+SHOWCASE.stations = {}
+
 for _, s in ipairs(STATIONS) do
     local dx, dz = cell(s.n)
     local centre = at(dx, dz)
+    local stn = { n = s.n, name = s.name, centre = centre, inv = {}, def = {} }
+    SHOWCASE.stations[#SHOWCASE.stations + 1] = stn
 
     -- German side
     for i, sid in ipairs(s.ger or {}) do
         addSquad(sid, at(dx + (i - 1) * 20, dz), "invader", 12)
+        stn.inv[#stn.inv + 1] = at(dx + (i - 1) * 20, dz)
     end
     -- A squad that must spawn ON a vehicle, which is the only way the transport-reuse branch is
     -- reachable: it keys off myTransportId, remembered while MOUNTED, so a squad that never rode
@@ -1116,15 +1126,16 @@ for _, s in ipairs(STATIONS) do
     local ed = s.enemyD or 100
     for i, sid in ipairs(s.enemy or {}) do
         addSquad(sid, at(dx + ed, dz + (i - 1) * 25), "defender", 10)
+        stn.def[#stn.def + 1] = at(dx + ed, dz + (i - 1) * 25)
     end
 
     -- Vehicles: { name, offsetX, offsetZ }
     for _, v in ipairs(s.vehicles or {}) do
-        addVeh(v[1], at(dx + v[2], dz + v[3]), vec3(1, 0, 0))
+        addVeh(v[1], at(dx + v[2], dz + v[3]), vec3(0, 90, 0))   -- yaw +X: Euler DEGREES
     end
     -- Emplacements face back down -X toward the German squads, who sit at the station centre.
     for i, e in ipairs(s.emplace or {}) do
-        addVeh(e, at(dx + ed, dz + (i - 1) * 30), vec3(-1, 0, 0))
+        addVeh(e, at(dx + ed, dz + (i - 1) * 30), vec3(0, 270, 0))  -- yaw -X: Euler DEGREES
     end
 
     -- STATION LABEL. attractor = FALSE for every label except the two stations that need a real
@@ -2043,6 +2054,104 @@ end
 
 --========================== MAIN LOOP (attraction + bail-out + radioman) ====
 
+--========================= THE REPEATING DIORAMA =============================
+-- Turns the showcase range from a one-shot into a LOOPING exhibit you can walk between: each
+-- station acts out its branch, everyone marches home, and it runs again, indefinitely. This is the
+-- standard shape of a developer AI test level - deterministic, repeatable scenarios treated as
+-- versioned assets rather than a one-off scene.
+--
+-- THE ENGINE DOES NOT ALLOW TELEPORTING A SOLDIER. The Soldier class exposes moveTo, killSoldier,
+-- healSoldier, incapacitate/stopIncapacitate and setInVehicle, and NOTHING that sets a position
+-- (checked against the official class reference, easyred2.com/wiki/scripting.php?type_id=8). So a
+-- reset cannot snap the cast back to their marks - they are ordered to WALK home, which is why the
+-- reset window is generous.
+--
+-- IMMORTAL ACTORS. A diorama whose cast shoots each other empties out: after a few cycles the
+-- stations are corpses and there is nothing to watch. Every actor is healed on a short tick and
+-- un-incapacitated, so they still fight but cannot be permanently removed. Deliberately NOT
+-- respawning - repeated spawning grows without bound and Donchery already proved there is an
+-- undiagnosed ceiling on spawn count.
+--
+-- EVERYTHING LIVES IN ONE TABLE, functions included. This file is at the Lua 200-local ceiling now
+-- that two data files are inlined into its main chunk: five plain locals for this feature broke
+-- every script with "main function has more than 200 local variables", exactly as two constants
+-- did in the brain earlier today. Table fields cost nothing. CYC.on is flipped by
+-- tools/deploy.py for the test map only.
+local CYC = {
+    on     = false,
+    act    = 90,    -- s the stations are left alone to perform
+    reset  = 30,    -- s allowed for the walk home (no teleport exists, so be generous)
+    heal   = 4,     -- s between heal ticks that keep the cast alive
+    radius = 160,   -- m around a station centre counted as "at" that station
+    t0     = nil,
+    phase  = "act",
+    lastHeal = 0,
+    round  = 0,
+}
+
+-- Heal and revive every actor at every station: the only thing between a looping exhibit and a
+-- field of bodies.
+CYC.doHeal = function()
+    for _, stn in ipairs(SHOWCASE.stations or {}) do
+        local men = {}
+        safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+        for _, m in pairs(men) do
+            if m then
+                safe(function() m.stopIncapacitate() end)
+                safe(function() m.healSoldier(100) end)
+            end
+        end
+    end
+end
+
+-- Order everyone back to their recorded mark, matched by SIDE and spread across that side's marks
+-- by index so a squad does not pile onto one spot.
+CYC.doReset = function()
+    for _, stn in ipairs(SHOWCASE.stations or {}) do
+        local men = {}
+        safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
+        local ni, nd = 0, 0
+        for _, m in pairs(men) do
+            if m then
+                local inv = safeGet(function()
+                    return er2.isSameFaction(m.getFaction(), er2.getInvadersFaction())
+                end)
+                local marks = inv and stn.inv or stn.def
+                if marks and #marks > 0 then
+                    local idx
+                    if inv then ni = ni + 1; idx = ((ni - 1) % #marks) + 1
+                    else        nd = nd + 1; idx = ((nd - 1) % #marks) + 1 end
+                    safe(function() m.moveTo(marks[idx]) end)
+                end
+            end
+        end
+    end
+end
+
+CYC.step = function(now)
+    if not CYC.on then return end
+    if not CYC.t0 then
+        CYC.t0 = now
+        announce("DIORAMA: stations performing. Round 1 - walk the line; each resets every "
+                 .. CYC.act .. "s")
+    end
+    if (now - CYC.lastHeal) >= CYC.heal then
+        CYC.lastHeal = now
+        pcall(CYC.doHeal)
+    end
+    local elapsed = now - CYC.t0
+    if CYC.phase == "act" and elapsed >= CYC.act then
+        CYC.phase, CYC.t0 = "reset", now
+        CYC.round = CYC.round + 1
+        announce(string.format("DIORAMA: round %d over - all stations resetting, actors walking "
+                 .. "back to their marks (%ds)", CYC.round, CYC.reset))
+        pcall(CYC.doReset)
+    elseif CYC.phase == "reset" and elapsed >= CYC.reset then
+        CYC.phase, CYC.t0 = "act", now
+        announce(string.format("DIORAMA: round %d - stations performing again", CYC.round + 1))
+    end
+end
+
 local tick = 0
 local phasePaused = false
 
@@ -2274,6 +2383,7 @@ loopBody = function()
     -- and the "hold it, then flow to the next objective" behaviour could not happen.
     -- one-shot API probe, once soldiers actually exist (they do not at phase load)
     if PROBE_APIS and not probeDone and tick >= 8 then pcall(probeApis) end
+    pcall(function() CYC.step(safeGet(function() return er2.time() end) or 0) end)
     if (tick % OBJ_REFRESH) == 0 then refreshObjectives() end
     if (tick % ATTRACT_EVERY) == 0 and #objList > 0 then
         -- pass 1: ownership only
