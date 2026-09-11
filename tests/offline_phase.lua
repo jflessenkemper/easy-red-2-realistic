@@ -216,6 +216,13 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- and the stretcher party are on the casualty's own side.
       local ger1 = mkActor(101, "Germany_axis", v3(0, 0, 0))
       local ger2 = mkActor(102, "Germany_axis", v3(10, 0, 0))
+      -- NIL ALIVENESS IS THE REAL CASE, not an edge case. safeGet returns nil whenever the interop
+      -- call fails, and the whole codebase treats `~= false` as alive for that reason. A bare
+      -- truthiness test in CYC.hurt/CYC.sign rejected every such soldier, which is why the
+      -- scripted casualty never fired in THREE in-game runs and the station signs counted zero
+      -- men. This actor reproduces it: he must still be healed, counted and eligible.
+      ger1.isAlive = function() return nil end
+      ger2.isAlive = function() return nil end
       local fr1  = mkActor(201, "France_allies", v3(60, 0, 0))
       -- `diorama = true` makes run() deploy the flipped build, exactly as tools/deploy.py does for
       -- the test map. ticks must exceed act(90) + reset(75) so a full cycle completes and the
@@ -235,15 +242,16 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       if err then return false, "ERROR: " .. err end
 
       local healed = ger1._heal + ger2._heal + fr1._heal
+      -- NOTE: doHeal does not consult isAlive at all, so a heal-based assertion proved nothing
+      -- here - my first attempt at this test passed with the bug reintroduced. The aliveness guard
+      -- lives in CYC.hurt, so BOTH invaders must be the nil-aliveness case for `down` below to
+      -- discriminate.
       local down   = ger1._inc + ger2._inc
       if healed == 0 then
           return false, "the heal tick never ran - the cast would die off and the exhibit empties"
       end
       if down == 0 then
-          local built = count(ls, "%[SHOWCASE%]")
-          local stn8 = count(ls, "station 8")
-          return false, string.format("[diag] SHOWCASE lines=%d, 'station 8' lines=%d. ", built, stn8)
-                .. "CYC.hurt never incapacitated an invader, so the casualty station has "
+          return false, "CYC.hurt never incapacitated an invader, so the casualty station has "
                 .. "nobody for the medic to treat. This is the in-game failure reproduced: three "
                 .. "rounds ran, every transition was announced, and zero casualties were created."
       end

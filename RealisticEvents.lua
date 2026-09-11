@@ -2145,7 +2145,14 @@ CYC.hurt = function()
             local men = {}
             safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
             for _, m in pairs(men) do
-                if m and safeGet(function() return m.isAlive() end) then
+                -- `~= false` IS THE CONVENTION, and writing a bare truthiness test here broke two features at
+                -- once. safeGet returns NIL when the interop call fails, and every other
+                -- aliveness check in both files reads `~= false` precisely so a failed check
+                -- does not silently exclude a live soldier. My version treated nil as DEAD, so
+                -- it rejected EVERY man: the scripted casualty never fired in three in-game
+                -- runs and the station signs counted zero men, which is why neither ever showed
+                -- any evidence.
+                if m and safeGet(function() return m.isAlive() end) ~= false then
                     local inv = safeGet(function()
                         return er2.isSameFaction(m.getFaction(), er2.getInvadersFaction())
                     end)
@@ -2200,7 +2207,14 @@ CYC.sign = function()
             safe(function() er2.getSoldiersInArea(stn.centre, CYC.radius, men) end)
             local n, cover, moving, supp = 0, 0, 0, 0
             for _, m in pairs(men) do
-                if m and safeGet(function() return m.isAlive() end) then
+                -- `~= false` IS THE CONVENTION, and writing a bare truthiness test here broke two features at
+                -- once. safeGet returns NIL when the interop call fails, and every other
+                -- aliveness check in both files reads `~= false` precisely so a failed check
+                -- does not silently exclude a live soldier. My version treated nil as DEAD, so
+                -- it rejected EVERY man: the scripted casualty never fired in three in-game
+                -- runs and the station signs counted zero men, which is why neither ever showed
+                -- any evidence.
+                if m and safeGet(function() return m.isAlive() end) ~= false then
                     n = n + 1
                     if safeGet(function() return m.isOnCover() end) then cover = cover + 1 end
                     if safeGet(function() return m.isMoving end) then moving = moving + 1 end
