@@ -305,6 +305,13 @@ logging on — 25 distinct labels: `CREW-onfoot`, `ROUT`/`-cover`, `AT-stalk`/`A
 `-overwatch`, `FIGHT-from-cover`, `DEFEND-hold`, `CONSOLIDATE`, `RETURN-to-transport`,
 `REBOARD-transport`, `RALLY-on-MG`, `ROAD-MARCH`, `MOUNTED`.
 
+The medic branch is a worked example of why the log is the authority and not the picture. During a
+single scripted-casualty window on station 1, `MEDIC-sortie` fired **3** times and
+`MEDIC-hold-cover` **31** times — the branch demonstrably responds to a man going down. It was
+briefly written off as broken earlier, on the strength of a run where `MEDIC-sortie` never appeared
+in the log at all. That run used the shipping build, where `DEBUG = false` means the brain emits
+**no decision lines whatsoever**. Absence of log lines is not absence of behaviour.
+
 **There is no clip for most individual branches, and that is a limitation of the camera, not the
 mod.** Easy Red 2's free camera cannot be aimed by the capture harness (measured: absolute warps,
 relative motion, held buttons, `--force-grab-cursor` and a virtual gamepad all move it zero
