@@ -863,7 +863,16 @@ local ORIGIN                        -- resolved below, after the helpers exist
 -- SENSE_RADIUS, or a station's own enemies land on its NEIGHBOUR's centre. At 300 m spacing
 -- station 9's enemies sat exactly on station 10 - the precise cross-contamination this spacing
 -- exists to prevent. validateLayout() below now fails the build if that ever recurs.
-local STATION_GAP = 500             -- m between station centres (SENSE_RADIUS is 90)
+-- 200 m, NOT 500. At 500 the grid was 1500 m across and I finally LOOKED at it: a man alone in
+-- an empty desert with no other station in sight, no landmark, nothing to walk toward. A
+-- walk-the-line range needs a line you can see. At 200 m several stations are visible at once and
+-- the whole exhibit fits in 600 m.
+--
+-- THE CONSTRAINT IS ARITHMETIC, not taste: a station's enemies sit enemyD along +X, so the nearest
+-- foreign unit to the next centre is GAP - enemyD, and that must clear SENSE (90) plus MARGIN.
+-- 200 - 75 = 125 against a required 115. The old 500/300 pairing had the same margin with ten
+-- times the walking.
+local STATION_GAP = 200             -- m between station centres (SENSE_RADIUS is 90)
 
 local BRAIN = "Realistic.lua"
 
@@ -992,18 +1001,18 @@ local STATIONS = {
 
     { n = 8, expect = {11, 12, 13, 14, 15}, name = "8 Medic and wounded drag",
       shows = "MEDIC-sortie, DRAG-approach to pickup to to-cover",
-      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 120,
+      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       note = "enemy at 120 m is OUTSIDE PINNED_RADIUS 50, which the medic sortie requires" },
 
     { n = 9, expect = {1}, name = "9 Crew bail-out",
       shows = "crew leave the wreck, then CREW-onfoot away from the enemy",
-      ger = { GER_CREW }, enemy = { FR_GUNS }, enemyD = 300,
+      ger = { GER_CREW }, enemy = { FR_GUNS }, enemyD = 75,
       vehicles = { { V_PZ2, 0, 0 } },
       note = "a CREWED vehicle, not a truck: truck occupants are passengers, not crew" },
 
     { n = 10, expect = {17}, name = "10 Radio fire mission",
       shows = "RADIO-fire-mission, and a barrage that actually LANDS",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 80,
+      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 75,
       note = "80 m clears FIRE_DANGER_R, which is 50 m (RealisticEvents.lua:61) - NOT the 90 m "
           .. "this note used to quote. At 90 the radius equalled SENSE_RADIUS, so the gate was "
           .. "arithmetically impossible to open and every barrage was refused danger-close. That "
@@ -1017,13 +1026,13 @@ local STATIONS = {
 
     { n = 12, expect = {26}, objective = "attract", name = "12 Consolidate and objective flow",
       shows = "CONSOLIDATE, capture, then flow to the second objective",
-      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 80,
+      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       secondObjective = true,
       note = "small enough that objective 1 falls in minutes, then attraction releases it" },
 
     { n = 13, expect = {24, 10}, name = "13 Kill feed and callouts",
       shows = "on-screen kill feed, one squadmate callout per death",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 100,
+      ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       player = true,
       note = "THIS is the station to spawn into - the feed is scoped to the player's own squad" },
 }
@@ -1057,7 +1066,11 @@ end
 -- neighbour's squad counts them in its force ratio and takes a completely different branch. The
 -- demonstration then shows the wrong feature and looks like an AI bug. Refuse to build instead.
 local SENSE = 90
-local MARGIN = 60            -- how much clear air to demand beyond sensing range
+-- 25 m of clear air beyond sensing range. 60 was generous when stations were 500 m apart and cost
+-- nothing; at 200 m it is the difference between a watchable range and an empty one. validateLayout
+-- still refuses any layout that breaches SENSE + MARGIN, so this is a tightened budget, not a
+-- removed check.
+local MARGIN = 25            -- how much clear air to demand beyond sensing range
 local function validateLayout()
     local bad = 0
     for _, s in ipairs(STATIONS) do
@@ -1203,7 +1216,10 @@ for _, s in ipairs(STATIONS) do
     -- TEST_OBJECTIVE slot and this range needs fourteen, and objective creation - unlike squad
     -- spawning - depends on no callback, so doing it at load time is safe even when this prefix is
     -- inlined above RealisticEvents.lua's setCallback block.
-    local od = s.objectiveD or math.min(220, (s.enemyD or 100) + 120)
+    -- The objective must sit INSIDE this station's own cell or squads march into the neighbour's.
+    -- Half the gap is 100 m, so 95 is the ceiling; it must also stay clear of ARRIVE_RADIUS (30)
+    -- or a squad consolidates on its own objective instead of demonstrating anything.
+    local od = s.objectiveD or math.min(95, (s.enemyD or 60) + 25)
     local attract = (s.objective == "attract")
     local o = scSafeGet(function()
         return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
@@ -1228,7 +1244,7 @@ for _, s in ipairs(STATIONS) do
         end)
     end
     if s.secondObjective then
-        scSafe(function() spawnMissionObjective(at(dx + od, dz - 200), 45,
+        scSafe(function() spawnMissionObjective(at(dx + od, dz - 90), 45,
                                                 s.name .. " (second)", 0, true) end)
     end
 
@@ -2116,25 +2132,28 @@ end
 -- tools/deploy.py for the test map only.
 local CYC = {
     on     = false,
-    act    = 90,    -- s the stations are left alone to perform
+    act    = 60,    -- s performing. Shorter now the range is walkable: a round you can actually
+                    -- stand through beats one you give up on.
     -- RESET MUST COVER THE WALK HOME, and 30 s did not. There is no teleport for soldiers, so a
     -- reset is a MARCH: at roughly 3 m/s, 30 s moves a man about 90 m. The station objective sits
     -- 180 m out and men were measured up to 658 m from their nearest station centre, with 20 of
     -- 113 beyond 220 m. So the old window expired long before anyone got back, the next act phase
     -- began from wherever they happened to be, and the drift ACCUMULATED every round instead of
     -- being cleared. 75 s covers ~225 m, which matches the 220 m station radius.
-    -- 90 s, raised in step with the radius. The gate in tests/offline_phase.lua caught this
-    -- immediately: at ~3 m/s a 75 s window covers 225 m, which is less than the 240 m station
-    -- radius, so a man at the edge could not reach his mark before the next round began. Tuning
-    -- one number without the other is exactly what that gate exists to refuse.
-    reset  = 90,
-    heal   = 4,     -- s between heal ticks that keep the cast alive
-    -- 240 m, NOT 160. Stations sit 500 m apart, so anything under half that gap is unambiguous,
-    -- and 160 was simply too tight for where the men actually stand: the query immediately before
-    -- a casualty attempt returned THREE streamed soldiers at station 1 and the 160 m horizontal
-    -- filter rejected all three, so `hurt` reported "0 seen" and did nothing. Drift puts men tens
-    -- of metres past their marks routinely; the station is a patch of ground, not a pinpoint.
-    radius = 240,
+    -- 45 s to walk home. The gate in tests/offline_phase.lua demands reset x 3 m/s >= radius:
+    -- 45 x 3 = 135 against a 90 m radius. It was 90 s for a 240 m radius; both shrank together,
+    -- which is exactly the pairing that gate exists to enforce.
+    reset  = 45,
+    -- 2 s between heal ticks, halved. Watching the range showed the reinforcement pool draining
+    -- 184 -> 78 in about ninety seconds, so men ARE dying between ticks - the "immortal actors"
+    -- claim was reading a squad-scoped kill feed that reported zero. A tighter grid also puts more
+    -- of the cast inside the streamed window, so more of them actually get healed.
+    heal   = 2,
+    -- 90 m, tracking the 200 m station spacing. This MUST stay under half the gap or a station
+    -- claims men standing at its neighbour, and the whole point of the grid is that each station
+    -- is a distinct exhibit. It was 240 when stations were 500 m apart; shrinking the range
+    -- without shrinking this would have quietly merged the stations into one blur.
+    radius = 90,
     t0     = nil,
     phase  = "act",
     lastHeal = 0,

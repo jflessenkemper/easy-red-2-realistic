@@ -269,7 +269,12 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- honours the query radius, so actors parked at the world origin are nowhere near a
       -- station and would be correctly rejected. showcase.lua: ORIGIN = objective + (400,0,400);
       -- cell(i) = ((i-1)%4 * GAP, floor((i-1)/4) * GAP), GAP = 500. Station 8 = ORIGIN + (1500,500).
-      local GAP = 500
+      -- READ THE GAP FROM THE SOURCE, never duplicate it. This was hardcoded to 500 and silently
+      -- became wrong the moment the range shrank to 200: the actors were placed where station 8
+      -- used to be, far outside the new grid, and the test failed for a reason that had nothing to
+      -- do with the code under test. A constant copied into a test is a constant that will drift.
+      local GAP = tonumber(assert(io.open(SRC)):read("*a"):match("STATION_GAP%s*=%s*(%d+)"))
+      if not GAP then return false, "could not read STATION_GAP out of " .. SRC end
       local ox, oz = 0 + 400, 100 + 400
       local s8x, s8z = ox + 3 * GAP, oz + 1 * GAP
       local ger1 = mkActor(101, "Germany_axis", v3(s8x, 0, s8z))
@@ -285,7 +290,7 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- A MAN 600 m ADRIFT, which is the case that broke the range. A station-local query never
       -- sees him, so he is never ordered home and drifts further - measured in-game as stations
       -- 3, 4, 6 and 8 reporting n=0 while 1, 2 and 5 were fine. The global sweep must recover him.
-      local stray = mkActor(103, "Germany_axis", v3(s8x + 600, 0, s8z + 400))
+      local stray = mkActor(103, "Germany_axis", v3(s8x + GAP * 3, 0, s8z + GAP * 2))
       -- `diorama = true` makes run() deploy the flipped build, exactly as tools/deploy.py does for
       -- the test map. ticks must exceed act(90) + reset(75) so a full cycle completes and the
       -- reset -> act transition that creates the casualty actually happens.
@@ -339,7 +344,7 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- ordered home then at the start of each act phase the station centre is empty - which also
       -- explains why the casualty never fired in-game while working here.
       if stray._moves == 0 then
-          return false, "the man 600 m adrift was never ordered home - a station-local sweep "
+          return false, "the man several stations adrift was never ordered home - a station-local sweep "
                 .. "cannot see him, so the drift is a RUNAWAY with no recovery (this is what "
                 .. "emptied stations 3, 4, 6 and 8 in-game)"
       end

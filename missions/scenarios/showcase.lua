@@ -78,7 +78,16 @@ local ORIGIN                        -- resolved below, after the helpers exist
 -- SENSE_RADIUS, or a station's own enemies land on its NEIGHBOUR's centre. At 300 m spacing
 -- station 9's enemies sat exactly on station 10 - the precise cross-contamination this spacing
 -- exists to prevent. validateLayout() below now fails the build if that ever recurs.
-local STATION_GAP = 500             -- m between station centres (SENSE_RADIUS is 90)
+-- 200 m, NOT 500. At 500 the grid was 1500 m across and I finally LOOKED at it: a man alone in
+-- an empty desert with no other station in sight, no landmark, nothing to walk toward. A
+-- walk-the-line range needs a line you can see. At 200 m several stations are visible at once and
+-- the whole exhibit fits in 600 m.
+--
+-- THE CONSTRAINT IS ARITHMETIC, not taste: a station's enemies sit enemyD along +X, so the nearest
+-- foreign unit to the next centre is GAP - enemyD, and that must clear SENSE (90) plus MARGIN.
+-- 200 - 75 = 125 against a required 115. The old 500/300 pairing had the same margin with ten
+-- times the walking.
+local STATION_GAP = 200             -- m between station centres (SENSE_RADIUS is 90)
 
 local BRAIN = "Realistic.lua"
 
@@ -207,18 +216,18 @@ local STATIONS = {
 
     { n = 8, expect = {11, 12, 13, 14, 15}, name = "8 Medic and wounded drag",
       shows = "MEDIC-sortie, DRAG-approach to pickup to to-cover",
-      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 120,
+      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       note = "enemy at 120 m is OUTSIDE PINNED_RADIUS 50, which the medic sortie requires" },
 
     { n = 9, expect = {1}, name = "9 Crew bail-out",
       shows = "crew leave the wreck, then CREW-onfoot away from the enemy",
-      ger = { GER_CREW }, enemy = { FR_GUNS }, enemyD = 300,
+      ger = { GER_CREW }, enemy = { FR_GUNS }, enemyD = 75,
       vehicles = { { V_PZ2, 0, 0 } },
       note = "a CREWED vehicle, not a truck: truck occupants are passengers, not crew" },
 
     { n = 10, expect = {17}, name = "10 Radio fire mission",
       shows = "RADIO-fire-mission, and a barrage that actually LANDS",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 80,
+      ger = { GER_RIFLE }, enemy = { FR_RIFLE, FR_RIFLE, FR_RIFLE }, enemyD = 75,
       note = "80 m clears FIRE_DANGER_R, which is 50 m (RealisticEvents.lua:61) - NOT the 90 m "
           .. "this note used to quote. At 90 the radius equalled SENSE_RADIUS, so the gate was "
           .. "arithmetically impossible to open and every barrage was refused danger-close. That "
@@ -232,13 +241,13 @@ local STATIONS = {
 
     { n = 12, expect = {26}, objective = "attract", name = "12 Consolidate and objective flow",
       shows = "CONSOLIDATE, capture, then flow to the second objective",
-      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 80,
+      ger = { GER_RIFLE, GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       secondObjective = true,
       note = "small enough that objective 1 falls in minutes, then attraction releases it" },
 
     { n = 13, expect = {24, 10}, name = "13 Kill feed and callouts",
       shows = "on-screen kill feed, one squadmate callout per death",
-      ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 100,
+      ger = { GER_RIFLE }, enemy = { FR_RIFLE }, enemyD = 75,
       player = true,
       note = "THIS is the station to spawn into - the feed is scoped to the player's own squad" },
 }
@@ -272,7 +281,11 @@ end
 -- neighbour's squad counts them in its force ratio and takes a completely different branch. The
 -- demonstration then shows the wrong feature and looks like an AI bug. Refuse to build instead.
 local SENSE = 90
-local MARGIN = 60            -- how much clear air to demand beyond sensing range
+-- 25 m of clear air beyond sensing range. 60 was generous when stations were 500 m apart and cost
+-- nothing; at 200 m it is the difference between a watchable range and an empty one. validateLayout
+-- still refuses any layout that breaches SENSE + MARGIN, so this is a tightened budget, not a
+-- removed check.
+local MARGIN = 25            -- how much clear air to demand beyond sensing range
 local function validateLayout()
     local bad = 0
     for _, s in ipairs(STATIONS) do
@@ -418,7 +431,10 @@ for _, s in ipairs(STATIONS) do
     -- TEST_OBJECTIVE slot and this range needs fourteen, and objective creation - unlike squad
     -- spawning - depends on no callback, so doing it at load time is safe even when this prefix is
     -- inlined above RealisticEvents.lua's setCallback block.
-    local od = s.objectiveD or math.min(220, (s.enemyD or 100) + 120)
+    -- The objective must sit INSIDE this station's own cell or squads march into the neighbour's.
+    -- Half the gap is 100 m, so 95 is the ceiling; it must also stay clear of ARRIVE_RADIUS (30)
+    -- or a squad consolidates on its own objective instead of demonstrating anything.
+    local od = s.objectiveD or math.min(95, (s.enemyD or 60) + 25)
     local attract = (s.objective == "attract")
     local o = scSafeGet(function()
         return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
@@ -443,7 +459,7 @@ for _, s in ipairs(STATIONS) do
         end)
     end
     if s.secondObjective then
-        scSafe(function() spawnMissionObjective(at(dx + od, dz - 200), 45,
+        scSafe(function() spawnMissionObjective(at(dx + od, dz - 90), 45,
                                                 s.name .. " (second)", 0, true) end)
     end
 
