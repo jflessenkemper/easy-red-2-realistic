@@ -283,6 +283,34 @@ bounding by half-sections or wandering. So the evidence is **measured**: the cou
 decision counts from one continuous battle on the map above, taken straight from `Player.log` with
 **0 Lua errors**, and they are the source of the ✅ figures in the tables.
 
+### Clips from the test map
+
+Recorded on `[TEST] Realistic Feature Range` with `tools/record.py` from the `easy-red-2` plugin.
+Read these for what they are: **a clip shows motion, not a label.** The decision names in this
+README come from the log, not from watching the footage — you cannot see the difference between
+`BOUND-move-cover` and `FIGHT-from-cover` in a video, and this project has burned real time on
+exactly that kind of over-reading. What the clips DO show is that the men are dispersed, moving,
+firing, taking casualties and being recycled — not standing in a clump.
+
+| | |
+|---|---|
+| **Squad tactics** — a squad dispersed at tactical intervals, a muzzle flash, a man down, and the camera pulling back to show the spacing across the field. ([mp4](docs/clips/squad-tactics.mp4)) | ![squad tactics](docs/clips/squad-tactics.gif) |
+| **Transport** — an Opel Blitz under way with infantry moving alongside it. The transport branches (`RETURN-to-transport`, `REBOARD-transport`, `MOUNTED`) are the ones this exercises. ([mp4](docs/clips/transport.mp4)) | ![transport](docs/clips/transport.gif) |
+| **The diorama reset** — a full 45-second reset window on the range, triggered off the `round N over` log line. Actors walk back to their marks and re-form so the next round starts from the same setup. ([mp4](docs/clips/diorama-reset.mp4)) | ![diorama reset](docs/clips/diorama-reset.gif) |
+
+**Every branch of the cascade was observed firing in a single run** of the range with decision
+logging on — 25 distinct labels: `CREW-onfoot`, `ROUT`/`-cover`, `AT-stalk`/`AT-hunt`,
+`ASSAULT`/`-cover`, `PINNED`, `MEDIC-sortie`/`-hold-cover`, `DRAG-approach`, `RADIO-fire-mission`,
+`LEADER-cover`, `SUPPORT-hold-fire`, `ADVANCE-behind-armour`, `BOUND-move`/`-move-cover`/
+`-overwatch`, `FIGHT-from-cover`, `DEFEND-hold`, `CONSOLIDATE`, `RETURN-to-transport`,
+`REBOARD-transport`, `RALLY-on-MG`, `ROAD-MARCH`, `MOUNTED`.
+
+**There is no clip for most individual branches, and that is a limitation of the camera, not the
+mod.** Easy Red 2's free camera cannot be aimed by the capture harness (measured: absolute warps,
+relative motion, held buttons, `--force-grab-cursor` and a virtual gamepad all move it zero
+degrees), so footage comes from the spectator camera, which picks its own subject. You can film
+what it happens to be looking at; you cannot point it at the one man who is about to bound.
+
 "The engine exposes no formation orders" was this project's belief for months, and it is
 **false** — `Squad.followLeader` exists and has now been called successfully. What remains true is
 that it makes no measurable difference: −0.06 on the anisotropy ratio against a 0.23 noise floor,
