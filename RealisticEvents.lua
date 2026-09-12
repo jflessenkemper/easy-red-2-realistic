@@ -1150,6 +1150,18 @@ for _, s in ipairs(STATIONS) do
                   inv = {}, def = {}, needsCasualty = (s.n == 8) }
     SHOWCASE.stations[#SHOWCASE.stations + 1] = stn
 
+    -- A LANDMARK, so the station can be FOUND. Screenshots from inside the game showed the real
+    -- problem with this range: featureless sand in every direction, with nothing to walk toward.
+    -- Shrinking the grid to 200 m helps only if there is something to see at 200 m, and a truck is
+    -- visible across open ground where a prone rifleman is not.
+    --
+    -- An Opel Blitz specifically, and that choice is load-bearing: it is a SOFT-SKIN, so
+    -- isArmour() rejects it (gated by tests/armour_filter_check.py). A tank here would be treated
+    -- as cover by ADVANCE-behind-armour and hunted by the AT branch, quietly corrupting the very
+    -- demonstrations the landmark exists to help you find. Placed 30 m BEHIND the German line, out
+    -- of the axis of advance, so it marks the station without standing in it.
+    addVeh("Opel Blitz", at(dx - 30, dz), vec3(0, 90, 0))
+
     -- German side
     for i, sid in ipairs(s.ger or {}) do
         addSquad(sid, at(dx + (i - 1) * 20, dz), "invader", 12)
