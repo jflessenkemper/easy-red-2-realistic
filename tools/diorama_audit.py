@@ -65,7 +65,9 @@ def main(path):
     errs = len(re.findall(r"(?i)exception|attempt to |bad argument", txt))
 
     print("rounds completed      %d" % rounds)
-    print("scripted casualties   %d   (station 8 needs one per round)" % hurt)
+    print("scripted casualties   %d   (one per round, at whichever station is STREAMED - the "
+          "engine only exposes soldiers near the viewer, so the medic demo happens where you "
+          "are standing)" % hurt)
     print("deaths                %d   (heal tick should hold this at 0)" % deaths)
     print("error lines           %d" % errs)
     print("distinct soldiers     %d" % len({s[0] for s in samples}))
