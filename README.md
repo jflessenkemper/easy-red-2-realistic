@@ -286,6 +286,12 @@ decision counts from one continuous battle on the map above, taken straight from
 ### Clips from the test map
 
 Recorded on `[TEST] Realistic Feature Range` with `tools/record.py` from the `easy-red-2` plugin.
+
+These were captured at **2 fps** and look it. Capture cost is proportional to pixel area — a full
+1920×1080 frame costs ~660 ms — so a full-frame clip is inherently choppy; cropping with
+`--region` reaches ~14 fps and is how they should be re-shot. They are deliberately **not**
+motion-interpolated: these are evidence, and inventing intermediate frames to make evidence look
+smoother would misrepresent what the game actually did.
 Read these for what they are: **a clip shows motion, not a label.** The decision names in this
 README come from the log, not from watching the footage — you cannot see the difference between
 `BOUND-move-cover` and `FIGHT-from-cover` in a video, and this project has burned real time on
