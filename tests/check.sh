@@ -520,6 +520,42 @@ for f in "$BRAIN" "$PHASE"; do
   grep -q "$f" realistic.md && ok "$f documented" || bad "$f not mentioned in realistic.md"
 done
 
+echo "== 8. Every constant VALUE quoted in the docs matches the source =="
+# check 3 proves a constant is declared once and used; it says nothing about whether the number
+# the DOCS quote is still the number in the code. realistic.md once listed four tunables at wrong
+# values, and a reader tuning against a stale figure gets behaviour they did not ask for. There
+# are ~70 such citations across the docs, which is far too much surface to re-read by hand.
+python3 - <<'PY_CONST'
+import re, sys
+src = open("Realistic.lua", encoding="utf-8").read()
+decl = {}
+for m in re.finditer(r'^local ([A-Z][A-Z0-9_]{2,})\s*=\s*(-?\d+(?:\.\d+)?)\s*(?:--.*)?$', src, re.M):
+    decl[m.group(1)] = m.group(2)
+if not decl:
+    print("FAIL  parsed no numeric constants out of Realistic.lua - the pattern has rotted")
+    sys.exit(1)
+
+bad, cites = [], 0
+for doc in ("realistic.md", "README.md"):
+    try:
+        text = open(doc, encoding="utf-8").read()
+    except IOError:
+        continue
+    for name, val in decl.items():
+        for m in re.finditer(r'`?\b%s\b`?\s*(?:=|is|of)?\s*`?(-?\d+(?:\.\d+)?)' % re.escape(name), text):
+            cites += 1
+            if float(m.group(1)) != float(val):
+                bad.append("%s:%d %s documented as %s, source says %s"
+                           % (doc, text[:m.start()].count("\n") + 1, name, m.group(1), val))
+if bad:
+    for b in bad:
+        print("FAIL  " + b)
+    sys.exit(1)
+print("ok    %d documented constant values across %d constants all match the source"
+      % (cites, len(decl)))
+PY_CONST
+if [ $? -eq 0 ]; then ok "documented constants match the source"; else bad "a documented constant value has drifted"; fi
+
 echo
 echo "-------------------------------------------"
 printf 'PASS %d   FAIL %d\n' "$PASS" "$FAIL"
