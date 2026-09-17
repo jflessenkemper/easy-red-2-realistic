@@ -2259,7 +2259,7 @@ local CYC = {
 -- walk up to becomes the live one, because your presence is what streams it in.
 CYC.streamed = function()
     local stns = SHOWCASE.stations or {}
-    if #stns == 0 then return {}, {} end
+    if #stns == 0 then return {}, {}, {} end
     local minx, minz, maxx, maxz = 1e9, 1e9, -1e9, -1e9
     for _, stn in ipairs(stns) do
         if stn.cx < minx then minx = stn.cx end
@@ -2272,11 +2272,11 @@ CYC.streamed = function()
     local span = math.max(maxx - minx, maxz - minz)
     local ok = pcall(function() er2.getSoldiersInArea(c, span + 3000, raw) end)
 
-    local men, byStn, n = {}, {}, 0
+    local men, byStn, near, n = {}, {}, {}, 0
     for _, m in pairs(raw) do
         if m and safeGet(function() return m.isAlive() end) ~= false then
             local p = safeGet(function() return m.getPosition() end)
-            local best = nil
+            local best, bestD2 = nil, nil
             if p then
                 local bd = 1e18
                 for _, stn in ipairs(stns) do
@@ -2284,23 +2284,56 @@ CYC.streamed = function()
                     local d = dx * dx + dz * dz
                     if d < bd then best, bd = stn, d end
                 end
+                bestD2 = bd
             end
-            n = n + 1
-            men[n] = m
-            if best then
-                byStn[best.n] = byStn[best.n] or {}
-                table.insert(byStn[best.n], m)
+            -- NEVER include the player. He is on the invaders' side, so no faction test excludes
+            -- him: healing him made him immortal, and a reset moveTo would yank him off his feet
+            -- mid-stride. er2.getPlayer() is nil while the phase script loads (verified-api.md:268)
+            -- so it is resolved lazily here, not captured at load.
+            local isPlayer = false
+            if CYC.playerUid == nil then
+                local pl = safeGet(function() return er2.getPlayer() end)
+                CYC.playerUid = pl and safeGet(function() return pl.getUniqueId() end) or false
+            end
+            if CYC.playerUid then
+                local uid = safeGet(function() return m.getUniqueId() end)
+                isPlayer = (uid ~= nil and uid == CYC.playerUid)
+            end
+
+            if not isPlayer then
+                n = n + 1
+                men[n] = m
+                if best then
+                    byStn[best.n] = byStn[best.n] or {}
+                    table.insert(byStn[best.n], m)
+                    -- AT a station, for the heal tick. bd is a squared distance.
+                    if bestD2 and bestD2 <= (CYC.radius * CYC.radius) then
+                        near[#near + 1] = m
+                    end
+                end
             end
         end
     end
-    dbg(string.format("DIORAMA streamed: ok=%s seen=%d grouped over %d stations",
-        tostring(ok), n, #stns))
-    return men, byStn
+    dbg(string.format("DIORAMA streamed: ok=%s seen=%d grouped over %d stations, %d within "
+        .. "radius %d", tostring(ok), n, #stns, #near, CYC.radius))
+    return men, byStn, near
 end
 
+-- Heal BOTH sides - a one-sided heal empties the defenders and the station stops demonstrating
+-- anything - but only men who are actually AT a station, and never the player.
+--
+-- This used to walk the whole streamed set with no radius and no player check, which made three
+-- things immortal that should not be: the mission's own editor-placed squads (a 1945 SS AT squad
+-- and English paratroopers, nowhere near the range), anything else the engine happened to stream
+-- in, and THE PLAYER. Nothing near you could die, including you.
+--
+-- CYC.radius has been declared since the diorama was written and read by nothing. This is what it
+-- was for. Note the bound applies to HEAL only: CYC.doReset deliberately sweeps far wider, because
+-- its job is to recover a man who has drifted hundreds of metres, and the offline test asserts
+-- exactly that recovery.
 CYC.doHeal = function()
-    local men = CYC.streamed()
-    for _, m in pairs(men) do
+    local _, _, near = CYC.streamed()
+    for _, m in pairs(near) do
         local uid = safeGet(function() return m.getUniqueId() end)
         local spared = false
         for _, cu in pairs(CYC.casualty) do if uid and cu == uid then spared = true end end
