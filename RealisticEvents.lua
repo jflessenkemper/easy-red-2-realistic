@@ -853,6 +853,26 @@ end
 --   mounted  : { squadId, vehiclePos, side }
 local SHOWCASE = { squads = {}, vehicles = {}, mounted = {} }
 
+-- DECISION CODE -> NAME. Lives on SHOWCASE, ABOVE the inline cut, for two reasons: the standalone
+-- HUD below the cut needs it, and so does CYC.sign in RealisticEvents.lua, which is where the
+-- inlined prefix ends up. A field rather than a new local because the phase script's main chunk is
+-- at the Lua 200-local ceiling.
+--
+-- The brain publishes its current decision per soldier as a Lua global (`global.set(code, "D"..uid)`
+-- in Realistic.lua), change-only, so reading it back costs nothing and needs no new plumbing. That
+-- is what lets a station SIGN say what the men at it are actually doing.
+SHOWCASE.decn = {
+    [1]="CREW-onfoot", [2]="MOUNTED-defer", [3]="ROUT", [4]="ROUT-cover",
+    [5]="AT-stalk", [6]="AT-hunt", [8]="ASSAULT", [9]="ASSAULT-cover",
+    [10]="PINNED", [11]="MEDIC-sortie", [12]="MEDIC-hold-cover",
+    [13]="DRAG-approach", [14]="DRAG-pickup", [15]="DRAG-to-cover", [16]="DRAG-abandon",
+    [17]="RADIO-fire-mission", [18]="LEADER-cover", [19]="SUPPORT-hold-fire",
+    [20]="ADVANCE-behind-armour", [21]="BOUND-move", [22]="BOUND-move-cover",
+    [23]="BOUND-overwatch", [24]="FIGHT-from-cover", [25]="DEFEND-hold",
+    [26]="CONSOLIDATE", [27]="RALLY-on-MG", [28]="ROAD-MARCH", [29]="ADVANCE-baseAI",
+    [30]="RETURN-to-transport", [31]="REBOARD-transport", [32]="FORM-followLeader",
+}
+
 -- ORIGIN is DERIVED, not hand-set. The mission's own first objective is guaranteed to be inside
 -- the playable area, which is exactly what the range needs, so there is no coordinate to capture
 -- in the editor and nothing to keep in sync per map. Set ORIGIN_OVERRIDE only if you want the
@@ -2340,6 +2360,63 @@ CYC.doHeal = function()
         if not spared then
             safe(function() m.stopIncapacitate() end)
             safe(function() m.healSoldier(100) end)
+        end
+    end
+end
+
+-- LIVE STATION SIGNS. This function was CALLED at the bottom of the diorama tick and never
+-- existed: its definition was deleted in commit a73a7a9 and the call left behind, so
+-- `pcall(CYC.sign)` has been failing silently ever since. Objective.setText was therefore never
+-- invoked anywhere in the mod, and every station label stayed frozen at its construction-time text
+-- for the life of the battle. It was reported as "wired but unconfirmed"; it was not wired.
+--
+-- What it shows: the station's own name plus a tally of what the men standing at it are ACTUALLY
+-- deciding, read from the per-soldier globals the brain already publishes (`D<uid>`), so this needs
+-- no new plumbing in the brain. That is the difference between a range you have to read a log to
+-- understand and one you can walk up to and read off the sign.
+--
+-- UNVERIFIED, deliberately logged: docs/verified-api.md:466 records `.setText(key)` - a
+-- LOCALISATION key, not free text. If the engine renders a missing-key stub instead of this
+-- string, the dbg line below is how we find out, and the honest response is to delete the call
+-- rather than leave a sign nobody can read.
+CYC.sign = function()
+    local objs = SHOWCASE.objectives
+    if not objs then return end
+    local _, byStn = CYC.streamed()
+    local names = SHOWCASE.decn or {}
+    for n, o in pairs(objs) do
+        local group = byStn[n]
+        local stn = nil
+        for _, s in ipairs(SHOWCASE.stations or {}) do if s.n == n then stn = s end end
+        local label = (stn and stn.name) or ("station " .. tostring(n))
+        local txt
+        if group and #group > 0 then
+            local tally = {}
+            for _, m in pairs(group) do
+                local uid = safeGet(function() return m.getUniqueId() end)
+                local code = uid and safeGet(function() return global.get("D" .. uid) end)
+                if type(code) == "number" and code ~= 0 then
+                    tally[code] = (tally[code] or 0) + 1
+                end
+            end
+            -- top decision only: a sign you read while walking past has room for one fact
+            local topCode, topN = nil, 0
+            for code, c in pairs(tally) do if c > topN then topCode, topN = code, c end end
+            if topCode then
+                txt = string.format("%s  [%d men, %s x%d]", label, #group,
+                                    names[topCode] or ("code" .. topCode), topN)
+            else
+                txt = string.format("%s  [%d men]", label, #group)
+            end
+        else
+            txt = label .. "  [empty]"
+        end
+        local ok = pcall(function() o.setText(txt) end)
+        if not CYC.signLogged then
+            CYC.signLogged = true
+            dbg(string.format("DIORAMA sign: setText(%q) -> ok=%s. If the label in game reads a "
+                              .. "missing-key stub instead of this text, setText takes a loc key "
+                              .. "and the signs must be removed, not softened.", txt, tostring(ok)))
         end
     end
 end

@@ -556,6 +556,32 @@ print("ok    %d documented constant values across %d constants all match the sou
 PY_CONST
 if [ $? -eq 0 ]; then ok "documented constants match the source"; else bad "a documented constant value has drifted"; fi
 
+echo "== 9. Every CYC.* function that is CALLED is also DEFINED =="
+# CYC.sign was called at the bottom of the diorama tick and its definition had been deleted two
+# commits earlier. Because the call site is pcall(CYC.sign), pcall(nil) fails SILENTLY - so the
+# station signs were dead for the life of the feature while looking wired, and were reported to the
+# user as "wired but unconfirmed". Nothing should be able to look alive while being absent.
+python3 - <<'PY_CYC'
+import re, sys
+src = open("RealisticEvents.lua", encoding="utf-8").read()
+defined = set(re.findall(r'^CYC\.([A-Za-z_]\w*)\s*=', src, re.M))
+# fields assigned inside the table literal count as defined too (act, reset, radius, ...)
+m = re.search(r'local CYC = \{(.*?)\n\}', src, re.S)
+if m:
+    defined |= set(re.findall(r'(\w+)\s*=', m.group(1)))
+called = set(re.findall(r'\bCYC\.([A-Za-z_]\w*)\s*\(', src))
+called |= set(re.findall(r'pcall\(\s*CYC\.([A-Za-z_]\w*)\s*\)', src))
+missing = sorted(called - defined)
+if missing:
+    for name in missing:
+        print("FAIL  CYC.%s is CALLED but never defined - pcall(nil) fails silently, so this "
+              "feature is dead while appearing wired" % name)
+    sys.exit(1)
+print("ok    all %d CYC.* functions called are defined (%d defined in total)"
+      % (len(called), len(defined)))
+PY_CYC
+if [ $? -eq 0 ]; then ok "no CYC.* call without a definition"; else bad "a CYC.* function is called but not defined"; fi
+
 echo
 echo "-------------------------------------------"
 printf 'PASS %d   FAIL %d\n' "$PASS" "$FAIL"

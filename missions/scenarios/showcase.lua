@@ -68,6 +68,26 @@
 --   mounted  : { squadId, vehiclePos, side }
 local SHOWCASE = { squads = {}, vehicles = {}, mounted = {} }
 
+-- DECISION CODE -> NAME. Lives on SHOWCASE, ABOVE the inline cut, for two reasons: the standalone
+-- HUD below the cut needs it, and so does CYC.sign in RealisticEvents.lua, which is where the
+-- inlined prefix ends up. A field rather than a new local because the phase script's main chunk is
+-- at the Lua 200-local ceiling.
+--
+-- The brain publishes its current decision per soldier as a Lua global (`global.set(code, "D"..uid)`
+-- in Realistic.lua), change-only, so reading it back costs nothing and needs no new plumbing. That
+-- is what lets a station SIGN say what the men at it are actually doing.
+SHOWCASE.decn = {
+    [1]="CREW-onfoot", [2]="MOUNTED-defer", [3]="ROUT", [4]="ROUT-cover",
+    [5]="AT-stalk", [6]="AT-hunt", [8]="ASSAULT", [9]="ASSAULT-cover",
+    [10]="PINNED", [11]="MEDIC-sortie", [12]="MEDIC-hold-cover",
+    [13]="DRAG-approach", [14]="DRAG-pickup", [15]="DRAG-to-cover", [16]="DRAG-abandon",
+    [17]="RADIO-fire-mission", [18]="LEADER-cover", [19]="SUPPORT-hold-fire",
+    [20]="ADVANCE-behind-armour", [21]="BOUND-move", [22]="BOUND-move-cover",
+    [23]="BOUND-overwatch", [24]="FIGHT-from-cover", [25]="DEFEND-hold",
+    [26]="CONSOLIDATE", [27]="RALLY-on-MG", [28]="ROAD-MARCH", [29]="ADVANCE-baseAI",
+    [30]="RETURN-to-transport", [31]="REBOARD-transport", [32]="FORM-followLeader",
+}
+
 -- ORIGIN is DERIVED, not hand-set. The mission's own first objective is guaranteed to be inside
 -- the playable area, which is exactly what the range needs, so there is no coordinate to capture
 -- in the editor and nothing to keep in sync per map. Set ORIGIN_OVERRIDE only if you want the
@@ -651,17 +671,7 @@ end
 -- It costs the brain NOTHING: the brain already publishes its decision as an integer to the Lua
 -- global "D"..uid on change (Realistic.lua), so the phase script just reads it back. No extra
 -- per-tick work is added to 350 brains to render a HUD for one player.
-local DECN = {
-    [1]="CREW-onfoot", [2]="MOUNTED-defer", [3]="ROUT", [4]="ROUT-cover",
-    [5]="AT-stalk", [6]="AT-hunt", [8]="ASSAULT", [9]="ASSAULT-cover",
-    [10]="PINNED", [11]="MEDIC-sortie", [12]="MEDIC-hold-cover",
-    [13]="DRAG-approach", [14]="DRAG-pickup", [15]="DRAG-to-cover", [16]="DRAG-abandon",
-    [17]="RADIO-fire-mission", [18]="LEADER-cover", [19]="SUPPORT-hold-fire",
-    [20]="ADVANCE-behind-armour", [21]="BOUND-move", [22]="BOUND-move-cover",
-    [23]="BOUND-overwatch", [24]="FIGHT-from-cover", [25]="DEFEND-hold",
-    [26]="CONSOLIDATE", [27]="RALLY-on-MG", [28]="ROAD-MARCH", [29]="ADVANCE-baseAI",
-    [30]="RETURN-to-transport", [31]="REBOARD-transport", [32]="FORM-followLeader",
-}
+local DECN = SHOWCASE.decn
 
 local function roleOf(s)
     if safeGet(function() return s.isSquadLeader() end) == true then return "leader"   end
