@@ -88,6 +88,14 @@ local ORIGIN                        -- resolved below, after the helpers exist
 -- 200 - 75 = 125 against a required 115. The old 500/300 pairing had the same margin with ten
 -- times the walking.
 local STATION_GAP = 200             -- m between station centres (SENSE_RADIUS is 90)
+-- GRID IS 4 COLUMNS. Deliberately a literal in cell() and in the origin maths below rather than a
+-- named local: this file is INLINED into RealisticEvents.lua, whose main chunk is at the Lua
+-- 200-local ceiling, and adding one more local broke the build with "main function has more than
+-- 200 local variables". Constants go inline here; only state goes in a table. If you change the
+-- column count, change it in BOTH cell() and the `half` expression - they must agree or the grid
+-- will not be centred.
+-- 4 columns x 200 m = a 600 m span: fits a 1000 m map centred on the objective, and does NOT fit
+-- the 500 m map the range was previously (and invisibly) built off the edge of.
 
 local BRAIN = "Realistic.lua"
 
@@ -134,16 +142,34 @@ if ORIGIN_OVERRIDE then
 else
     local objs = {}
     scSafe(function() er2.getAllObjectives(objs) end)
-    for _, o in pairs(objs) do
-        local op = o and scSafeGet(function() return o.getPosition() end)
-        if op then
-            -- Offset well clear of the objective itself so the range does not overlap whatever
-            -- the mission already has fighting over it.
-            ORIGIN = vec3(op.x + 400, op.y, op.z + 400)
-            scLog(string.format("origin: derived from the first mission objective -> (%.0f,%.0f)",
-                  ORIGIN.x, ORIGIN.z))
-            break
+    -- ipairs, NOT pairs. With pairs + break, "the first objective" is whatever hash order yields,
+    -- so the entire 600 m range could silently relocate between two runs of the same mission.
+    -- ipairs gives the same answer every time; the pairs fallback below only runs if the engine
+    -- filled a non-sequential table.
+    local op
+    for _, o in ipairs(objs) do
+        op = o and scSafeGet(function() return o.getPosition() end)
+        if op then break end
+    end
+    if not op then
+        for _, o in pairs(objs) do
+            op = o and scSafeGet(function() return o.getPosition() end)
+            if op then break end
         end
+    end
+    if op then
+        -- CENTRE the grid on the objective. This used to be `op + (400, 0, +400)`, to keep the
+        -- range clear of whatever the mission was already fighting over - but the test map is
+        -- 500 x 500 (coords ~ -250..+250) and that offset threw all thirteen stations OFF THE MAP:
+        -- measured at x 372->1072, z 466->1166, with the player spawning ~595 m from station 1 and
+        -- ~1040 m from station 13. That is the "mostly empty, nothing to see" the user reported.
+        -- Centring costs the original separation, which is fine: the host mission contributes two
+        -- editor squads (~13 men) and four trench props, not a battle worth avoiding.
+        local half = (4 - 1) * STATION_GAP / 2      -- (COLS-1)/2; COLS is 4, see the note by STATION_GAP
+        ORIGIN = vec3(op.x - half, op.y, op.z - half)
+        scLog(string.format("origin: grid CENTRED on the first mission objective (%.0f,%.0f) "
+                            .. "-> range origin (%.0f,%.0f), span %.0f m",
+                            op.x, op.z, ORIGIN.x, ORIGIN.z, (4 - 1) * STATION_GAP))
     end
     if not ORIGIN then
         ORIGIN = vec3(0, 0, 0)
@@ -163,9 +189,26 @@ scSafe(function() global.set("germany", "realistic_nation_invaders") end)
 scSafe(function() global.set("france",  "realistic_nation_defenders") end)
 scLog("doctrine pinned: invaders=germany, defenders=france (independent of the host mission)")
 
-local function at(dx, dz) return vec3(ORIGIN.x + dx, ORIGIN.y, ORIGIN.z + dz) end
+-- Every spawn goes through here, so this is the one place that decides whether the range sits ON
+-- the ground. It used to return ORIGIN.y unconditionally - and ORIGIN.y is the first OBJECTIVE's
+-- height, not the terrain's. The getTerrainHeight fix was applied to the diorama's query centre
+-- (below) and never to the spawns themselves.
+--
+-- The vec3 form is deliberate. easyred2.com/wiki/scripting lists `getTerrainHeight(x, z)`, but
+-- docs/verified-api.md:410 records `er2.getTerrainHeight(vec3(x,0,z))` observed FOUR TIMES in
+-- shipped official scripts (including the Kwajalein artillery script). Shipped code beats a wiki
+-- summary; do not "fix" this to two numbers.
+--
+-- Build a FRESH vec3 at the point of use and never persist it - showcase.lua's own history records
+-- a persisted-vec3 UserData bug that made a 640 m query report zero soldiers while the brain was
+-- logging seven men at that station.
+local function at(dx, dz)
+    local x, z = ORIGIN.x + dx, ORIGIN.z + dz
+    local gy = scSafeGet(function() return er2.getTerrainHeight(vec3(x, 0, z)) end)
+    return vec3(x, (type(gy) == "number" and gy) or ORIGIN.y, z)
+end
 
--- Grid: four columns, four rows, so thirteen stations fit with room to spare.
+-- Grid: 4 columns, filled row by row, so thirteen stations fit with room to spare.
 local function cell(i)
     local col = (i - 1) % 4
     local row = math.floor((i - 1) / 4)
@@ -235,9 +278,12 @@ local STATIONS = {
 
     { n = 11, expect = {30, 31}, name = "11 Transport reuse",
       shows = "RETURN-to-transport then REBOARD-transport",
-      ger = {}, mounted = { GER_RIFLE }, enemy = {}, objectiveD = 200,
+      ger = {}, mounted = { GER_RIFLE }, enemy = {}, objectiveD = 200, objectiveAxis = "z",
       vehicles = { { V_TRUCK, 30, 0 } },
-      note = "no contact, objective beyond REBOARD_MIN_DIST 120, truck inside REBOARD_SCAN 60" },
+      note = "no contact, objective beyond REBOARD_MIN_DIST 120, truck inside REBOARD_SCAN 60. "
+          .. "objectiveAxis='z' is REQUIRED: 200 m on the default +X axis lands exactly on station "
+          .. "12's centre, inside ARRIVE_RADIUS of its squads at spawn. Row 3 is empty at this "
+          .. "column, so +Z keeps the distance the feature needs and hits nothing" },
 
     { n = 12, expect = {26}, objective = "attract", name = "12 Consolidate and objective flow",
       shows = "CONSOLIDATE, capture, then flow to the second objective",
@@ -448,10 +494,30 @@ for _, s in ipairs(STATIONS) do
     -- or a squad consolidates on its own objective instead of demonstrating anything.
     local od = s.objectiveD or math.min(95, (s.enemyD or 60) + 25)
     local attract = (s.objective == "attract")
+    -- MOST objectives go beyond the enemy on +X (see above). Station 11 cannot: its feature needs
+    -- the objective beyond REBOARD_MIN_DIST 120, while the layout ceiling is 95 (half the gap), and
+    -- those are arithmetically incompatible at a 200 m gap. It was set to 200 on +X, which put it
+    -- EXACTLY on station 12's centre (972,866 on the old origin) - inside ARRIVE_RADIUS of station
+    -- 12's squads at spawn, which is why station 12 was measured consolidating the moment it built.
+    --
+    -- The way out is the empty cell: station 11 is grid (col 2, row 2) and row 3 holds only station
+    -- 13 at col 0, so (col 2, row 3) is vacant ground. Sending station 11's objective along +Z
+    -- keeps the 200 m the feature needs AND lands it on nothing. `objectiveAxis` exists for that.
+    local odx, odz = od, 0
+    if s.objectiveAxis == "z" then odx, odz = 0, od end
     local o = scSafeGet(function()
-        return spawnMissionObjective(at(dx + od, dz), 45, s.name, 0, attract)
+        return spawnMissionObjective(at(dx + odx, dz + odz), 45, s.name, 0, attract)
     end)
-    if o then labels[#labels + 1] = s.name else failed = failed + 1 end
+    -- KEEP the handle, per station. It was previously used only as a truthiness test and thrown
+    -- away, which is why CYC.sign had nothing to write to and every label stayed frozen at its
+    -- construction-time text for the life of the battle.
+    if o then
+        labels[#labels + 1] = s.name
+        SHOWCASE.objectives = SHOWCASE.objectives or {}
+        SHOWCASE.objectives[s.n] = o
+    else
+        failed = failed + 1
+    end
     -- KEEP THE HANDLE. The Objective class exposes setText ("Update the text of a Scripted
     -- Mission Objective"), so this label can be rewritten every few seconds with what the actors
     -- at this station are ACTUALLY doing. That is the difference between a range you have to

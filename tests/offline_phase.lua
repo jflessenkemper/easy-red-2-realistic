@@ -273,9 +273,23 @@ T[#T + 1] = { name = "diorama: heals, resets and puts a man down at the casualty
       -- became wrong the moment the range shrank to 200: the actors were placed where station 8
       -- used to be, far outside the new grid, and the test failed for a reason that had nothing to
       -- do with the code under test. A constant copied into a test is a constant that will drift.
-      local GAP = tonumber(assert(io.open(SRC)):read("*a"):match("STATION_GAP%s*=%s*(%d+)"))
+      local SRCTXT = assert(io.open(SRC)):read("*a")
+      local GAP = tonumber(SRCTXT:match("STATION_GAP%s*=%s*(%d+)"))
       if not GAP then return false, "could not read STATION_GAP out of " .. SRC end
-      local ox, oz = 0 + 400, 100 + 400
+      -- AND READ THE ORIGIN FORMULA TOO. This line used to hardcode `0 + 400, 100 + 400`, the old
+      -- `ORIGIN = objective + (400,0,400)` projection - the very mistake the comment above warns
+      -- about, made one line further down. When the range was re-centred on the objective (because
+      -- +400 threw all thirteen stations off a 500 m map) every actor in this test was placed where
+      -- stations no longer are, and the failure blamed the reset sweep instead of the fixture.
+      -- Derive the column count from the source's own `half` expression so it cannot drift again.
+      local COLS = tonumber(SRCTXT:match("local half = %((%d+) %- 1%) %* STATION_GAP / 2"))
+      if not COLS then
+          return false, "could not read the grid width out of " .. SRC
+                .. " (the `half` expression changed shape - update this matcher)"
+      end
+      local half = (COLS - 1) * GAP / 2
+      -- The harness's first objective sits at (0, ?, 100); the range is CENTRED on it.
+      local ox, oz = 0 - half, 100 - half
       local s8x, s8z = ox + 3 * GAP, oz + 1 * GAP
       local ger1 = mkActor(101, "Germany_axis", v3(s8x, 0, s8z))
       local ger2 = mkActor(102, "Germany_axis", v3(s8x + 10, 0, s8z))
