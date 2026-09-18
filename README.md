@@ -489,7 +489,7 @@ It is not UTF-8 clean, which is why every `grep` in this file passes `-a`.
 
 `tools/deploy.py` gives the **Realistic Test map** mission a 13-station demonstration range
 (`missions/scenarios/showcase.lua`, inlined at deploy time). Each station is a self-contained
-tableau 500 m from its neighbours — far enough that no station's soldiers can sense another's,
+tableau 200 m from its neighbours — far enough that no station's soldiers can sense another's,
 which `validateLayout()` asserts before the range will build at all. Load the mission and walk
 the line; each station carries an on-map label naming the decision it is there to show.
 

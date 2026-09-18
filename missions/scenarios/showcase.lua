@@ -243,13 +243,15 @@ local STATIONS = {
     { n = 1, expect = {28, 27}, name = "1 Approach march + formation",
       shows = "ROAD-MARCH, RALLY-on-MG, lateral stagger",
       ger = { GER_RIFLE }, enemy = {},
-      note = "no enemies at all, objective 400 m away; the gunner ends up off a flank" },
+      note = "no enemies at all; the objective sits 85 m out on +X and the gunner ends up off a "
+          .. "flank. This said '400 m away', which was never true at any gap this range has used" },
 
     { n = 2, expect = {10, 24}, name = "2 Pinned + fight from cover",
       shows = "PINNED, then FIGHT-from-cover as suppression lifts",
       ger = { GER_RIFLE }, enemy = { FR_GUNS, FR_GUNS }, enemyD = 45,
       emplace = { V_MG_EMP, V_MG_EMP },
-      note = "three MG teams at 40 m: >=2 enemies inside PINNED_RADIUS 50" },
+      note = "TWO MG teams at 45 m, both inside PINNED_RADIUS 50, which is the >=2 the branch "
+          .. "needs. This note said 'three at 40 m' and matched neither the squad list nor enemyD" },
 
     { n = 3, expect = {3, 4}, name = "3 Rout",
       shows = "ROUT / ROUT-cover, falling back ~40 m",
@@ -285,8 +287,10 @@ local STATIONS = {
     { n = 9, expect = {1}, name = "9 Crew bail-out",
       shows = "crew leave the wreck, then CREW-onfoot away from the enemy",
       ger = { GER_CREW }, enemy = { FR_GUNS }, enemyD = 75,
-      vehicles = { { V_PZ2, 0, 0 } },
-      note = "a CREWED vehicle, not a truck: truck occupants are passengers, not crew" },
+      vehicles = { { V_PZ2, 18, 8 } },
+      note = "a CREWED vehicle, not a truck: truck occupants are passengers, not crew. The tank is "
+          .. "offset 18/8 rather than 0/0: at the station centre it spawned on top of its own crew's "
+          .. "spawn point. The crew must stand BESIDE the wreck they left, not inside it" },
 
     { n = 10, expect = {17}, name = "10 Radio fire mission",
       shows = "RADIO-fire-mission, and a barrage that actually LANDS",
@@ -347,7 +351,8 @@ end
 -- neighbour's squad counts them in its force ratio and takes a completely different branch. The
 -- demonstration then shows the wrong feature and looks like an AI bug. Refuse to build instead.
 local SENSE = 90
--- 25 m of clear air beyond sensing range. 60 was generous when stations were 500 m apart and cost
+-- 25 m of clear air beyond sensing range. 60 was generous when stations were 500 m apart (they
+-- are 200 now) and cost
 -- nothing; at 200 m it is the difference between a watchable range and an empty one. validateLayout
 -- still refuses any layout that breaches SENSE + MARGIN, so this is a tightened budget, not a
 -- removed check.
@@ -471,8 +476,13 @@ for _, s in ipairs(STATIONS) do
         addVeh(v[1], at(dx + v[2], dz + v[3]), vec3(0, 90, 0))   -- yaw +X: Euler DEGREES
     end
     -- Emplacements face back down -X toward the German squads, who sit at the station centre.
+    -- OFFSET 6 m ON +X FROM THE CREW. Emplacement i used to land on exactly `at(dx+ed, ...)` with
+    -- a 30 m Z step while the enemy squads above step 25 m from the SAME origin - so emplacement #1
+    -- and crew #1 were spawned at the IDENTICAL point, and #2 sat 5 m from #2. The crew must stand
+    -- AT its gun to man it, so a few metres is right and zero is not: a vehicle spawned on a
+    -- squad's own spawn point pushes or clips the men it belongs to.
     for i, e in ipairs(s.emplace or {}) do
-        addVeh(e, at(dx + ed, dz + (i - 1) * 30), vec3(0, 270, 0))  -- yaw -X: Euler DEGREES
+        addVeh(e, at(dx + ed + 6, dz + (i - 1) * 30), vec3(0, 270, 0))  -- yaw -X: Euler DEGREES
     end
 
     -- STATION LABEL. attractor = FALSE for every label except the two stations that need a real
@@ -502,8 +512,10 @@ for _, s in ipairs(STATIONS) do
     -- makes each station self-driving - approach, contact, then whichever branch the geometry
     -- forces - which is also how a real approach march ends.
     --
-    -- Clamped to 220 m so it stays nearer its OWN station than any neighbour's (they are 500 m
-    -- apart, so the next centre is 280 m further on).
+    -- Clamped so it stays nearer its OWN station than any neighbour's. At STATION_GAP 200 the
+    -- next centre is only 200 m away, so the ceiling is HALF the gap (95 with a little air) -
+    -- not the 220 this comment used to quote from the 500 m era, which would have reached past
+    -- the neighbour's centre entirely.
     --
     -- OBJECTIVES ARE SPAWNED HERE IN BOTH ROLES, not emitted into the rig. The rig has ONE
     -- TEST_OBJECTIVE slot and this range needs fourteen, and objective creation - unlike squad
@@ -702,7 +714,10 @@ local function census(st)
     local dx, dz = cell(st.n)
     local c = at(dx, dz)
     local list = {}
-    -- 240 m, not 260: stations are 500 m apart, so a wider ring reaches a neighbour.
+    -- The census ring must stay UNDER half the gap or it counts a neighbour's men as this
+    -- station's. At STATION_GAP 200 that ceiling is 100 m; this said '240 m, not 260: stations
+    -- are 500 m apart', which at the shipped 200 m gap reached two neighbours in every direction
+    -- and silently inflated every station's census.
     safe(function() er2.getSoldiersInArea(c, 240, list) end)
     local counts, total = {}, 0
     for _, sol in pairs(list) do

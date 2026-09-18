@@ -528,6 +528,13 @@ echo "== 8. Every constant VALUE quoted in the docs matches the source =="
 python3 - <<'PY_CONST'
 import re, sys
 src = open("Realistic.lua", encoding="utf-8").read()
+# ALSO scan the range's own constants. STATION_GAP lives in showcase.lua and was missed entirely:
+# the code shipped 200 while the README and three live comments still said 500, and the census ring
+# sized off that stale number reached two neighbours in every direction.
+try:
+    src += "\n" + open("missions/scenarios/showcase.lua", encoding="utf-8").read()
+except IOError:
+    pass
 decl = {}
 for m in re.finditer(r'^local ([A-Z][A-Z0-9_]{2,})\s*=\s*(-?\d+(?:\.\d+)?)\s*(?:--.*)?$', src, re.M):
     decl[m.group(1)] = m.group(2)
@@ -547,6 +554,23 @@ for doc in ("realistic.md", "README.md"):
             if float(m.group(1)) != float(val):
                 bad.append("%s:%d %s documented as %s, source says %s"
                            % (doc, text[:m.start()].count("\n") + 1, name, m.group(1), val))
+# PROSE drift, which the name-based scan above cannot see. The README described the stations as
+# "500 m from its neighbours" long after the code shipped 200 - no constant name appears in that
+# sentence, so nothing held it to the source. This is narrow on purpose: it gates the one phrase
+# that actually drifted rather than pretending to parse English.
+gap = decl.get("STATION_GAP")
+if gap:
+    for doc in ("README.md", "realistic.md"):
+        try:
+            text = open(doc, encoding="utf-8").read()
+        except IOError:
+            continue
+        for m in re.finditer(r"(\d+)\s*m from its neighbours", text):
+            cites += 1
+            if float(m.group(1)) != float(gap):
+                bad.append("%s says stations are %s m from their neighbours, but STATION_GAP is %s"
+                           % (doc, m.group(1), gap))
+
 if bad:
     for b in bad:
         print("FAIL  " + b)
