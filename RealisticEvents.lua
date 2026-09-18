@@ -2544,6 +2544,73 @@ CYC.probe = function()
     local pp = safeGet(function() return er2.getPlayerSoldier().getPosition() end)
     dbg(string.format("PROBE player at %s",
         pp and string.format("(%.0f,%.0f,%.0f)", pp.x, pp.y, pp.z) or "unknown"))
+
+    -- ===== FIVE APIs THE MOD HAS NEVER TOUCHED ================================================
+    -- All five are listed at easyred2.com/wiki/scripting and appear NOWHERE in this repo. Each is
+    -- probed rather than assumed, because the same wiki lists getTerrainHeight(x, z) while shipped
+    -- official scripts use er2.getTerrainHeight(vec3(x,0,z)) - so the page is a lead, not gospel.
+
+    -- 1. cameraPosition(). THE INSTRUMENT THAT WAS MISSING. getSoldiersInArea only returns
+    --    soldiers streamed in near the VIEWER, and not knowing where the viewer was cost five
+    --    wrong hypotheses at ~15 minutes of game time each. If this returns a usable vec3 it
+    --    becomes the first thing to log whenever a query comes back empty.
+    local cam = safeGet(function() return er2.cameraPosition() end)
+    dbg(string.format("PROBE cameraPosition -> %s", cam
+        and string.format("(%.0f,%.0f,%.0f)", cam.x or -1, cam.y or -1, cam.z or -1)
+        or "nil/absent"))
+    if cam and stns[1] then
+        local dx, dz = (cam.x or 0) - stns[1].cx, (cam.z or 0) - stns[1].cz
+        dbg(string.format("PROBE camera is %.0f m from station 1 - if the range looks empty, THIS "
+            .. "is why", math.sqrt(dx * dx + dz * dz)))
+    end
+
+    -- 2. Objective.setText with FREE TEXT. verified-api.md:466 records `.setText(key)` - a
+    --    LOCALISATION key. If the engine renders a missing-key stub instead of this sentence then
+    --    live station signs are impossible and CYC.sign must be deleted rather than left to write
+    --    text nobody can read. Read the result on screen; the log cannot tell us.
+    local o1 = SHOWCASE.objectives and SHOWCASE.objectives[1]
+    if o1 then
+        local ok, err = pcall(function() o1.setText("PROBE free text 12345") end)
+        dbg(string.format("PROBE Objective.setText(free text) ok=%s err=%s -- NOW LOOK AT STATION "
+            .. "1's LABEL: if it reads 'PROBE free text 12345' free text works; if it reads a key "
+            .. "stub or is unchanged, signs take loc keys only", tostring(ok), tostring(err)))
+    end
+
+    -- 3. Soldier.setPlayer - EXISTENCE ONLY, DELIBERATELY NOT CALLED. The wiki describes it as
+    --    "force a soldier to be controlled by the player", which is exactly what a guided tour
+    --    needs - and exactly why calling it inside a diagnostic would be wrong: it would yank
+    --    whoever is playing out of their own body without asking. The tour calls it behind an
+    --    explicit opt-in; this only reports whether it is there to call.
+    local anySoldier = (CYC.streamed())[1]
+    dbg(string.format("PROBE Soldier.setPlayer present=%s (NOT invoked here - it would hijack the "
+        .. "player's body; the tour opts in explicitly)",
+        anySoldier and tostring(type(safeGet(function() return anySoldier.setPlayer end))) or "no soldier to inspect"))
+
+    -- 4. Unit caps. The test mission carries maxAllies/maxAxis = 10 against Stonne's 70 while this
+    --    rig spawns 29 squads, so something is throttling the cast. getSetting* reads the PLAYER's
+    --    own thresholds, which the mission file cannot tell us; setFactionBudget is the scripted
+    --    way to raise capacity without a risky binary patch of the .mer2.
+    dbg(string.format("PROBE getSettingMaxAllies=%s getSettingMaxAxis=%s",
+        tostring(safeGet(function() return er2.getSettingMaxAllies() end)),
+        tostring(safeGet(function() return er2.getSettingMaxAxis() end))))
+    local bOK, bErr = pcall(function() er2.setFactionBudget(INV, 200) end)
+    dbg(string.format("PROBE setFactionBudget(INV,200) ok=%s err=%s then getFactionBudget=%s",
+        tostring(bOK), tostring(bErr),
+        tostring(safeGet(function() return er2.getFactionBudget(INV) end))))
+
+    -- 5. getDistanceFromTerrain. A direct sunk/floating detector, which is worth far more than
+    --    eyeballing screenshots: at() only started using terrain height in this change, and this
+    --    is how we prove the spawns actually sit on the ground.
+    for _, i in ipairs({ 1, 8, 13 }) do
+        local stn = stns[i]
+        if stn then
+            local d = safeGet(function()
+                return er2.getDistanceFromTerrain(vec3(stn.cx, stn.cy or 0, stn.cz))
+            end)
+            dbg(string.format("PROBE station %-2d getDistanceFromTerrain=%s (near 0 = on the "
+                .. "ground; a large value means the spawn height is still wrong)", i, tostring(d)))
+        end
+    end
 end
 
 CYC.step = function(now)
