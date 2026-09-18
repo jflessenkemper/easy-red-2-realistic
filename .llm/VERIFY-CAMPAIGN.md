@@ -18,30 +18,53 @@ to frame-accurate scrubbing).
 far less than earlier plans implied, and why this campaign needs no test map, no 1000x1000 resize
 and no prop vocabulary.
 
-## Pre-step (required): put `role` in the telemetry frame
+## Pre-step: `role` in the telemetry frame — DONE
 
-The soldier frame is emitted at `RealisticEvents.lua:2764`:
+The frame carried nine fields and **no role**, so the LMG gunner could not be identified and
+feature 9's Schützenkette claim was not decidable from telemetry at all. Fixed:
 
-    [TELEM] <t> S <uid>,<x>,<y>,<z>,<flag>,<squad>,<inVeh>,<dec>,<ri>;<...>;...
+    [TELEM] <t> S <uid>,<x>,<y>,<z>,<flag>,<squad>,<inVeh>,<dec>,<ri>,<role>;...
 
-There is **no role field**, so the LMG gunner cannot be identified in a frame and feature 9's
-Schützenkette claim is not decidable from telemetry. Role is already computed in the brain
-(`Realistic.lua:350` `isSquadLeader`, and the role string built at `:411`), so add one short field
-to the record. Note the frame is deliberately compact — batched per `TELEM_BATCH` because one call
-per soldier per frame was too slow — so use a single character (`L`/`G`/`A`/`M`/`R`/`-`), not a word.
+The gunner has **no native role flag** — `isSquadLeader/isATSoldier/isMedic/isRadioman/isMarksman`
+exist, but support and mortar are `getClassName` matches (`CLS.isMGClass`). Only the brain does that
+matching, so the brain publishes the role to `global "O"..uid` and the phase script reads one
+integer, rather than the phase script duplicating token lists that would drift. Codes live in
+`DEC.rolecode` (`Realistic.lua`), assigned *outside* the `DEC` literal so check 6c keeps
+cross-checking exactly the 31 decision codes.
 
-Then bump the reader in `er2-plugin/tools/battle_map.py` to parse and colour by it, and extend
-`check.sh` check 6c so the field list stays in agreement across the emitter and the reader.
+Published **change-only** (makeRoleTag is recomputed when a squad resolves late) and **not gated on
+DEBUG**.
 
-Without this pre-step the run still settles 13, 23 and the mission question — but not 9.
+**Still outstanding for the reader:** `er2-plugin/tools/battle_map.py` does not parse or colour by
+the new field yet. Both parsers branch on `len(parts) >= 8`, so a 10-field frame will not break
+them — role is simply ignored until the reader is updated.
+
+### The DEBUG trap for feature 9
+
+`ri` (roster index) is published **only when the brain's `DEBUG` is true** (`Realistic.lua:1728`),
+so it is 0 in a telemetry-only run. That splits feature 9 in two:
+
+- "riflemen are lateral to the gunner" — decidable from **telemetry alone**, now that role exists.
+- "front half to his right, rear half to his left" — needs `ri`, therefore a **DEBUG** build, which
+  costs ~1.1 KB plus a stack walk per line and a 50 MB+ log.
+
+Run telemetry-only first. Escalate to DEBUG only if the lateral result looks right and the
+roster-half ordering is the remaining question.
 
 ## The run
 
-Mission: **Stonne**, not the range. Germans vs French gives two nations in one battle, so `flag`
-separates them and feature 13 becomes measurable. (Donchery is a *separate* item: README:398 and
-:564 record that it is NOT verified and ships inert. Do not conflate verifying the mod with
-verifying that mission.) **Check whether Stonne is DLC-gated before launching** — if it is, the
-launch needs `via_steam: true`, which needs launch options restored, which needs Steam closed.
+Mission: **`ME_Stonne_38n85202`**, which despite the folder name *is* the **Donchery historical
+order of battle** — `deploy.py:23` produces that variant at deploy time. This matters twice over:
+Germans vs French gives two nations in one battle, so `flag` separates them and feature 13 becomes
+measurable; and it is the same mission README:398/:564 record as NOT verified in-game, so one run
+serves both goals. There is no separate plain-Stonne mission to choose instead.
+
+The other two targets are inert by design (`ME_Kos`, `ME_VirtualScene` get the phase script
+verbatim with empty rig tables), so they only drive editor-placed units and cannot support a
+doctrine comparison.
+
+**Check DLC gating before launching** — if the mission is gated, the launch needs `via_steam: true`,
+which needs launch options restored, which needs Steam closed.
 
 1. Confirm no foreign Steam game is running, and **act on the answer** — `foreign_steam_games()`
    returning non-empty means stop, not proceed.

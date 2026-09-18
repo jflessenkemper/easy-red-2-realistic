@@ -560,6 +560,14 @@ local DEC = {
         ["FORM-followLeader"]=32,
     },
 }
+-- Role codes for the telemetry join. Assigned OUTSIDE the DEC literal above on purpose: check 6c
+-- in tests/check.sh parses the `code = {` block and cross-checks it against battle_map.py and
+-- movement_audit.py, so that block must keep containing exactly the decision codes and nothing
+-- else. Keys are the literal strings makeRoleTag() returns - if you add a role there, add it here.
+DEC.rolecode = {
+    ["LEADER"]=1, ["medic"]=2, ["AT"]=3, ["MG-gunner"]=4, ["mortar"]=5,
+    ["marksman"]=6, ["radioman"]=7, ["crew/aircraft"]=8, ["trooper"]=0,
+}
 -- TWO CACHES for the sense() hot loop. Measured live: the sweep returns ~70 soldiers, each
 -- costing five guarded interop calls, at ~175 brain-ticks a second across 350 brains - about
 -- 61,000 calls/s, and the per-soldier calls are the whole of it. Both caches are exact, not
@@ -1720,6 +1728,22 @@ while true do
         if decision ~= DEC.last then
             DEC.last = decision
             safe(function() global.set(DEC.code[decision] or 0, "D" .. uid) end)
+        end
+        -- Role, published for the telemetry join so FORMATION claims are decidable from a
+        -- TELEMETRY-only run. Feature 9 is "riflemen form the Schuetzenkette ON THE GUNNER", which
+        -- cannot be judged without knowing which man IS the gunner - and the gunner has no native
+        -- flag (it is a getClassName match, see CLS.isMGClass), so the phase script cannot work it
+        -- out for itself and duplicating the token lists there would just drift.
+        --
+        -- Change-only like the decision above, NOT once-only: makeRoleTag is recomputed when a
+        -- squad resolves late (line 431), so a man found to be a leader on tick 20 must not stay
+        -- published as a trooper. NOT gated on DEBUG either, unlike the roster index below - that
+        -- gate is exactly why `ri` is 0 in a telemetry-only run.
+        -- An integer, not the string: global.set is proven on this build for numbers and booleans,
+        -- and unproven for strings.
+        if roleTag ~= DEC.rolelast then
+            DEC.rolelast = roleTag
+            safe(function() global.set(DEC.rolecode[roleTag] or 0, "O" .. uid) end)
         end
         -- Roster slot, published every tick (cheap: one integer). Formation work depends on a
         -- man's slot being STABLE - if the engine reshuffles getAllMembers order between ticks,

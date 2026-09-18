@@ -2757,11 +2757,11 @@ end
 -- be ~350 calls a frame and would itself change the thing being measured. Entities are batched
 -- TELEM_BATCH to a line, which turns a frame into about a dozen calls instead.
 --
--- Format — NINE fields per soldier entry. This comment documented four until 2026-09-08 while the
+-- Format — TEN fields per soldier entry. This comment documented four until 2026-09-08 while the
 -- emitter below wrote nine; both Python parsers branch on `len(parts) >= 8`, so a drift here is
 -- silent. tests/check.sh now cross-checks this block against the format string in telemetryFrame().
 --
---   [TELEM] <t> S <uid>,<x>,<y>,<z>,<flag>,<squad>,<inVeh>,<dec>,<ri>;<...>;...
+--   [TELEM] <t> S <uid>,<x>,<y>,<z>,<flag>,<squad>,<inVeh>,<dec>,<ri>,<role>;<...>;...
 --   [TELEM] <t> V <uid>,<x>,<y>,<z>,<name>;...
 --
 --   t      mission clock, %.1f
@@ -2778,6 +2778,12 @@ end
 --   ri     roster index from global "R"..uid. Only published when the BRAIN's DEBUG is true, so it
 --          is 0 for the whole battle otherwise. Proves roster-slot stability, which every formation
 --          feature depends on
+--   role   role code from global "O"..uid: 0 trooper · 1 LEADER · 2 medic · 3 AT · 4 MG-gunner
+--          · 5 mortar · 6 marksman · 7 radioman · 8 crew/aircraft. Source of truth is
+--          DEC.rolecode in Realistic.lua. Published change-only and NOT gated on DEBUG, so unlike
+--          `ri` it is present in a telemetry-only run - which is the point: "riflemen form the
+--          Schuetzenkette on the GUNNER" cannot be adjudicated without knowing who the gunner is,
+--          and the gunner has no native role flag
 local TELEMETRY  = false -- diagnostic; check.sh refuses to ship this true
 local TELEM_EVERY = 2          -- s between frames
 local TELEM_BATCH = 40         -- entities per log line
@@ -2838,8 +2844,11 @@ local function telemetryFrame()
                     -- without it "did the men ordered to move actually move?" is unanswerable.
                     local d = tonumber(safeGet(function() return global.get("D" .. u) end)) or 0
                     local ri = tonumber(safeGet(function() return global.get("R" .. u) end)) or 0
-                    buf[n] = string.format("%d,%d,%d,%d,%s,%d,%d,%d,%d", u, p.x, p.y, p.z,
-                        telemFlag(s, side), squadKey(s, u), v, d, ri)
+                    -- ro: role code. Published by the brain (change-only, not DEBUG-gated) because
+                    -- the MG gunner has no native flag and only the brain does the class matching.
+                    local ro = tonumber(safeGet(function() return global.get("O" .. u) end)) or 0
+                    buf[n] = string.format("%d,%d,%d,%d,%s,%d,%d,%d,%d,%d", u, p.x, p.y, p.z,
+                        telemFlag(s, side), squadKey(s, u), v, d, ri, ro)
                     if n >= TELEM_BATCH then
                         log("[TELEM] " .. ts .. " S " .. table.concat(buf, ";")); buf, n = {}, 0
                     end
