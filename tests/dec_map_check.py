@@ -40,6 +40,19 @@ def brain_codes(path):
     return {lab: int(num) for lab, num in re.findall(r'\["([^"]+)"\]\s*=\s*(\d+)', m.group(1))}
 
 
+def role_codes(path):
+    """label -> int, from the DEC.rolecode table.
+
+    Assigned OUTSIDE the `local DEC = {...}` literal on purpose, so that brain_codes() above keeps
+    matching exactly the decision codes. Parsed separately here for the same reason.
+    """
+    src = open(path, encoding="utf-8").read()
+    m = re.search(r"DEC\.rolecode\s*=\s*\{(.*?)\n\}", src, re.S)
+    if not m:
+        return None
+    return {lab: int(num) for lab, num in re.findall(r'\["([^"]+)"\]\s*=\s*(\d+)', m.group(1))}
+
+
 def ints_in_block(path, pattern):
     """Set of integer keys appearing in the first block matching `pattern`."""
     try:
@@ -79,6 +92,28 @@ def main():
                 "battle_map.py does not colour %s - these render as the same grey as 'unknown'"
                 % names)
 
+    # ROLE codes, same drift risk. NOTE the difference from decisions: role 0 is `trooper`, a REAL
+    # role with its own colour, not "unknown". So every role code must be coloured, 0 included -
+    # there is no legitimate fall-through value here.
+    roles = role_codes(brain)
+    if roles is None:
+        problems.append("could not parse DEC.rolecode out of Realistic.lua")
+        roles = {}
+    else:
+        rcol = ints_in_block(bm, r"const ROLECOL\s*=\s*\{(.*?)\};")
+        if rcol is None:
+            print("SKIP  battle_map.py ROLECOL not found (%s)" % bm)
+        else:
+            stale = sorted(rcol - set(roles.values()))
+            if stale:
+                problems.append("battle_map.py colours non-existent role code(s) %s" % stale)
+            missing = sorted(set(roles.values()) - rcol)
+            if missing:
+                names = ", ".join(
+                    "%d=%s" % (c, lab) for lab, c in sorted(roles.items(), key=lambda kv: kv[1])
+                    if c in missing)
+                problems.append("battle_map.py does not colour role(s) %s" % names)
+
     ma = os.path.join(TOOLS, "movement_audit.py")
     mh = ints_in_block(ma, r"MOVE\s*=\s*\{(.*?)\bNAMES\s*=")
     if mh is None:
@@ -93,7 +128,7 @@ def main():
             print("FAIL  " + p)
         return 1
     print("ok    DEC map agrees across Realistic.lua, battle_map.py, movement_audit.py "
-          "(%d codes)" % len(codes))
+          "(%d codes, %d roles)" % (len(codes), len(roles)))
     return 0
 
 
