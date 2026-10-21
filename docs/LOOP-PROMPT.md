@@ -34,7 +34,7 @@ input. Repos: `/var/home/jflessenkemper/er2-realistic` (mod), `/var/home/jflesse
 ## STATE — verified, do NOT re-derive
 
 Gates: mod `tests/check.sh` **PASS 41**, plugin **PASS 12**, offline brain 19/19, offline phase
-4/4. Mod tagged v1.4.0, plugin v1.6.0. Both repos clean. Game **v2.1.0**. Official API docs exist
+4/4. Mod tagged v1.4.0 (v1.5.0 prepared, untagged — RELEASE-CHECKLIST.md), plugin v1.6.0. Both repos clean. Game **v2.1.0**. Official API docs exist
 at **https://easyred2.com/wiki/scripting** — READ THEM BEFORE PROBING ANYTHING.
 
 - **TEST MAP** (`[TEST] Realistic Feature Range`, renamed from `sdgsdg`): builds 29/29 squads, 7/7

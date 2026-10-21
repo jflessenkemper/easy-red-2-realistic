@@ -1,5 +1,7 @@
 # Realistic — soldier AI for Easy Red 2
 
+**Version 1.5.0 (prepared, not yet tagged — see [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md)) · tested on game v2.1.0 · API reference verified on v2.0.9 · [CHANGELOG](CHANGELOG.md)**
+
 Per-soldier WW2 infantry behaviour for **Easy Red 2**. Two Lua files, dropped into a mission
 folder. Works on any map, with any two belligerents, with no editor setup.
 
@@ -23,8 +25,8 @@ The installed game is **v2.1.0**. Everything in **[docs/verified-api.md](docs/ve
 was probed against **v2.0.9**, and one documented signature has *already* been found wrong on
 2.1.0:
 
-> `spawnVehicle(id, pos, rot)` — argument 3 is a **`vec3` direction**, not degrees. Passing a
-> number throws inside the engine's own marshalling, and **that throw escapes `pcall`**, killing
+> `spawnVehicle(id, pos, rot)` — argument 3 is a **`vec3`** (Euler rotation in degrees, per the
+> official scripting docs), never a bare number. Passing a number throws inside the engine's own marshalling, and **that throw escapes `pcall`**, killing
 > the whole phase script. There is no way to catch it from Lua.
 
 So treat every entry in `docs/verified-api.md` as *"verified on 2.0.9, unconfirmed on 2.1.0"* and
@@ -56,7 +58,8 @@ trace, gates orders by pooled speed, judges `ROAD-MARCH` on objective closure),
 `movement_audit.py` (parses `[TELEM]`, reports formation anisotropy and signed own-motion along a
 fixed away-from-enemy axis) and `watch_audit.py` (cross-tabs decisions against the engine's own
 `isOnCover` / `isMoving` / `getSuppressionValue`). Static gates are numbered checks in
-`tests/check.sh` (**PASS 40 FAIL 0**). Offline assertions name their scenario in
+`tests/check.sh` (must be fully green **with luajit installed**; without luajit the score is not a release
+gate — see [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md)). Offline assertions name their scenario in
 `tests/offline_brain.lua` (18 scenarios).
 
 ---
@@ -75,14 +78,14 @@ fixed away-from-enemy axis) and `watch_audit.py` (cross-tabs decisions against t
 | 5 | Advance behind armour | Infantry and tanks advance independently | ✅/🔧 Riflemen keep an *armoured* hull between themselves and the enemy (name-filtered, so trucks and guns don't count), spread line-abreast behind it. **Evidence:** measured live on Donchery 2026-08-30 — **67 fires** with `tank d=8` and `tank d=11`, the hull at the configured stand-off, via the `analyse_run.py` `[REALISTIC]` parser. **But that held only for `Panzer*` names:** the name filter mis-classified 3 of the 8 real vehicle names (below), so the halftrack and armoured car a 1940 mission actually fields were never covered. The filter is now **gated statically by check 4g, `tests/armour_filter_check.py`**, both halves negative-tested, and the code path is offline-asserted by "threatened attacker with friendly armour -> ADVANCE-behind-armour (rosterIndex path)". **NOT RE-PROVABLE on a scripted rig** — see below |
 | 5b | Taking an objective | Keeps issuing move orders to a point the soldier is already standing on | 🔧 Consolidates — digs in on the captured ground and faces the counter-attack. **Evidence:** offline-asserted by `tests/offline_brain.lua` "attacker standing on the objective -> CONSOLIDATE". **No live count has been recorded for `CONSOLIDATE`**, so the branch is proven reachable but not observed in a battle |
 | 6 | Defenders | Hold their positions | ✅ Unchanged, deliberately — **and the mod stops issuing them move orders at all**, because measurement proved they ignore them. **Evidence:** measured live — `DEFEND-hold` **524** on Donchery and 382 on VirtualScene; offline-asserted by "defender, no contact -> DEFEND-hold". The removal itself was measurement-driven: three branches were logging move orders the engine silently discarded, caught by cross-tabulating orders against displacement in `analyse_run.py` |
-| 7 | Transport reuse | Trucks are abandoned once dismounted | 🔧 Remounts the truck he rode in, but only when 5 suitability conditions hold, so it never fires mid-assault. **Evidence:** thin — `REBOARD-transport` fired **2 times** on Donchery. That shows the branch is reachable, nothing more: **NOT PROVEN that the man actually boards**, since n=2 and no soldier-to-vehicle join was checked with `movement_audit.py`. Marked experimental in the spec |
+| 7 | Transport reuse | Trucks are abandoned once dismounted | **NOT PROVEN** 🔧 Remounts the truck he rode in, but only when 5 suitability conditions hold, so it never fires mid-assault. **Evidence:** thin — `REBOARD-transport` fired **2 times** on Donchery. That shows the branch is reachable, nothing more: **NOT PROVEN that the man actually boards**, since n=2 and no soldier-to-vehicle join was checked with `movement_audit.py`. Marked experimental in the spec |
 
 ### Combat & doctrine
 
 | # | Feature | Base game | With Realistic |
 |---|---|---|---|
 | 8 | National doctrine | One behaviour profile for every army | 🔧 10 nations plus a fallback, each with its own morale floor, aggression, assault range, MG-centricity and cover discipline. **Evidence:** the *resolution* is live — on VirtualScene the trace read the demo squads as `germany/*` and the opposition as `france/*`, exactly the intended pinning, 162 soldiers traced, 0 errors. The **fallback** is offline-asserted by "UNMODELLED nation still reaches ASSAULT (DOCTRINE_DEFAULT)". **NOT PROVEN: that the ten profiles produce ten different behaviours** — no A/B run of the same scenario under two doctrines has ever been made, so the *table* is verified and its *effect* is not |
-| 9 | MG-centric squads | No concept of a squad weapon | ✅/**NOT PROVEN** In armies built round the LMG, riflemen form the **Schützenkette on the gunner** — front half to his right, rear half to his left, 4 m interval, frontage capped at 36 m. Sourced from 1939-40 German doctrine (`.llm/squad-formations.md`); the cap is the manuals' **voice-control** limit, not a ballistic one. **Evidence — the cohering is live:** `RALLY-on-MG` **60** on VirtualScene and **1323** on the showcase range. **Evidence — the formation itself is NOT PROVEN, and no battle can settle it.** See the numbers below |
+| 9 | MG-centric squads | No concept of a squad weapon | **NOT PROVEN** In armies built round the LMG, riflemen form the **Schützenkette on the gunner** — front half to his right, rear half to his left, 4 m interval, frontage capped at 36 m. Sourced from 1939-40 German doctrine (`.llm/squad-formations.md`); the cap is the manuals' **voice-control** limit, not a ballistic one. **Evidence — the cohering is live:** `RALLY-on-MG` **60** on VirtualScene and **1323** on the showcase range. **Evidence — the formation itself is NOT PROVEN, and no battle can settle it.** See the numbers below |
 | 10 | Close assault | Advances and shoots | ✅ Aggressive doctrines close and finish it at knife range; timid ones never do. **Evidence:** measured live — `ASSAULT-cover` **16** / `ASSAULT` **6** on Donchery, 16 / 5 on the showcase range; offline-asserted by "UNMODELLED nation still reaches ASSAULT". Note the label proves the *decision*, not the closing distance — the 15 m bound was not measured separately |
 | 11 | Anti-tank teams | AT man behaves broadly like a rifleman | ✅ Acquires enemy *vehicles*, stalks outside effective range, holds and shoots inside it — and is **barred from the close assault** so the battalion's only AT capability isn't spent charging infantry. **Evidence:** measured live — `AT-stalk` **86** / `AT-hunt` **16** on Donchery, 22 / 5 on the showcase range; offline-asserted by "AT soldier with an enemy vehicle -> AT-stalk / AT-hunt". The bar on assault is structural — it follows from the cascade order, which check 4e executes |
 | 12 | Support weapons | LMG/mortar manoeuvre with everyone else | ✅/🔧 The gun **is** the base of fire; it holds its firing position and never rushes. **Evidence:** the MG half is live — `SUPPORT-hold-fire` **79** on the showcase range, 11 on VirtualScene; offline-asserted by "custom non-English gunner class is the MG anchor (SUPPORT-hold-fire)". **NOT PROVEN: the mortar half** — no mortar-class soldier has ever been observed in any battle in this project, so that path has never fired outside the offline harness |
@@ -105,10 +108,10 @@ fixed away-from-enemy axis) and `watch_audit.py` (cross-tabs decisions against t
 | 19 | Radioman calls the barrage | — | ✅ A radioman pinned down with the advance stalled requests artillery; the phase script accepts it only if no friendly is inside `FIRE_DANGER_R` 50 m, warns for 12 s, then fires. **Evidence:** measured live 2026-09-08, the full sequence with **zero Lua errors**, via the `analyse_run.py` `[EVENTS]` parser — `RADIO-fire-mission accepted: side=2 target=18,45 rounds in 12s`, then `rounds away: 24 shells on 18,45`, then `complete`. **This is the first barrage the mod has ever landed.** It was blocked for the project's entire history because `FIRE_DANGER_R` was **90**, *equal to* `SENSE_RADIUS`: the radioman publishes the enemy centroid, which he can only have formed from enemies inside 90 m, so he was always a friendly inside the danger radius of his own target. Six requests, six refusals, and it read as bad luck. It was arithmetic. Now 50, and **check 5b fails the build if the relationship ever inverts** |
 | 20 | Objective flow | Units can mill around a held objective | ✅ Attraction manager pulls units onto an objective, then releases it once held so they flow to the next. The engine kills the phase script's loop when the mission advances a phase (traced: the last line is always `trace tick=N pre-sleep`, and `sleep()` never returns). A watchdog on `soldier_died` — a callback the engine keeps firing — drives the same work when the loop goes quiet. **Evidence:** measured live on Donchery — the loop froze at `tick=51 pre-sleep` as always, the watchdog logged its takeover, and **objective-attraction output kept growing 13 → 16 while the tick stayed frozen**, zero Lua or engine errors. Also driven across a battle boundary offline by `tests/offline_phase.lua`. Objective capture was blamed first and was only a correlate; the real line came from the engine — `Lua error at 'phase_1.lua' ... BattleManager:TryExecutingPhaseScript() / OnPhaseChange / NextPhase()` |
 | 21 | Setup | Brain must be set per Squad Spawner | ✅ Attaches itself to every soldier, including reinforcements a spawner field would miss. **Evidence:** measured live — **350 soldiers** attached in one battle, and **162 soldiers traced** with 20 distinct decision branches firing and 0 errors in another. No Squad Spawner `Brain` field was set in either |
-| 22 | Kill feed | Team-wide feed | **NOT PROVEN** **Your squad only**, as `<name> (<role>) killed by <weapon>` — the weapon, never the killer. Nothing else is drawn on screen. **Evidence: NOT PROVEN — it needs a human at the keyboard.** The feed only draws for a soldier in the *player's* squad, which requires deploying into a squad; **synthetic clicks have never reached the deploy control** (scenario T13). The code path is unreachable from an automated run, so no measurement of it exists at all |
+| 22 | Kill feed | Team-wide feed | **NOT PROVEN** **Your squad only**, as `<name> (<role>) killed by <weapon>` — the weapon, never the killer. Nothing else is drawn on screen. **Evidence: NOT PROVEN — it needs a human at the keyboard.** The feed only draws for a soldier in the *player's* squad, which requires deploying into a squad; **synthetic clicks have never reached the deploy control** (scenario T13). The code path is unreachable from an automated run, so no measurement of it exists at all **Needs a screen recording** (scheduled with the clip re-shoot). |
 | 23 | Battalion tally | — | **NOT PROVEN** Both sides' losses and live counts, to the log. **Evidence: NOT PROVEN** — the tally lines are emitted (`RealisticEvents.lua:943`) but **have never been checked against an independent casualty count**, so a systematic miscount would be invisible. It is log-only output with no oracle |
 | 23b | Squadmate deaths | No squad-level reaction | ✅ **One** surviving squadmate calls it out — elected on the master client so a squad never yells over itself. Only for roles the engine has a clip for (radioman, MG gunner, leader); silent otherwise, because substituting a wrong line is worse than silence. **Evidence:** measured live — `callout: commanderIsDead (leader down) by 1 squad mate at 1m`, and again at 8 m. Exactly one man speaks per death, and the `callout skip: cooldown` line shows the anti-chorus guard firing |
-| 24 | Voice | Engine chatter | 🔧 8 situational kinds wired to real branches — first contact, taking fire, being hit, panicking, retreating, charging, covering, tank spotted. **Evidence:** **one** of the eight is confirmed in a log (the death callout, row 23b). The other seven are **NOT PROVEN: audio does not appear in `Player.log`** and the `say()` calls are not individually traced, so there is no measurement — only that the branches they hang off do fire |
+| 24 | Voice | Engine chatter | 🔧 8 situational kinds wired to real branches — first contact, taking fire, being hit, panicking, retreating, charging, covering, tank spotted. **Evidence:** **one** of the eight is confirmed in a log (the death callout, row 23b). The other seven are **NOT PROVEN: audio does not appear in `Player.log`** and the `say()` calls are not individually traced, so there is no measurement — only that the branches they hang off do fire **The other seven need a screen recording** (scheduled with the clip re-shoot). |
 
 ### Infrastructure
 
@@ -290,7 +293,8 @@ Recorded on `[TEST] Realistic Feature Range` with `tools/record.py` from the `ea
 
 These were captured at **2 fps** and look it. Capture cost is proportional to pixel area — a full
 1920×1080 frame costs ~660 ms — so a full-frame clip is inherently choppy; cropping with
-`--region` reaches ~14 fps and is how they should be re-shot. They are deliberately **not**
+`--region` reaches ~14 fps and is how they should be re-shot. **They are due to be re-recorded at
+6–14 fps** before v1.5.0 is tagged; the files below are unchanged from v1.4.0. They are deliberately **not**
 motion-interpolated: these are evidence, and inventing intermediate frames to make evidence look
 smoother would misrepresent what the game actually did.
 Read these for what they are: **a clip shows motion, not a label.** The decision names in this
@@ -396,6 +400,11 @@ a bug — but it is not evidence of working either**, which is why the unproven 
 listed as unproven rather than quietly omitted.
 
 ### The Donchery historical mission is NOT verified in-game
+
+> **Update (v1.5.0):** a trimmed Donchery force now *places* cleanly on Stonne — 7 squads, 25
+> vehicles and 1 crew aboard, 0 failures, 0 Lua errors (2026-09-10). That proves the spawn rig, not
+> the behaviour: no battle on this mission has been analysed yet, and the telemetry run that would
+> settle features 7, 9, 13 and 23 is still outstanding. The history below is kept as the record.
 
 `missions/donchery_oob.lua` builds the 13 May 1940 crossing as data: **18 German and 13 French
 squads, 28 vehicles, 18 crews aboard**. Every squad and vehicle id is *confirmed* — read out of
