@@ -439,6 +439,21 @@ else
   bad "tools/gen_prop_layout.py --selftest fails"
 fi
 
+echo "== 4o. Compact showcase map: geometry, sync and byte round-trip =="
+# getSoldiersInArea is viewer-relative: heal, reset, scripted casualty and station signs only see
+# soldiers streamed near the camera. The old 600 m grid left most stations outside that, silently.
+# This holds missions/showcase/stations.json to: every unit within stream_radius of the spawn, every
+# cross-station pair >= SENSE_RADIUS + 25, layout_showcase.json and tx_data_objects.er2f exactly what
+# the generators produce, the .er2f byte-identical through parse/render, and confirmed ids only.
+if [ -f tools/gen_showcase_layout.py ]; then
+  if out=$(python3 tools/gen_showcase_layout.py --check 2>&1); then
+    ok "$(echo "$out" | sed -n 's/^ok    //p' | head -1)"
+  else
+    while read -r line; do bad "${line#FAIL  }"; done < <(echo "$out" | grep '^FAIL')
+    echo "$out" | grep -q '^FAIL' || bad "gen_showcase_layout.py: $(echo "$out" | head -1)"
+  fi
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
