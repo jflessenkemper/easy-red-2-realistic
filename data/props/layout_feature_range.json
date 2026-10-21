@@ -1,0 +1,11 @@
+{
+  "_doc": "Cover / chokepoint / flank layout for the AI feature range. Coordinates are map-local metres (x;y;z), yaw in degrees. Each element asks for a ROLE; the generator picks the first palette id with that role whose status passes --min-status. y defaults to the ground height used by the editor's own Trench 1 records (1.00531) until the heightmap is read.",
+  "ground_y": 1.00531,
+  "elements": [
+    {"name": "cover line",   "role": "cover",    "kind": "line", "from": [-60, 40], "to": [60, 40], "spacing": 10, "yaw": 0},
+    {"name": "chokepoint W", "role": "obstacle", "kind": "line", "from": [-60, 0],  "to": [-8, 0],  "spacing": 6,  "yaw": 0},
+    {"name": "chokepoint E", "role": "obstacle", "kind": "line", "from": [8, 0],    "to": [60, 0],  "spacing": 6,  "yaw": 0},
+    {"name": "flank cover",  "role": "cover",    "kind": "line", "from": [90, -40], "to": [90, 40], "spacing": 10, "yaw": 90},
+    {"name": "resupply",     "role": "resupply", "kind": "point","at": [0, 60], "yaw": 0}
+  ]
+}

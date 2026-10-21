@@ -1,0 +1,17 @@
+{
+  "_doc": "Map-editor prop ids for tx_data_objects.er2f. status: 'confirmed' = seen working in a saved map file; 'palette-read' = label read off the Scene > Add Prop palette on screen 2026-09-18, NOT yet proven to load from a hand-written file; 'unconfirmed' = placeholder, never used. Never add an id you have not read in game. Map-editor ids are a DIFFERENT namespace from mission placed_objects (e.g. WoodenBunker).",
+  "ids": {
+    "Trench 1":                 {"status": "confirmed",    "roles": ["cover"], "evidence": "Realistic Test map/tx_data_objects.er2f (written by the editor)"},
+    "Barbed Wire Single":       {"status": "palette-read", "roles": ["obstacle"]},
+    "Barbed Wire Single Long":  {"status": "palette-read", "roles": ["obstacle"]},
+    "Barbed Wire Double":       {"status": "palette-read", "roles": ["obstacle"]},
+    "Barbed Wire Double Long":  {"status": "palette-read", "roles": ["obstacle"]},
+    "Ammo Crate":               {"status": "palette-read", "roles": ["clutter"]},
+    "Ammunition Refill Box":    {"status": "palette-read", "roles": ["resupply"]},
+    "Barrel Oil Drum":          {"status": "palette-read", "roles": ["clutter"]},
+    "Barrel Wood":              {"status": "palette-read", "roles": ["clutter"]},
+    "TODO sandbag wall":        {"status": "unconfirmed",  "roles": ["cover"], "note": "harvest the real label from the palette (search 'sand')"},
+    "TODO low wall":            {"status": "unconfirmed",  "roles": ["cover"], "note": "harvest from palette"},
+    "TODO hedge":               {"status": "unconfirmed",  "roles": ["concealment"], "note": "harvest from palette, environment tab"}
+  }
+}

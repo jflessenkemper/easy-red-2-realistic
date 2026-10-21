@@ -424,6 +424,21 @@ print("ok    inlined showcase range is in sync and defined above the rig it feed
 PY
 if [ $? -eq 0 ]; then ok "inlined showcase range in sync with missions/scenarios/showcase.lua"; else bad "inlined showcase range is stale or mis-ordered"; fi
 
+echo "== 4n. Prop-layout generator emits only confirmed prop ids by default =="
+# An invalid map-editor prop id probably fails silently in game, so the generator must never emit
+# a guessed one. Only ids with status 'confirmed' in data/props/palette.json may appear in a
+# default run, and the unit selftest proves the filter refuses palette-read and placeholder ids.
+if python3 tools/gen_prop_layout.py --selftest >/dev/null 2>&1; then
+  emitted=$(python3 tools/gen_prop_layout.py data/props/layout_feature_range.json 2>/dev/null | sed -n 's/^id: //p' | sort -u)
+  confirmed=$(python3 -c "import json;d=json.load(open('data/props/palette.json'))['ids'];print('\n'.join(sorted(k for k,v in d.items() if v['status']=='confirmed')))")
+  stray=$(comm -23 <(echo "$emitted") <(echo "$confirmed") | tr '\n' ' ')
+  if [ -z "$emitted" ]; then bad "prop generator emitted nothing from the feature-range layout"
+  elif [ -n "${stray// }" ]; then bad "prop generator emitted unconfirmed id(s): $stray"
+  else ok "prop generator default output uses confirmed ids only ($(echo "$emitted" | tr '\n' ',' | sed 's/,$//'))"; fi
+else
+  bad "tools/gen_prop_layout.py --selftest fails"
+fi
+
 echo "== 5. Decision labels match the verification tool =="
 TOOL=../er2-plugin/tools/analyse_run.py
 if [ -f "$TOOL" ]; then
