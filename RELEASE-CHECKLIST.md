@@ -1,8 +1,9 @@
 # v1.5.0 release checklist — what still blocks the tag
 
 Status 2026-10-21. Do **not** tag until every box is ticked. Nothing here may be ticked from a
-Full review pack: [docs/RELEASE-READINESS.md](docs/RELEASE-READINESS.md) · gallery `evidence/index.html` (run `tests/review.sh`).
 green `check.sh` alone; it proves internal consistency, not behaviour.
+
+Full review pack: [docs/RELEASE-READINESS.md](docs/RELEASE-READINESS.md) · gallery `evidence/index.html` (run `tests/review.sh`).
 
 ## 1. Full static gate (offline, needs luajit)
 - [ ] Put `luajit` back on the host (it is missing; git is reachable only via
