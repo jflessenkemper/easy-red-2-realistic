@@ -1,0 +1,43 @@
+# Offline review gate on every push / PR. Never touches a game install: 4l (deployed-vs-repo drift)
+# is skipped because CI has no deployed copy to compare against.
+name: ci
+on:
+  push:
+    branches: [master, "feature/**", "test/**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    env:
+      SKIP_DEPLOY_DRIFT_CHECK: "1"
+      LUALS_VERSION: "3.19.2"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit lua5.1 liblua5.1-dev luarocks shellcheck
+          luarocks --lua-version 5.1 --local install luacheck
+          luarocks --lua-version 5.1 --local install busted
+          pipx install ruff
+          pipx install semgrep
+          mkdir -p "$HOME/.local/opt/luals" "$HOME/.local/bin"
+          curl -sSL "https://github.com/LuaLS/lua-language-server/releases/download/${LUALS_VERSION}/lua-language-server-${LUALS_VERSION}-linux-x64.tar.gz" | tar xz -C "$HOME/.local/opt/luals"
+          ln -sf "$HOME/.local/opt/luals/bin/lua-language-server" "$HOME/.local/bin/lua-language-server"
+      - name: Review gate (tests/review.sh)
+        run: bash tests/review.sh
+      - name: Mutation score (advisory)
+        run: |
+          . tests/env.sh
+          python3 tools/mutate.py --json artifacts/review/mutation.json || true
+          python3 tools/build_evidence.py || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: review-pack
+          path: |
+            artifacts/review/
+            evidence/
