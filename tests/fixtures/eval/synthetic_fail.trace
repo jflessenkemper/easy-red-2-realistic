@@ -1,0 +1,342 @@
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #2572 t=6.0 germany/rifleman @(6,6) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #2834 t=7.0 germany/rifleman @(7,7) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #3096 t=8.0 germany/rifleman @(8,8) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #3358 t=9.0 germany/rifleman @(9,9) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #3620 t=10.0 germany/rifleman @(10,10) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #3882 t=11.0 germany/rifleman @(11,11) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #4144 t=12.0 germany/rifleman @(12,12) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #4406 t=13.0 germany/rifleman @(13,13) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #4668 t=14.0 germany/rifleman @(14,14) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROAD-MARCH
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #2572 t=6.0 germany/rifleman @(6,6) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #2834 t=7.0 germany/rifleman @(7,7) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #3096 t=8.0 germany/rifleman @(8,8) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #3358 t=9.0 germany/rifleman @(9,9) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #3620 t=10.0 germany/rifleman @(10,10) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #3882 t=11.0 germany/rifleman @(11,11) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #4144 t=12.0 germany/rifleman @(12,12) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #4406 t=13.0 germany/rifleman @(13,13) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #4668 t=14.0 germany/rifleman @(14,14) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #4930 t=15.0 germany/rifleman @(15,15) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #5192 t=16.0 germany/rifleman @(16,16) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #5454 t=17.0 germany/rifleman @(17,17) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #5716 t=18.0 germany/rifleman @(18,18) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #5978 t=19.0 germany/rifleman @(19,19) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #6240 t=20.0 germany/rifleman @(20,20) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #6502 t=21.0 germany/rifleman @(21,21) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #6764 t=22.0 germany/rifleman @(22,22) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #7026 t=23.0 germany/rifleman @(23,23) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #7288 t=24.0 germany/rifleman @(24,24) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #7550 t=25.0 germany/rifleman @(25,25) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #7812 t=26.0 germany/rifleman @(26,26) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #8074 t=27.0 germany/rifleman @(27,27) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #8336 t=28.0 germany/rifleman @(28,28) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #8598 t=29.0 germany/rifleman @(29,29) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> PINNED
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #2572 t=6.0 germany/rifleman @(6,6) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #2834 t=7.0 germany/rifleman @(7,7) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #3096 t=8.0 germany/rifleman @(8,8) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #3358 t=9.0 germany/rifleman @(9,9) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #3620 t=10.0 germany/rifleman @(10,10) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #3882 t=11.0 germany/rifleman @(11,11) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #4144 t=12.0 germany/rifleman @(12,12) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #4406 t=13.0 germany/rifleman @(13,13) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #4668 t=14.0 germany/rifleman @(14,14) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #4930 t=15.0 germany/rifleman @(15,15) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #5192 t=16.0 germany/rifleman @(16,16) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #5454 t=17.0 germany/rifleman @(17,17) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #5716 t=18.0 germany/rifleman @(18,18) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #5978 t=19.0 germany/rifleman @(19,19) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #6240 t=20.0 germany/rifleman @(20,20) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #6502 t=21.0 germany/rifleman @(21,21) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #6764 t=22.0 germany/rifleman @(22,22) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #7026 t=23.0 germany/rifleman @(23,23) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #7288 t=24.0 germany/rifleman @(24,24) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #7550 t=25.0 germany/rifleman @(25,25) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #7812 t=26.0 germany/rifleman @(26,26) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #8074 t=27.0 germany/rifleman @(27,27) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #8336 t=28.0 germany/rifleman @(28,28) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #8598 t=29.0 germany/rifleman @(29,29) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #8860 t=30.0 germany/rifleman @(30,30) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #9122 t=31.0 germany/rifleman @(31,31) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #9384 t=32.0 germany/rifleman @(32,32) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #9646 t=33.0 germany/rifleman @(33,33) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #9908 t=34.0 germany/rifleman @(34,34) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #10170 t=35.0 germany/rifleman @(35,35) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #10432 t=36.0 germany/rifleman @(36,36) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #10694 t=37.0 germany/rifleman @(37,37) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #10956 t=38.0 germany/rifleman @(38,38) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #11218 t=39.0 germany/rifleman @(39,39) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> BOUND-move
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ADVANCE-behind-armour
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ADVANCE-behind-armour
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ADVANCE-behind-armour
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ADVANCE-behind-armour
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ADVANCE-behind-armour
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ADVANCE-behind-armour
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> CONSOLIDATE
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> CONSOLIDATE
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #2572 t=6.0 germany/rifleman @(6,6) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #2834 t=7.0 germany/rifleman @(7,7) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #3096 t=8.0 germany/rifleman @(8,8) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #3358 t=9.0 germany/rifleman @(9,9) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #3620 t=10.0 germany/rifleman @(10,10) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #3882 t=11.0 germany/rifleman @(11,11) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #4144 t=12.0 germany/rifleman @(12,12) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #4406 t=13.0 germany/rifleman @(13,13) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #4668 t=14.0 germany/rifleman @(14,14) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #4930 t=15.0 germany/rifleman @(15,15) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #5192 t=16.0 germany/rifleman @(16,16) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #5454 t=17.0 germany/rifleman @(17,17) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #5716 t=18.0 germany/rifleman @(18,18) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #5978 t=19.0 germany/rifleman @(19,19) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #6240 t=20.0 germany/rifleman @(20,20) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #6502 t=21.0 germany/rifleman @(21,21) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #6764 t=22.0 germany/rifleman @(22,22) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #7026 t=23.0 germany/rifleman @(23,23) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #7288 t=24.0 germany/rifleman @(24,24) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #7550 t=25.0 germany/rifleman @(25,25) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #7812 t=26.0 germany/rifleman @(26,26) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #8074 t=27.0 germany/rifleman @(27,27) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #8336 t=28.0 germany/rifleman @(28,28) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #8598 t=29.0 germany/rifleman @(29,29) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DEFEND-hold
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> REBOARD-transport
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> REBOARD-transport
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> REBOARD-transport
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> REBOARD-transport
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> REBOARD-transport
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> REBOARD-transport
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #2572 t=6.0 germany/rifleman @(6,6) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #2834 t=7.0 germany/rifleman @(7,7) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #3096 t=8.0 germany/rifleman @(8,8) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #3358 t=9.0 germany/rifleman @(9,9) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #3620 t=10.0 germany/rifleman @(10,10) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #3882 t=11.0 germany/rifleman @(11,11) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> RALLY-on-MG
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ASSAULT-cover
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ASSAULT-cover
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ASSAULT-cover
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ASSAULT-cover
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> AT-stalk
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> AT-stalk
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> AT-stalk
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> AT-stalk
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> AT-stalk
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> AT-stalk
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> SUPPORT-hold-fire
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> SUPPORT-hold-fire
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> SUPPORT-hold-fire
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> SUPPORT-hold-fire
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> SUPPORT-hold-fire
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> SUPPORT-hold-fire
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROUT-cover
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROUT-cover
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROUT-cover
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> ROUT-cover
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> LEADER-cover
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> LEADER-cover
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> LEADER-cover
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> LEADER-cover
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> LEADER-cover
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> LEADER-cover
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MEDIC-sortie
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MEDIC-sortie
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MEDIC-sortie
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MEDIC-sortie
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DRAG-approach
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DRAG-approach
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> DRAG-approach
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> CREW-onfoot
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> CREW-onfoot
+[REALISTIC] #1000 t=0.0 germany/rifleman @(0,0) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #1262 t=1.0 germany/rifleman @(1,1) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #1524 t=2.0 germany/rifleman @(2,2) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #1786 t=3.0 germany/rifleman @(3,3) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #2048 t=4.0 germany/rifleman @(4,4) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #2310 t=5.0 germany/rifleman @(5,5) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #2572 t=6.0 germany/rifleman @(6,6) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #2834 t=7.0 germany/rifleman @(7,7) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #3096 t=8.0 germany/rifleman @(8,8) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #3358 t=9.0 germany/rifleman @(9,9) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #3620 t=10.0 germany/rifleman @(10,10) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] #3882 t=11.0 germany/rifleman @(11,11) ne=3 nec=1 nf=4 ed=40 fr=0.5 -> MOUNTED/CREW-defer
+[REALISTIC] ONLINE #1000 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #1262 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #1524 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #1786 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #2048 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #2310 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #2572 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #2834 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #3096 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #3358 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #3620 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #3882 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #4144 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #4406 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #4668 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #4930 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #5192 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #5454 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #5716 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #5978 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #6240 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #6502 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #6764 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #7026 germany/rifleman class='rifleman'
+[REALISTIC] ONLINE #7288 germany/rifleman class='rifleman'
+[EVENTS] bail-out: 2 crew left vehicle Panzer II Ausf. B (disabled, via kickEveryoneOut)
+[EVENTS] RADIO-fire-mission accepted: side=2 target=18,45 rounds in 12s
+[EVENTS] obj1 inv=3 def=0 held=no invAttract=yes
+[EVENTS] callout: commanderIsDead (leader down) by 1 squad mate at 1m
+[TELEM] 10.0 S 1,0,0,0,I,1,0,0,0,0;2,5,0,5,I,1,0,0,0,0;3,9,0,9,D,3,0,0,0,0;4,9,0,1,D,3,0,0,0,0
+[TELEM] 12.0 S 1,0,0,0,x,1,0,0,0,0;2,5,0,5,I,1,0,0,0,0;3,9,0,9,x,3,0,0,0,0;4,9,0,1,x,3,0,0,0,0
+Lua error at 'Realistic.lua' attempt to call a nil value
+[EVENTS] tally invaders:9  defenders:9
+
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch
+[REALISTIC] #9 t=1 germany/rifleman @(0,0) ne=1 nec=0 nf=1 ed=1 fr=0 -> BOUND-overwatch

@@ -1,0 +1,1059 @@
+{
+ "_doc": "SINGLE SOURCE OF TRUTH for feature status in the review pack (RELEASE-READINESS.md, evidence/). status is edited BY HAND ONLY. tools/build_evidence.py and spec/evidence_status_spec.lua refuse a status above baseline_status unless evidence.clip (a 30 fps clip under artifacts/) AND evidence.eval_pass (an eval_telemetry.py JSON with this feature passing) are both set.",
+ "features": [
+  {
+   "id": "1",
+   "name": "Approach march (road bias)",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Attackers route along the flattest corridor (roads) toward the objective.",
+   "offline_tests": [
+    "spec: segFlatness",
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "ROAD-MARCH",
+     "min": 10
+    }
+   ],
+   "note": "Live: ROAD-MARCH 15 closing/0 away (analyse_run objective-closure).",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "2",
+   "name": "Taking cover (when to ask)",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "Mod decides when to call engine findCover(); engine picks cover.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "-cover",
+     "min": 1
+    },
+    {
+     "type": "manual",
+     "what": "per-branch isOnCover() figure from watch_audit.py"
+    }
+   ],
+   "note": "Not gateable by displacement; no per-branch cover figure recorded.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "3",
+   "name": "Pinned reaction",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Suppressed soldier goes prone with a panic call.",
+   "offline_tests": [
+    "offline_brain: suppressed -> PINNED"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "PINNED",
+     "min": 20
+    }
+   ],
+   "note": "Live PINNED 583 Donchery.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "4",
+   "name": "Bounding overwatch",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Half the roster moves while half fires, swapping every 8 s.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_ratio",
+     "num": "BOUND-move",
+     "den": "BOUND-overwatch",
+     "lo": 0.5,
+     "hi": 2.0,
+     "min_den": 20
+    }
+   ],
+   "note": "Live 216:154.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "4b",
+   "name": "Marching formation (staggered file)",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "Men offset to alternating verges by roster index.",
+   "offline_tests": [
+    "spec: staggerAcross (+property)"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "along/across anisotropy beyond 0.23 run-to-run spread, repeated runs"
+    }
+   ],
+   "note": "Geometry never measured; inside noise floor.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "5",
+   "name": "Advance behind armour",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Riflemen keep an armoured hull between them and the enemy.",
+   "offline_tests": [
+    "spec: isArmour",
+    "armour_filter_check.py",
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "ADVANCE-behind-armour",
+     "min": 5
+    }
+   ],
+   "note": "Live 67 fires (Panzer names only); filter fixed since, not re-proven live.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "5b",
+   "name": "Taking an objective (consolidate)",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "Dig in on captured ground, face the counter-attack.",
+   "offline_tests": [
+    "offline_brain: CONSOLIDATE"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "CONSOLIDATE",
+     "min": 1
+    }
+   ],
+   "note": "Offline only; no live count recorded. Listed as PARTIAL here (not proven) because there is no in-game evidence.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "6",
+   "name": "Defenders hold",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Defenders hold; mod issues them no move orders.",
+   "offline_tests": [
+    "offline_brain: DEFEND-hold"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "DEFEND-hold",
+     "min": 20
+    }
+   ],
+   "note": "Live 524.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "7",
+   "name": "Transport reuse",
+   "branch": "master",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Remount own truck when 5 suitability conditions hold.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "REBOARD-transport",
+     "min": 5
+    },
+    {
+     "type": "manual",
+     "what": "soldier-to-vehicle join in telemetry (inVeh 0->1 near own truck)"
+    }
+   ],
+   "note": "n=2 fires; boarding never checked.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "8",
+   "name": "National doctrine",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "10 nation profiles + fallback drive different behaviour.",
+   "offline_tests": [
+    "spec: nationFromFaction, DOCTRINE table (+property)"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "A/B same seeded scenario under two doctrines (tools/ab_compare.py)"
+    }
+   ],
+   "note": "Table verified; effect unmeasured.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "9",
+   "name": "MG-centric squads (Schuetzenkette)",
+   "branch": "master",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Riflemen form a line on the gunner, 4 m interval, 36 m cap.",
+   "offline_tests": [
+    "spec: ketteSlot (+property)",
+    "offline_formation"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "RALLY-on-MG",
+     "min": 10
+    },
+    {
+     "type": "manual",
+     "what": "per-squad across/along ratio from telemetry vs baseline variance band"
+    }
+   ],
+   "note": "Cohering live; formation unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "10",
+   "name": "Close assault",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Aggressive doctrines close to knife range.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "ASSAULT",
+     "min": 3
+    }
+   ],
+   "note": "Live 16/6 (decision, not distance).",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "11",
+   "name": "Anti-tank teams",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "AT men stalk vehicles; barred from assault.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "AT-stalk",
+     "min": 5
+    }
+   ],
+   "note": "Live 86/16.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "12",
+   "name": "Support weapons",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "MG/mortar hold as base of fire.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "SUPPORT-hold-fire",
+     "min": 5
+    },
+    {
+     "type": "manual",
+     "what": "a mortar-class soldier observed"
+    }
+   ],
+   "note": "Mortar half never observed.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "13",
+   "name": "Cover discipline",
+   "branch": "master",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Per-nation probability a bound routes through cover.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "cover-split ratio compared across two nations (A/B)"
+    }
+   ],
+   "note": "Differential effect unmeasured.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "14",
+   "name": "Morale / rout",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Break when outnumbered and bloodied; fall back away from enemy.",
+   "offline_tests": [
+    "offline_brain: ROUT"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "ROUT",
+     "min": 3
+    }
+   ],
+   "note": "Decision live; direction only weakly shown (-1.27 m/frame, n=14).",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "15",
+   "name": "Squad leaders",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "Direct from cover; never walk point.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "LEADER-cover",
+     "min": 5
+    },
+    {
+     "type": "manual",
+     "what": "positional test: leader not at formation head"
+    }
+   ],
+   "note": "'Never walk point' unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "16",
+   "name": "Medics",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Hold cover, sortie to casualties when survivable.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "MEDIC-sortie",
+     "min": 3
+    }
+   ],
+   "note": "Live 87/16.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "17",
+   "name": "Wounded drag",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "Nearest healthy squadmate carries casualty to cover.",
+   "offline_tests": [
+    "offline_brain: DRAG"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "DRAG",
+     "min": 2
+    }
+   ],
+   "note": "Single-elect is offline-only.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "18",
+   "name": "Crew bail-out",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Crew eject from dead vehicles and break contact.",
+   "offline_tests": [
+    "offline_brain (direction asserted)"
+   ],
+   "eval": [
+    {
+     "type": "event_min",
+     "regex": "bail-out: \\d+ crew left vehicle",
+     "min": 1
+    },
+    {
+     "type": "label_min",
+     "label": "CREW-onfoot",
+     "min": 1
+    }
+   ],
+   "note": "Break-contact fix not re-proven live.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "19",
+   "name": "Radioman barrage",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Pinned radioman calls a danger-checked barrage.",
+   "offline_tests": [
+    "check 5b"
+   ],
+   "eval": [
+    {
+     "type": "event_min",
+     "regex": "RADIO-fire-mission accepted",
+     "min": 1
+    }
+   ],
+   "note": "Live full sequence 2026-09-08.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "20",
+   "name": "Objective flow + watchdog",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Attraction released once held; watchdog survives phase change.",
+   "offline_tests": [
+    "offline_phase"
+   ],
+   "eval": [
+    {
+     "type": "event_min",
+     "regex": "obj\\d+ inv=",
+     "min": 1
+    }
+   ],
+   "note": "Live on Donchery.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "21",
+   "name": "Setup (auto-attach)",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Brain attaches to every soldier incl. reinforcements.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "event_min",
+     "regex": "\\[REALISTIC\\] ONLINE #",
+     "min": 20
+    }
+   ],
+   "note": "Live 350 attached.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "22",
+   "name": "Kill feed",
+   "branch": "master",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Player-squad only: '<name> (<role>) killed by <weapon>'.",
+   "offline_tests": [],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "30 fps screen recording of a squad death"
+    }
+   ],
+   "note": "Needs human at keyboard.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "23",
+   "name": "Battalion tally",
+   "branch": "master",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Both sides' losses/live counts to the log.",
+   "offline_tests": [],
+   "eval": [
+    {
+     "type": "tally_vs_telem",
+     "tol": 2
+    }
+   ],
+   "note": "Never checked against an independent count.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "23b",
+   "name": "Squadmate death callout",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "One squadmate calls out a leader/MG/radio death.",
+   "offline_tests": [],
+   "eval": [
+    {
+     "type": "event_min",
+     "regex": "callout: \\w+",
+     "min": 1
+    }
+   ],
+   "note": "Live.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "24",
+   "name": "Voice (8 kinds)",
+   "branch": "master",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "8 situational voice kinds wired to real branches.",
+   "offline_tests": [],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "30 fps recording with audio of the 7 unconfirmed kinds"
+    }
+   ],
+   "note": "1 of 8 confirmed.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "25",
+   "name": "Non-infantry defer",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Crews/pilots defer to base AI; resume on dismount.",
+   "offline_tests": [
+    "offline_brain: mounted"
+   ],
+   "eval": [
+    {
+     "type": "label_min",
+     "label": "MOUNTED/CREW-defer",
+     "min": 10
+    }
+   ],
+   "note": "Live 1408.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "26",
+   "name": "Map/faction awareness",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Nation parsed from faction at runtime; fallback.",
+   "offline_tests": [
+    "spec: nationFromFaction (+property)"
+   ],
+   "eval": [
+    {
+     "type": "no_errors"
+    }
+   ],
+   "note": "Live VirtualScene.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "27",
+   "name": "Logging hygiene",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Diagnostics ship off; sampled/throttled.",
+   "offline_tests": [
+    "check 6",
+    "spec: feature_flags"
+   ],
+   "eval": [
+    {
+     "type": "no_errors"
+    }
+   ],
+   "note": "Static gate; cost figure not re-measured.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "28",
+   "name": "Role detection",
+   "branch": "master",
+   "status": "partial",
+   "baseline_status": "partial",
+   "expected": "Roles from native flags; MG/mortar by class tokens.",
+   "offline_tests": [
+    "spec: classMatches",
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "custom squads with non-English class names"
+    }
+   ],
+   "note": "Token list cannot be proven complete.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "29",
+   "name": "Squad resolution retry",
+   "branch": "master",
+   "status": "proven",
+   "baseline_status": "proven",
+   "expected": "Squad bind retried through spawn window.",
+   "offline_tests": [
+    "offline_brain"
+   ],
+   "eval": [
+    {
+     "type": "no_errors"
+    }
+   ],
+   "note": "Live 56/371 late.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "33",
+   "name": "Per-squad opt-in + vehicle governor",
+   "branch": "feature/squad-script-vehicles",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "RLS.mode per-squad opt-in; per-vehicle profile/governor.",
+   "offline_tests": [
+    "offline_squadmode"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "in-game test plan docs/squad-script-vehicles.md"
+    }
+   ],
+   "note": "Built + documented; not play-tested.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B1",
+   "name": "Approach spacing",
+   "branch": "feature/approach-spacing",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Push ROAD-MARCH/BOUND-move destinations off a too-close friend.",
+   "offline_tests": [
+    "offline_spacing",
+    "offline_rx_core"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "min-spacing distribution from telemetry vs master"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B2",
+   "name": "AT penetration",
+   "branch": "feature/at-penetration",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "AT engages only what it can penetrate; small arms off closed tanks.",
+   "offline_tests": [
+    "offline_at_penetration"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "target-choice census"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B3",
+   "name": "Morale slider",
+   "branch": "feature/morale-slider",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "One mission scalar scales rout floor and pin count.",
+   "offline_tests": [
+    "offline_morale"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "A/B rout counts at two slider values"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B4",
+   "name": "Non-combatant medics",
+   "branch": "feature/noncombatant-medics",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Medics not targeted; self-defence only.",
+   "offline_tests": [
+    "offline_medics"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "medic casualty rate vs master"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B5",
+   "name": "Peek and duck",
+   "branch": "feature/peek-and-duck",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Defenders crouch on reload / after 6 s aiming, behind cover.",
+   "offline_tests": [
+    "offline_peek"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "30 fps clip of a defender ducking"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B6",
+   "name": "Graded suppression",
+   "branch": "feature/suppression-threshold",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Hysteretic PINNED from getSuppressionValue.",
+   "offline_tests": [
+    "offline_suppression"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "PINNED onset/release vs suppression value"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B7",
+   "name": "Tank evade",
+   "branch": "feature/tank-evade",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Prone near untouchable tank; sidestep a closing one.",
+   "offline_tests": [
+    "offline_tank_evade"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "clip + lateral displacement vs tank heading"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B8",
+   "name": "Tank riders (desant)",
+   "branch": "feature/tank-riders",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Lua half for a modded seat-equipped tank.",
+   "offline_tests": [
+    "offline_riders"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "needs a modded tank with seats"
+    }
+   ],
+   "note": "Not play-tested.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  },
+  {
+   "id": "B9",
+   "name": "Weather spotting",
+   "branch": "feature/weather-spotting",
+   "status": "unproven",
+   "baseline_status": "unproven",
+   "expected": "Mission flag shrinks enemy-sensing and AT ranges.",
+   "offline_tests": [
+    "offline_weather"
+   ],
+   "eval": [
+    {
+     "type": "manual",
+     "what": "A/B first-contact distance clear vs fog"
+    }
+   ],
+   "note": "Built, unproven.",
+   "evidence": {
+    "clip": null,
+    "screenshots": [],
+    "eval_pass": null,
+    "ab_result": null
+   }
+  }
+ ]
+}
