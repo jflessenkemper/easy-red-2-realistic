@@ -104,7 +104,9 @@ do
     log("[BENCH]   er2.getVehiclesInArea = "..(ok1 and ("ok, found "..#vlist) or "MISSING/err"))
     if not ok1 then
         local vlist2 = {}
-        local ok2 = pcall(function() getVehiclesInArea(me.getPosition(), 300, vlist2) end)
+        -- deliberate probe for a bare GLOBAL of this name (the fallback when er2.* is missing)
+        ---@diagnostic disable-next-line: undefined-global
+        local ok2 = pcall(function() getVehiclesInArea(me.getPosition(), 300, vlist2) end)  -- luacheck: ignore 113
         log("[BENCH]   getVehiclesInArea (global) = "..(ok2 and ("ok, found "..#vlist2) or "MISSING/err"))
         vlist = vlist2
     end

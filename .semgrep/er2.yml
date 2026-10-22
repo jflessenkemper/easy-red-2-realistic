@@ -1,0 +1,29 @@
+rules:
+  - id: er2-aiparams-property
+    languages: [lua]
+    severity: ERROR
+    message: ".aiParams as a property throws on ER2 v2.0.9 (20,689 errors once). Use getAiParams()."
+    pattern: $X.aiParams
+  - id: er2-soldier-suppressed-callback
+    languages: [lua]
+    severity: ERROR
+    message: "soldier_suppressed NREs inside the engine's own dispatch; pcall cannot catch it."
+    pattern: setCallback("soldier_suppressed", ...)
+  - id: er2-fill-api-no-table
+    languages: [lua]
+    severity: ERROR
+    message: "Fill-style API called with no table argument - throws on every call."
+    pattern-either:
+      - pattern: $S.getAllMembers()
+      - pattern: er2.getSoldiersInArea($P, $R)
+      - pattern: er2.getVehiclesInArea($P, $R)
+  - id: er2-diagnostic-flag-on
+    languages: [lua]
+    severity: ERROR
+    message: "Diagnostic flag must ship false (check 6)."
+    pattern-regex: '(?m)^local (DEBUG|VERBOSE|TELEMETRY|WATCH|TRACE_LOOP|PROBE_APIS|PROBE_GLOBALS|SHOWCASE_HUD)\s*=\s*true\b'
+  - id: er2-uid-modulo
+    languages: [lua]
+    severity: WARNING
+    message: "uid % N is degenerate (uids stride 262). Use math.floor(uid/2) % N."
+    pattern: uid % $N

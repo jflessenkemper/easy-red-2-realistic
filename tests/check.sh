@@ -8,7 +8,7 @@
 #
 # Usage:  tests/check.sh          (exit 0 = all pass)
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 PASS=0; FAIL=0
 ok()   { printf '  \033[32mPASS\033[0m  %s\n' "$1"; PASS=$((PASS+1)); }
@@ -91,8 +91,8 @@ echo "== 4b. Fill-style APIs are called WITH a table argument =="
 # not check. `grep -c` consumes all input, so there is no race.
 fill_bad=""
 for fn in getAllMembers getSoldiersInArea getVehiclesInArea; do
-  nb=$(strip "$BRAIN" | grep -cE "$fn[[:space:]]*\([[:space:]]*\)" || true)
-  np=$(strip "$PHASE" | grep -cE "$fn[[:space:]]*\([[:space:]]*\)" || true)
+  nb=$(strip "$BRAIN" | grep -cE "${fn}[[:space:]]*\([[:space:]]*\)" || true)
+  np=$(strip "$PHASE" | grep -cE "${fn}[[:space:]]*\([[:space:]]*\)" || true)
   [ "${nb:-0}" -gt 0 ] && fill_bad="$fill_bad $fn"
   [ "${np:-0}" -gt 0 ] && fill_bad="$fill_bad $fn(phase)"
 done
@@ -635,6 +635,25 @@ print("ok    all %d CYC.* functions called are defined (%d defined in total)"
       % (len(called), len(defined)))
 PY_CYC
 if [ $? -eq 0 ]; then ok "no CYC.* call without a definition"; else bad "a CYC.* function is called but not defined"; fi
+
+echo "== 10. Main-chunk local budget (Lua hard limit: 200) =="
+# The compiler is the oracle (tests/local_count.py): one top-level local past 200 fails compilation
+# and kills EVERY brain at load. Regex counting is wrong both ways, so this asks luajit directly.
+if command -v luajit >/dev/null 2>&1; then
+  if out=$(python3 tests/local_count.py "$BRAIN" "$PHASE" 2>&1); then
+    ok "$(echo "$out" | sed 's/^ok    //' | tr '\n' ' ')"
+  else
+    bad "$(echo "$out" | grep FAIL | head -1)"
+  fi
+else
+  echo "  SKIP  (needs luajit)"
+fi
+
+echo "== 11. Generator outputs match golden files =="
+if out=$(python3 tests/golden_check.py 2>&1); then ok "$(echo "$out" | sed -n 's/^ok    //p')"; else bad "golden: $(echo "$out" | grep -c FAIL) generator output(s) changed - review, then tests/golden_check.py --update"; fi
+
+echo "== 12. Eval scorer and evidence gate (synthetic fixtures) =="
+if out=$(python3 tests/eval_fixture_check.py 2>&1); then ok "$(echo "$out" | sed -n 's/^ok    //p')"; else bad "$(echo "$out" | head -1)"; fi
 
 echo
 echo "-------------------------------------------"

@@ -1,0 +1,7 @@
+{
+  "runtime.version": "LuaJIT",
+  "diagnostics.globals": ["er2","vec3","log","global","distance","sleep","myself","spawnMissionObjective","VoiceClip","spawnVehicle","spawnSquad","spawnSquad_script","spawnSquadOnVehicle_script","sayMissionClip"],
+  "diagnostics.disable": ["lowercase-global","unused-local","unused-vararg","redefined-local","trailing-space","empty-block","code-after-break","need-check-nil","undefined-field","inject-field","param-type-mismatch","assign-type-mismatch","cast-local-type","missing-parameter","redundant-parameter","undefined-doc-name"],
+  "workspace.library": [],
+  "workspace.ignoreDir": ["artifacts","missions","tests","spec","docs",".git"]
+}

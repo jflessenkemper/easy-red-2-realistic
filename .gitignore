@@ -2,3 +2,5 @@
 *.log
 shot.png
 __pycache__/
+artifacts/review/
+evidence/

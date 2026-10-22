@@ -1,0 +1,361 @@
+{
+ "_doc": "DERIVED from missions/showcase/stations.json by tools/gen_showcase_layout.py - do not hand-edit. cover = Trench 1 (confirmed). obstacle/resupply roles have only palette-read ids, so a default (confirmed) run SKIPS them; they are the optional layer.",
+ "ground_y": 1.00531,
+ "elements": [
+  {
+   "name": "S1 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    40.49,
+    180.49
+   ],
+   "yaw": 225
+  },
+  {
+   "name": "S2 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -240.11,
+    -24.41
+   ],
+   "yaw": 285
+  },
+  {
+   "name": "S2 cover",
+   "role": "cover",
+   "kind": "line",
+   "from": [
+    -244.59,
+    -46.32
+   ],
+   "to": [
+    -225.27,
+    -41.14
+   ],
+   "spacing": 10,
+   "yaw": 15
+  },
+  {
+   "name": "S2 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -221.47,
+    -93.96
+   ],
+   "yaw": 15
+  },
+  {
+   "name": "S3 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -43.41,
+    -39.11
+   ],
+   "yaw": 165
+  },
+  {
+   "name": "S3 cover",
+   "role": "cover",
+   "kind": "line",
+   "from": [
+    -60.14,
+    -24.27
+   ],
+   "to": [
+    -65.32,
+    -43.59
+   ],
+   "spacing": 10,
+   "yaw": 255
+  },
+  {
+   "name": "S3 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -132.27,
+    -15.29
+   ],
+   "yaw": 255
+  },
+  {
+   "name": "S4 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    57.49,
+    22.51
+   ],
+   "yaw": 135
+  },
+  {
+   "name": "S4 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    20.72,
+    59.28
+   ],
+   "yaw": 225
+  },
+  {
+   "name": "S5 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    46.89,
+    -82.41
+   ],
+   "yaw": 285
+  },
+  {
+   "name": "S5 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    70.71,
+    -171.27
+   ],
+   "yaw": 15
+  },
+  {
+   "name": "S6 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -46.0,
+    -159.0
+   ],
+   "yaw": 180
+  },
+  {
+   "name": "S6 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -143.0,
+    -159.0
+   ],
+   "yaw": 270
+  },
+  {
+   "name": "S7 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -132.0,
+    295.0
+   ],
+   "yaw": 0
+  },
+  {
+   "name": "S7 cover",
+   "role": "cover",
+   "kind": "line",
+   "from": [
+    -112.0,
+    275.0
+   ],
+   "to": [
+    -112.0,
+    295.0
+   ],
+   "spacing": 10,
+   "yaw": 90
+  },
+  {
+   "name": "S7 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -30.0,
+    295.0
+   ],
+   "yaw": 90
+  },
+  {
+   "name": "S8 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    75.51,
+    294.49
+   ],
+   "yaw": 315
+  },
+  {
+   "name": "S8 cover",
+   "role": "cover",
+   "kind": "line",
+   "from": [
+    82.59,
+    273.27
+   ],
+   "to": [
+    96.73,
+    287.41
+   ],
+   "spacing": 10,
+   "yaw": 45
+  },
+  {
+   "name": "S8 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    147.64,
+    222.36
+   ],
+   "yaw": 45
+  },
+  {
+   "name": "S9 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    151.51,
+    -49.49
+   ],
+   "yaw": 45
+  },
+  {
+   "name": "S9 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    223.64,
+    22.64
+   ],
+   "yaw": 135
+  },
+  {
+   "name": "S10 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    125.41,
+    109.89
+   ],
+   "yaw": 15
+  },
+  {
+   "name": "S10 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    223.93,
+    136.29
+   ],
+   "yaw": 105
+  },
+  {
+   "name": "S11 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -210.0,
+    232.39
+   ],
+   "yaw": 240
+  },
+  {
+   "name": "S11 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -238.5,
+    183.03
+   ],
+   "yaw": 330
+  },
+  {
+   "name": "S12 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -282.0,
+    81.0
+   ],
+   "yaw": 0
+  },
+  {
+   "name": "S12 cover",
+   "role": "cover",
+   "kind": "line",
+   "from": [
+    -262.0,
+    71.0
+   ],
+   "to": [
+    -262.0,
+    91.0
+   ],
+   "spacing": 10,
+   "yaw": 90
+  },
+  {
+   "name": "S12 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -180.0,
+    81.0
+   ],
+   "yaw": 90
+  },
+  {
+   "name": "S13 marker",
+   "role": "cover",
+   "kind": "point",
+   "at": [
+    -73.89,
+    91.41
+   ],
+   "yaw": 105
+  },
+  {
+   "name": "S13 far wire",
+   "role": "obstacle",
+   "kind": "point",
+   "at": [
+    -100.29,
+    189.93
+   ],
+   "yaw": 195
+  },
+  {
+   "name": "B1 board",
+   "role": "resupply",
+   "kind": "point",
+   "at": [
+    -28,
+    91
+   ],
+   "yaw": 0
+  },
+  {
+   "name": "B2 board",
+   "role": "resupply",
+   "kind": "point",
+   "at": [
+    -3,
+    66
+   ],
+   "yaw": 0
+  },
+  {
+   "name": "B3 board",
+   "role": "resupply",
+   "kind": "point",
+   "at": [
+    -53,
+    66
+   ],
+   "yaw": 0
+  }
+ ]
+}

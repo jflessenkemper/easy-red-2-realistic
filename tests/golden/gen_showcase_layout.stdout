@@ -1,0 +1,2 @@
+wrote data/props/layout_showcase.json and missions/showcase/tx_data_objects.er2f
+ok    showcase: 13 stations + 3 boards cover 32 features, all units <= 247 m of spawn (limit 250), min cross-station gap 120.0 m (need 115), 27 props byte round-trip, confirmed ids only
