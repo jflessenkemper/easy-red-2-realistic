@@ -27,6 +27,9 @@ jobs:
           mkdir -p "$HOME/.local/opt/luals" "$HOME/.local/bin"
           curl -sSL "https://github.com/LuaLS/lua-language-server/releases/download/${LUALS_VERSION}/lua-language-server-${LUALS_VERSION}-linux-x64.tar.gz" | tar xz -C "$HOME/.local/opt/luals"
           ln -sf "$HOME/.local/opt/luals/bin/lua-language-server" "$HOME/.local/bin/lua-language-server"
+          mkdir -p "$HOME/.local/share/er2-review"
+          curl -sSL -o "$HOME/.local/share/er2-review/plotly-2.35.2.min.js" https://cdn.plot.ly/plotly-2.35.2.min.js
+          echo "6d21266ce1bd7d9e5ab4e115989c70c20de0382fd973a8f26ab58619eba4d603  $HOME/.local/share/er2-review/plotly-2.35.2.min.js" | sha256sum -c -
       - name: Review gate (tests/review.sh)
         run: bash tests/review.sh
       - name: Mutation score (advisory)

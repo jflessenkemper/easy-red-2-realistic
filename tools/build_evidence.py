@@ -97,9 +97,22 @@ def feature_page(f, ctx):
     mut = ctx["mutation"]
     mut_s = ("Project-wide pure-logic mutation score: <b>%s%%</b> (%s/%s killed). See RELEASE-READINESS.md." % (mut["score"], mut["killed"], mut["total"])) if mut else "<span class=na>tools/mutate.py not run yet</span>"
     evs = ctx["eval"].get(f["id"])
-    evrows = "".join("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (E(c["type"]), E(c["verdict"]), E(c["detail"])) for c in (evs["criteria"] if evs else []))
+    evrows = "".join("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (E(c["type"]), E(c["verdict"]), E(c["detail"])) for c in (evs["criteria"] if evs else []) if not c["type"].startswith("slog_"))
     crit = "".join("<li>%s</li>" % E(json.dumps(c)) for c in f["eval"])
     ab = ev.get("ab_result")
+    reps = ["<li><a href='../%s'>%s</a> <span class=pill>real run</span></li>" % (E(r["path"]), E(r.get("label", r["path"])))
+            for r in ev.get("replays", []) if not r.get("synthetic") and os.path.isfile(os.path.join(ROOT, r["path"]))]
+    demo = os.path.join(OUT, "replays", "synthetic-demo.html")
+    if os.path.isfile(demo):
+        reps.append("<li><a href='replays/synthetic-demo.html'>Synthetic demo replay</a> <span class=pill>SYNTHETIC</span> "
+                    "<span class=sub>hand-scripted fixture: shows what this view will look like; NOT evidence</span></li>")
+    srows = "".join("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (E(c["type"]), E(c["verdict"]), E(c["detail"]))
+                    for c in (evs["criteria"] if evs else []) if c["type"].startswith("slog_"))
+    slog = ("<ul>%s</ul>" % "".join("<li>%s</li>" % E(json.dumps(c)) for c in f.get("eval_slog", []))) if f.get("eval_slog") else \
+        "<p class=na>No state-log criterion for this feature yet.</p>"
+    if srows: slog += "<p class=sub>Scored on the <b>synthetic</b> state log (run a). Proves the scorer only.</p><table><tr><th>type</th><th>verdict</th><th>detail</th></tr>%s</table>" % srows
+    replays = "<h2>Data replay</h2><div class=glass><ul>%s</ul>%s<p class=sub>Real replays need a run with the state logger (branch <code>feature/state-logger</code>, TELEMETRY on): <code>tools/slog.py extract</code> then <code>tools/replay_viz.py</code>. Add the path to <code>evidence.replays</code> by hand.</p><h3>State-log criteria</h3>%s</div>" % (
+        "".join(reps) or "<li class=na>none</li>", "" if any("real run" in r for r in reps) else "<p class=na>No real-run replay yet.</p>", slog)
     body = """<p><a href=index.html>&larr; All features</a></p>
 <h1>%s &nbsp;%s</h1><p class=sub>Feature %s &middot; branch <code>%s</code></p>
 <div class=glass><b>Expected behaviour.</b> %s<br><span class=sub>%s</span></div>
@@ -109,10 +122,10 @@ def feature_page(f, ctx):
 <h2>Eval criteria</h2><div class=glass><ul>%s</ul>
 <p class=sub>Scored below against the <b>synthetic</b> fixture only &mdash; proves the scorer, not the mod.</p>
 <table><tr><th>type</th><th>verdict</th><th>detail</th></tr>%s</table></div>
-<h2>A/B result</h2><div class=glass>%s</div>""" % (
+<h2>A/B result</h2><div class=glass>%s</div>%s""" % (
         E(f["name"]), badge(f["status"]), E(f["id"]), E(f["branch"]), E(f["expected"]), E(f["note"]),
         media, shots, tests, ctx["lint_line"], mut_s, crit, evrows,
-        E(ab) if ab else "<span class=na>Pending: tools/ab_compare.py protocol, needs the game (not run).</span>")
+        E(ab) if ab else "<span class=na>Pending: tools/ab_compare.py protocol, needs the game (not run).</span>", replays)
     return page("%s — %s" % (f["id"], f["name"]), body)
 
 GO = [
@@ -134,8 +147,13 @@ def main():
     review = jload(os.path.join(REV, "review.json"), {}) or {}
     mutation = jload(os.path.join(REV, "mutation.json"))
     evj = jload(os.path.join(REV, "eval_synthetic.json"), {}) or {}
-    ctx = {"busted": busted_results(), "mutation": mutation,
-           "eval": {x["id"]: x for x in evj.get("features", [])}}
+    evs = jload(os.path.join(REV, "eval_slog_synthetic.json"), {}) or {}
+    evmap = {x["id"]: x for x in evj.get("features", [])}
+    for x in evs.get("features", []):   # append the slog criteria scored on the synthetic state log
+        sl = [c for c in x["criteria"] if c["type"].startswith("slog_")]
+        if x["id"] in evmap: evmap[x["id"]] = dict(evmap[x["id"]], criteria=[c for c in evmap[x["id"]]["criteria"] if not c["type"].startswith("slog_")] + sl)
+        else: evmap[x["id"]] = dict(x, criteria=sl)
+    ctx = {"busted": busted_results(), "mutation": mutation, "eval": evmap}
     lint = [(k, review.get(k)) for k in ("luacheck", "luals", "semgrep", "locals", "ruff", "shellcheck")]
     ctx["lint_line"] = " ".join("<span class=pill>%s: %s</span>" % (k, (v or {}).get("status", "not run")) for k, v in lint)
     os.makedirs(OUT, exist_ok=True)

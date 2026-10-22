@@ -26,8 +26,11 @@ What it does
   7. encodes small mp4 + gif into docs/clips/
 
 Usage
-  python3 tools/capture_clips.py --dry-run     # everything except the game
-  python3 tools/capture_clips.py
+  python3 tools/capture_clips.py --dry-run --eval run_eval.json   # everything except the game
+  python3 tools/capture_clips.py --eval run_eval.json
+
+EVAL GATE (2026-10-23): a clip is recorded only for shots whose features PASS in --eval, an
+eval_telemetry.py JSON from a real run (tools/clip_gate.py). Without --eval nothing is recorded.
 """
 
 import argparse
@@ -54,6 +57,10 @@ CLIPS = os.path.join(MOD, "docs", "clips")
 # the spectator keeps its subject near the middle.
 REGION = "560,300,800,450"
 FPS = 30  # Jordan 2026-10-23: evidence clips are 30 fps (was 6-14). Keep REGION/scale <=960 px wide.
+
+# shot -> the feature ids it is meant to show (clip_gate checks these against --eval)
+SHOT_FEATURES = {"squad-tactics": ["3", "4"], "transport": ["7"], "diorama-reset": ["20"],
+                 "casualty": ["16", "17"]}
 
 SHOTS = [
     # name            seconds  wait-log regex (None = record immediately)
@@ -134,9 +141,22 @@ def encode(name):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--eval", help="eval_telemetry.py JSON from a REAL run; shots whose features do "
+                    "not pass are skipped (tools/clip_gate.py)")
     ap.add_argument("--dry-run", action="store_true",
                     help="check every precondition and tool path; touch no game")
     args = ap.parse_args()
+
+    # --- eval gate first: no passing eval, no clip, no game launch ------------------
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import clip_gate
+    allowed = []
+    for name, _s, _w in SHOTS:
+        ok, why = clip_gate.check(SHOT_FEATURES.get(name, []) or ["?"], args.eval)
+        say("%s %s: %s" % ("gate ok " if ok else "gate NO", name, why))
+        if ok: allowed.append(name)
+    if not allowed:
+        sys.exit("REFUSING: no shot passed the eval gate, so nothing would be recorded")
 
     # --- preconditions, all of them, before anything is changed -----------------
     missing = [p for p in (ER2, RECORD, PROBE) if not os.path.exists(p)]
@@ -184,6 +204,8 @@ def main():
 
         made = []
         for name, secs, waitlog in SHOTS:
+            if name not in allowed:
+                continue
             # cycle to a different squad so the clips are not all the same men
             for _ in range(3):
                 run([ER2, "key", json.dumps({"key": "right"})])

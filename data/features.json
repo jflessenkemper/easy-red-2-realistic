@@ -1,5 +1,5 @@
 {
- "_doc": "SINGLE SOURCE OF TRUTH for feature status in the review pack (RELEASE-READINESS.md, evidence/). status is edited BY HAND ONLY. tools/build_evidence.py and spec/evidence_status_spec.lua refuse a status above baseline_status unless evidence.clip (a 30 fps clip under artifacts/) AND evidence.eval_pass (an eval_telemetry.py JSON with this feature passing) are both set.",
+ "_doc": "SINGLE SOURCE OF TRUTH for feature status in the review pack (RELEASE-READINESS.md, evidence/). status is edited BY HAND ONLY. tools/build_evidence.py and spec/evidence_status_spec.lua refuse a status above baseline_status unless evidence.clip (a 30 fps clip under artifacts/) AND evidence.eval_pass (an eval_telemetry.py JSON with this feature passing) are both set. eval_slog: criteria scored on the [SLOG] state log of the same run (NO-SLOG when absent, does not affect the verdict). evidence.replays: list of {path,label,synthetic} replay HTMLs; synthetic ones are demos, never evidence.",
  "features": [
   {
    "id": "1",
@@ -24,7 +24,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -53,7 +54,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -78,8 +80,27 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
-   }
+    "ab_result": null,
+    "replays": []
+   },
+   "eval_slog": [
+    {
+     "type": "slog_reaction",
+     "trigger": "suppressed",
+     "to": "PINNED",
+     "within": 2.0,
+     "frac": 0.6,
+     "min_n": 3
+    },
+    {
+     "type": "slog_reaction",
+     "trigger": "suppressed",
+     "then_ev": "went_prone",
+     "within": 3.0,
+     "frac": 0.5,
+     "min_n": 3
+    }
+   ]
   },
   {
    "id": "4",
@@ -106,7 +127,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -130,7 +152,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -157,7 +180,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -182,7 +206,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -207,7 +232,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -236,7 +262,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -260,7 +287,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -290,7 +318,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -315,7 +344,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -340,7 +370,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -369,7 +400,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -393,7 +425,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -418,7 +451,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -447,7 +481,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -472,8 +507,25 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
-   }
+    "ab_result": null,
+    "replays": []
+   },
+   "eval_slog": [
+    {
+     "type": "slog_reaction",
+     "trigger": "incapacitated",
+     "to": "MEDIC-sortie",
+     "within": 10.0,
+     "frac": 1.0,
+     "min_n": 1,
+     "scope": "any"
+    },
+    {
+     "type": "slog_event_min",
+     "ev": "healed",
+     "min": 1
+    }
+   ]
   },
   {
    "id": "17",
@@ -497,8 +549,16 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
-   }
+    "ab_result": null,
+    "replays": []
+   },
+   "eval_slog": [
+    {
+     "type": "slog_event_min",
+     "ev": "drag_start",
+     "min": 1
+    }
+   ]
   },
   {
    "id": "18",
@@ -527,7 +587,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -552,7 +613,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -577,7 +639,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -602,7 +665,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -624,7 +688,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -646,7 +711,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -669,7 +735,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -691,7 +758,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -716,7 +784,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -739,7 +808,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -763,7 +833,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -788,7 +859,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -811,7 +883,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -835,7 +908,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -860,7 +934,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -884,7 +959,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -908,7 +984,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -932,7 +1009,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -956,7 +1034,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -980,7 +1059,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -1004,7 +1084,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   },
   {
@@ -1028,8 +1109,16 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
-   }
+    "ab_result": null,
+    "replays": []
+   },
+   "eval_slog": [
+    {
+     "type": "slog_event_min",
+     "ev": "rode_tank",
+     "min": 1
+    }
+   ]
   },
   {
    "id": "B9",
@@ -1052,7 +1141,8 @@
     "clip": null,
     "screenshots": [],
     "eval_pass": null,
-    "ab_result": null
+    "ab_result": null,
+    "replays": []
    }
   }
  ]

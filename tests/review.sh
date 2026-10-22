@@ -86,6 +86,13 @@ echo "== R10. eval scorer on synthetic fixtures =="
 python3 tests/eval_fixture_check.py > "$OUT/evalfix.txt" 2>&1 && ok evalfix "$(sed -n 's/^ok    //p' "$OUT/evalfix.txt")" || bad evalfix "$(head -1 "$OUT/evalfix.txt")"
 python3 tools/eval_telemetry.py tests/fixtures/eval/synthetic_pass.trace --json "$OUT/eval_synthetic.json" > /dev/null 2>&1
 
+echo "== R10b. state-log pipeline on SYNTHETIC runs (contract, eval_slog, run_diff, clip gate, replay) =="
+mkdir -p "$OUT/slog" evidence/replays
+python3 tests/slog_check.py "$OUT/slog" --demo evidence/replays/synthetic-demo.html > "$OUT/slog.txt" 2>&1 \
+  && ok slog "$(sed -n 's/^ok    //p' "$OUT/slog.txt")" || bad slog "$(grep -m1 FAIL "$OUT/slog.txt" || tail -1 "$OUT/slog.txt")"
+python3 tools/eval_telemetry.py /dev/null --slog "$OUT/slog/synthetic_a.jsonl" --json "$OUT/eval_slog_synthetic.json" > /dev/null 2>&1
+python3 tools/run_diff.py "$OUT/slog/synthetic_a.jsonl" "$OUT/slog/synthetic_b.jsonl" > "$OUT/run_diff_synthetic.txt" 2>&1
+
 {
   echo "{"
   first=1
