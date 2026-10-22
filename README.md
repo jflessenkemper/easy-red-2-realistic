@@ -294,7 +294,7 @@ Recorded on `[TEST] Realistic Feature Range` with `tools/record.py` from the `ea
 These were captured at **2 fps** and look it. Capture cost is proportional to pixel area — a full
 1920×1080 frame costs ~660 ms — so a full-frame clip is inherently choppy; cropping with
 `--region` reaches ~14 fps and is how they should be re-shot. **They are due to be re-recorded at
-6–14 fps** before v1.5.0 is tagged; the files below are unchanged from v1.4.0. They are deliberately **not**
+30 fps, ≤960 px wide** before v1.5.0 is tagged; the files below are unchanged from v1.4.0. They are deliberately **not**
 motion-interpolated: these are evidence, and inventing intermediate frames to make evidence look
 smoother would misrepresent what the game actually did.
 Read these for what they are: **a clip shows motion, not a label.** The decision names in this

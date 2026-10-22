@@ -53,7 +53,7 @@ CLIPS = os.path.join(MOD, "docs", "clips")
 # Region crops the action while keeping the frame rate usable. Centre-ish, since
 # the spectator keeps its subject near the middle.
 REGION = "560,300,800,450"
-FPS = 9
+FPS = 30  # Jordan 2026-10-23: evidence clips are 30 fps (was 6-14). Keep REGION/scale <=960 px wide.
 
 SHOTS = [
     # name            seconds  wait-log regex (None = record immediately)
@@ -126,9 +126,9 @@ def encode(name):
          "-c:v", "libx264", "-crf", "30", "-preset", "slow",
          "-pix_fmt", "yuv420p", "-an", mp4])
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", mp4,
-         "-vf", "fps=6,scale=560:-1:flags=lanczos,palettegen", pal])
+         "-vf", "fps=30,scale=min(960\\,iw):-2:flags=lanczos,palettegen", pal])
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", mp4, "-i", pal,
-         "-lavfi", "fps=6,scale=560:-1:flags=lanczos[x];[x][1:v]paletteuse", gif])
+         "-lavfi", "fps=30,scale=min(960\\,iw):-2:flags=lanczos[x];[x][1:v]paletteuse", gif])
     return True
 
 

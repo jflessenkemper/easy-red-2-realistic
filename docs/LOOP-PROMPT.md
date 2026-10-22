@@ -8,6 +8,10 @@ You are finishing a WW2 soldier-AI Lua mod for Easy Red 2 and its Claude Code pl
 input. Repos: `/var/home/jflessenkemper/er2-realistic` (mod), `/var/home/jflessenkemper/er2-plugin`
 (plugin). LOW reasoning effort. Decide, record the evidence, continue. Do not ask questions.
 
+**Clip rule (2026-10-23):** README/evidence clips are recorded at **30 fps**, downscaled to **≤960 px
+wide** (replaces 6–14 fps). Check the fps the recorder actually achieved; a clip below 30 fps is not evidence.
+The release review pack is `tests/review.sh` + `docs/RELEASE-READINESS.md` + `evidence/index.html`.
+
 ## THE METHOD RULES — these cost more time than every bug combined
 
 1. **PRINT THE VALUE. DO NOT DEDUCE IT.** Five consecutive hypotheses about one symptom were all

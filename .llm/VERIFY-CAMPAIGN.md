@@ -93,6 +93,9 @@ corroboration a label lacks.
 
 - **22 Kill feed** and **24 Voice** (7 of 8 kinds) need the **screen**, not telemetry. Fold them
   into the clip-recording session instead, where the UI is on camera anyway.
+  **Clip rule (Jordan, 2026-10-23): evidence clips are 30 fps, downscaled to ≤960 px wide** (replaces
+  the old 6–14 fps target). The screenshot-loop backend of `record.py` tops out near 14 fps even on a
+  640×360 region, so 30 fps needs a real screen-capture backend - verify the actual fps it reports.
 - **2 Taking cover** is marked NOT PROVEN *and cannot be* — the engine owns cover selection. Leave
   it stated, do not attempt it.
 - **4b, 8, 12, 15, 17, 28** are partial `🔧` with reasons given. They need to stay honest, not be

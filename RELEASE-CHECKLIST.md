@@ -1,6 +1,7 @@
 # v1.5.0 release checklist — what still blocks the tag
 
 Status 2026-10-21. Do **not** tag until every box is ticked. Nothing here may be ticked from a
+Full review pack: [docs/RELEASE-READINESS.md](docs/RELEASE-READINESS.md) · gallery `evidence/index.html` (run `tests/review.sh`).
 green `check.sh` alone; it proves internal consistency, not behaviour.
 
 ## 1. Full static gate (offline, needs luajit)
@@ -17,7 +18,7 @@ green `check.sh` alone; it proves internal consistency, not behaviour.
 - [ ] Re-run `check.sh` green afterwards.
 
 ## 3. Clips (needs the game + screen)
-- [ ] Re-record README clips at **6–14 fps** with `record.py --region`, covering more than 3 of 29 features.
+- [ ] Re-record README clips at **30 fps** (Jordan, 2026-10-23; replaces 6–14 fps), downscaled to **≤960 px wide**, with `record.py --region`, covering more than 3 of 29 features.
 - [ ] In the same session, capture 22 (kill feed) and 24 (the 7 unconfirmed voice kinds).
 
 ## 4. Prop ids (needs the editor)

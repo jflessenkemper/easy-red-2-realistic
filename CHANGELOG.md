@@ -65,4 +65,4 @@ Blocked on [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md). Covers `v1.4.0..HEAD` (
 
 - `docs/verified-api.md` is from v2.0.9; the game is v2.1.0. Three reverse-engineered API claims
   have already been overturned by the official docs.
-- The README clips are still the 2 fps captures from v1.4.0, due to be re-recorded at 6–14 fps.
+- The README clips are still the 2 fps captures from v1.4.0, due to be re-recorded at 30 fps, ≤960 px wide (rule changed 2026-10-23 from 6–14 fps).
